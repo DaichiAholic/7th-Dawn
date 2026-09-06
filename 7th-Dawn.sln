@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37012.4
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "7th-Dawn", "7th-Dawn\7th-Dawn.csproj", "{2E2E4A91-D853-4DDB-96AD-360AAA77C5D9}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GDD", "GDD", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\7th-Dawn-GDD\Doc\gdd\00-concept.md = ..\..\7th-Dawn-GDD\Doc\gdd\00-concept.md
+		..\..\7th-Dawn-GDD\Doc\gdd\01-core-loop.md = ..\..\7th-Dawn-GDD\Doc\gdd\01-core-loop.md
+		..\..\7th-Dawn-GDD\Doc\gdd\02-scope-features.md = ..\..\7th-Dawn-GDD\Doc\gdd\02-scope-features.md
+		..\..\7th-Dawn-GDD\Doc\gdd\03-mechanics.md = ..\..\7th-Dawn-GDD\Doc\gdd\03-mechanics.md
+		..\..\7th-Dawn-GDD\Doc\gdd\04-class-diagram-1.md = ..\..\7th-Dawn-GDD\Doc\gdd\04-class-diagram-1.md
+		..\..\7th-Dawn-GDD\Doc\gdd\05-asset-list-pipeline-flow.md = ..\..\7th-Dawn-GDD\Doc\gdd\05-asset-list-pipeline-flow.md
+		..\..\7th-Dawn-GDD\Doc\gdd\05-asset-list.md = ..\..\7th-Dawn-GDD\Doc\gdd\05-asset-list.md
+		..\..\7th-Dawn-GDD\Doc\gdd\product-backlog-template.md = ..\..\7th-Dawn-GDD\Doc\gdd\product-backlog-template.md
+		..\..\7th-Dawn-GDD\README.md = ..\..\7th-Dawn-GDD\README.md
+		..\..\7th-Dawn-GDD\Doc\gdd\sprint-backlog-template.md = ..\..\7th-Dawn-GDD\Doc\gdd\sprint-backlog-template.md
+		..\..\7th-Dawn-GDD\Doc\gdd\sprint-plan-template.md = ..\..\7th-Dawn-GDD\Doc\gdd\sprint-plan-template.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2E2E4A91-D853-4DDB-96AD-360AAA77C5D9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2E2E4A91-D853-4DDB-96AD-360AAA77C5D9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2E2E4A91-D853-4DDB-96AD-360AAA77C5D9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2E2E4A91-D853-4DDB-96AD-360AAA77C5D9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {58F4D27A-1024-48EB-9196-751B33AB02D3}
+	EndGlobalSection
+EndGlobal
