@@ -35,13 +35,21 @@
 
 ## Tasks
 
-### Story 1 — [ชื่อย่อของ Story]
+### Story 1 — [Coding]
 
 - [ ] [BaseBuild]  [owner:: Patcharapakorn]  [estimate:: 3h]  [status:: 🔄 In Progress]
 - [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: 🔄 In Progress]
 - [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: 🔄 In Progress]
 - [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: 🔄 In Progress]
 - [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+
+### Story 2 — [Artist]
+
+- [ ] [BaseSprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [NPC sprite]  [owner::]  [estimate:: h  [status:: 🔄 In Progress]
+- [ ] [Enemy Sprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
 
 ---
 
