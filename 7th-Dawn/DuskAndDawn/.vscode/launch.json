@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
       {
-        "name": "C#: _7th_Dawn Debug",
+        "name": "C#: DuskAndDawn Debug",
         "type": "dotnet",
         "request": "launch",
-        "projectPath": "${workspaceFolder}/_7th_Dawn.csproj"
+        "projectPath": "${workspaceFolder}/DuskAndDawn.csproj"
       }
     ],
   }
