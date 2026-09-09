@@ -34,6 +34,11 @@ namespace DuskAndDawn
         public override void Initialize()
         {
             base.Initialize();
+
+            // Seeds with the real current mouse state instead of a blank default, so a click
+            // still held down from the previous screen doesn't read as a brand-new click here.
+            _previousMouse = Mouse.GetState();
+
             _acceptButton = new Button(new RectangleF(300, 450, 280, 70), "Accept");
             _declineButton = new Button(new RectangleF(650, 450, 280, 70), "Decline");
             _continueButton = new Button(new RectangleF(475, 550, 280, 70), "Continue");
@@ -43,7 +48,7 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
                 return;
             }
 
@@ -66,7 +71,7 @@ namespace DuskAndDawn
                 }
                 else if (_continueButton.Contains(mouse.X, mouse.Y))
                 {
-                    ScreenManager.ShowScreen(new BaseBuilding(Game, _playerState));
+                    ScreenManager.ShowScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
                 }
             }
 
@@ -88,7 +93,7 @@ namespace DuskAndDawn
             }
             else
             {
-                _resultLog = "You can't afford that — the deal falls through.";
+                _resultLog = "You can't afford that - the deal falls through.";
             }
         }
 

@@ -32,6 +32,10 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
+            // Seeds with the real current mouse state instead of a blank default, so a click
+            // still held down from the previous screen doesn't read as a brand-new click here.
+            _previousMouse = Mouse.GetState();
+
             _weaponButtons.Clear();
             for (int i = 0; i < _playerState.Inventory.Count; i++)
             {
@@ -46,7 +50,7 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
                 return;
             }
 
@@ -70,7 +74,7 @@ namespace DuskAndDawn
 
                 if (hitStart)
                 {
-                    ScreenManager.ShowScreen(new NightScavengingScreen(Game, _playerState));
+                    ScreenManager.ShowScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
                 }
             }
 
@@ -79,7 +83,7 @@ namespace DuskAndDawn
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(new Color(15, 15, 25)); 
+            GraphicsDevice.Clear(new Color(15, 15, 25));
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;

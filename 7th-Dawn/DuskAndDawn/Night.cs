@@ -25,9 +25,19 @@ namespace DuskAndDawn
         Items
     }
 
+    /// <summary>
+    /// A bar whose displayed value smoothly chases a real target value over time, instead of
+    /// snapping to it instantly. Use this for anything you want to feel "juicy" when it
+    /// changes (health bars) - keep plain instant bars (like the dawn clock) for things that
+    /// should read as exact/immediate instead.
+    ///
+    /// This only affects rendering - it never touches the real value (PlayerState.Health,
+    /// Enemy.Health, etc.), which stays instant for game logic. Call Update() once per frame
+    /// with the current real value, then read Ratio when drawing.
+    /// </summary>
     public class LerpBar
     {
-        private const float CatchUpSpeed = 2f; // higher = the bar catches up to the real value faster
+        private const float CatchUpSpeed = 4f; // higher = the bar catches up to the real value faster
 
         public float DisplayedValue { get; private set; }
         public float MaxValue { get; }
@@ -45,14 +55,19 @@ namespace DuskAndDawn
             DisplayedValue = MathHelper.Lerp(DisplayedValue, targetValue, t);
         }
 
-       
+        /// <summary>0-1 fill ratio, ready to multiply against a bar's max width.</summary>
         public float Ratio => MaxValue <= 0 ? 0f : MathHelper.Clamp(DisplayedValue / MaxValue, 0f, 1f);
     }
 
+    /// <summary>
+    /// A 2-line action log: the newest message shows bright and steady; the previous one
+    /// drifts upward and dims as the new one arrives, then vanishes outright the moment a
+    /// third message pushes it out - there's only ever one "fading" slot, no stacking history.
+    /// </summary>
     public class TextLog
     {
-        private const float RiseSpeed = 18f;  
-        private const float FadeSpeed = 0.6f; 
+        private const float RiseSpeed = 18f;  // pixels/second the fading line drifts upward
+        private const float FadeSpeed = 0.6f; // alpha lost per second
 
         private string _current = "";
         private string _fading = "";
@@ -63,10 +78,10 @@ namespace DuskAndDawn
         {
             if (string.IsNullOrEmpty(message)) return;
 
-            _fading = _current;   
+            _fading = _current;   // whatever was current becomes the dimming line...
             _fadeAlpha = 1f;
             _fadeOffset = 0f;
-            _current = message;  
+            _current = message;   // ...and the new message takes the bright slot
         }
 
         public void Update(GameTime gameTime)
@@ -78,7 +93,8 @@ namespace DuskAndDawn
             _fadeOffset += RiseSpeed * dt;
         }
 
-
+        /// <summary>Draws the current (bright) line at basePosition, and the fading (dim,
+        /// rising) line above it while it's still visible.</summary>
         public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition)
         {
             if (_fadeAlpha > 0f && !string.IsNullOrEmpty(_fading))
@@ -94,7 +110,11 @@ namespace DuskAndDawn
         }
     }
 
-
+    /// <summary>
+    /// Phase 2: Night Scavenging. No player movement - a branching minimap you click through,
+    /// a dawn clock ticking down per action (not real time), and dice-roll combat. This is
+    /// where the dawn clock, room generation, and combat all interact.
+    /// </summary>
     public class NightScavengingScreen : GameScreen
     {
         private Game1 Game1 => (Game1)Game;
@@ -106,7 +126,7 @@ namespace DuskAndDawn
 
         private DawnTimer _dawnTimer;
         private NightMap _map;
-        private int _currentDepth; 
+        private int _currentDepth; // index of the next layer the player can click into
 
         private ExplorationState _state = ExplorationState.Map;
         private readonly TextLog _textLog = new TextLog();
@@ -116,16 +136,16 @@ namespace DuskAndDawn
         private Button _headBackButton;
         private MouseState _previousMouse;
 
-
+        // Animated health bars - see LerpBar.cs
         private LerpBar _playerHealthBar;
         private LerpBar _enemyHealthBar;
 
-
+        // Combat sub-state
         private CombatEncounter _activeCombat;
         private CombatMenu _combatMenu = CombatMenu.TopLevel;
         private readonly List<Button> _combatButtons = new List<Button>();
 
-
+        // Supplies sub-state
         private List<ChoiceOption> _suppliesOptions;
         private readonly List<Button> _suppliesButtons = new List<Button>();
 
@@ -138,7 +158,11 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
-            _playerState.Health = _playerState.MaxHealth;
+            // Seeds with the real current mouse state instead of a blank default, so a click
+            // still held down from the previous screen doesn't read as a brand-new click here.
+            _previousMouse = Mouse.GetState();
+
+            _playerState.Health = _playerState.MaxHealth; // rested at the base - full health tonight
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 
             _dawnTimer = new DawnTimer(startingBudget: 10);
@@ -167,14 +191,15 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
                 return;
             }
 
             var mouse = Mouse.GetState();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
 
-
+            // Bars animate every frame regardless of state, so they keep catching up even
+            // right after combat ends or an item heals you.
             _playerHealthBar.Update(gameTime, _playerState.Health);
             _textLog.Update(gameTime);
             if (_activeCombat != null)
@@ -250,7 +275,7 @@ namespace DuskAndDawn
 
         private void GoToDawnReturn()
         {
-            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _currentDepth));
+            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _currentDepth), ScreenTransitions.Fade(GraphicsDevice));
         }
 
         // ---------- Encounter (combat) ----------
@@ -362,17 +387,9 @@ namespace DuskAndDawn
 
         private void EndCombat(bool fled)
         {
-            if (!fled)
+            if (!fled && _activeCombat.PlayerWon)
             {
-                if (_activeCombat.PlayerWon)
-                {
-                    _roomsCleared++;
-                    _playerState.ChangeHope(2);
-                }
-                else
-                {
-                    _playerState.ChangeHope(-15);
-                }
+                _roomsCleared++;
             }
 
             _activeCombat = null;
@@ -416,8 +433,8 @@ namespace DuskAndDawn
                     state.AddResources(food: rng.Next(3, 7), planks: rng.Next(2, 5), scraps: rng.Next(2, 5));
                     if (rng.Next(100) < 30)
                     {
-                        state.ChangeHope(-5);
-                        return "You find a good haul, but the noise costs you some nerve.";
+                        state.Health = Math.Max(1, state.Health - 8);
+                        return "You find a good haul, but the noise draws something - it clips you on the way out.";
                     }
                     return "You find a good haul and slip away clean.";
                 }),
@@ -453,8 +470,10 @@ namespace DuskAndDawn
         {
             if (_random.Next(100) < 50)
             {
-                _playerState.ChangeHope(10);
-                _textLog.Push("A moment of quiet beauty in the dark. Hope +10.");
+                int food = _random.Next(2, 5);
+                int planks = _random.Next(1, 4);
+                _playerState.AddResources(food: food, planks: planks);
+                _textLog.Push($"A moment of quiet beauty in the dark. You gather {food} Food and {planks} Planks.");
             }
             else
             {
@@ -471,7 +490,7 @@ namespace DuskAndDawn
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(new Color(8, 8, 14)); 
+            GraphicsDevice.Clear(new Color(8, 8, 14)); // night: dark and safe by design
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
@@ -563,7 +582,8 @@ namespace DuskAndDawn
 
         private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
         {
-
+            // Small persistent reminder of where you are in tonight's map, even mid-fight or
+            // mid-choice - a stand-in for the reference's parchment map-fragment icon.
             var box = new RectangleF(40, 610, 200, 90);
             spriteBatch.FillRectangle(box, new Color(55, 45, 30));
             spriteBatch.DrawRectangle(box, new Color(150, 120, 70), 2f);

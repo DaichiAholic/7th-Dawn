@@ -35,10 +35,11 @@ namespace DuskAndDawn
             SpriteBatch = new SpriteBatch(GraphicsDevice);
 
             Font = Content.Load<SpriteFont>("DefaultFont");
+            Font.Spacing = 2f;
 
             PlayerState = new PlayerState();
 
-            _screenManager.ShowScreen(new PreparationScreen(this, PlayerState));
+            _screenManager.ShowScreen(new BaseBuilding(this, PlayerState));
         }
     }
 }

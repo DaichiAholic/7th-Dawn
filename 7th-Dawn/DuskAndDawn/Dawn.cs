@@ -31,6 +31,11 @@ namespace DuskAndDawn
         public override void Initialize()
         {
             base.Initialize();
+
+            // Seeds with the real current mouse state instead of a blank default, so a click
+            // still held down from the previous screen doesn't read as a brand-new click here.
+            _previousMouse = Mouse.GetState();
+
             _continueButton = new Button(new RectangleF(490, 500, 300, 70), "Continue to Morning");
         }
 
@@ -38,14 +43,14 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
                 return;
             }
 
             var mouse = Mouse.GetState();
             if (InputChecker.IsNewLeftClick(mouse, _previousMouse) && _continueButton.Contains(mouse.X, mouse.Y))
             {
-                ScreenManager.ShowScreen(new DawnEventsScreen(Game, _playerState));
+                ScreenManager.ShowScreen(new DawnEventsScreen(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
             }
             _previousMouse = mouse;
         }
@@ -60,7 +65,6 @@ namespace DuskAndDawn
 
             spriteBatch.DrawString(font, $"Rooms resolved: {_roomsCleared} / {_roomsVisited}", new Vector2(300, 280), Color.Black);
             spriteBatch.DrawString(font, $"Food: {_playerState.Food}   Planks: {_playerState.Planks}   Scraps: {_playerState.Scraps}", new Vector2(300, 320), Color.Black);
-            spriteBatch.DrawString(font, $"Hope: {_playerState.Hope}/{PlayerState.MaxHope}", new Vector2(300, 360), Color.Black);
 
             spriteBatch.FillRectangle(_continueButton.Bounds, new Color(90, 90, 140));
             spriteBatch.DrawRectangle(_continueButton.Bounds, Color.White, 2f);

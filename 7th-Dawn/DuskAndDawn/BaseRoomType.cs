@@ -11,9 +11,8 @@ namespace DuskAndDawn
         Storage,
         Workshop,
         Infirmary,
-        Hearth,
-        FungalGarden,
-        Dormitory,
+        Kitchen,
+        Barrack,
         Archive
     }
 }

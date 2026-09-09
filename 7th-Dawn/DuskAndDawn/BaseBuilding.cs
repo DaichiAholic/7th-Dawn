@@ -21,7 +21,7 @@ namespace DuskAndDawn
         private static readonly BaseRoomType[] AllRooms =
         {
             BaseRoomType.Storage, BaseRoomType.Workshop, BaseRoomType.Infirmary,
-            BaseRoomType.Hearth, BaseRoomType.FungalGarden, BaseRoomType.Dormitory,
+            BaseRoomType.Kitchen, BaseRoomType.Barrack,
             BaseRoomType.Archive
         };
 
@@ -70,7 +70,7 @@ namespace DuskAndDawn
 
                 if (_endDayButton.Contains(mouse.X, mouse.Y))
                 {
-                    ScreenManager.ShowScreen(new PreparationScreen(Game, _playerState));
+                    ScreenManager.ShowScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
                 }
             }
 
@@ -107,9 +107,8 @@ namespace DuskAndDawn
                 BaseRoomType.Storage => (0, 3 * tier, 3 * tier),
                 BaseRoomType.Workshop => (0, 2 * tier, 4 * tier),
                 BaseRoomType.Infirmary => (3 * tier, 0, 3 * tier),
-                BaseRoomType.Hearth => (6 * tier, 0, 0),
-                BaseRoomType.FungalGarden => (3 * tier, 3 * tier, 0),
-                BaseRoomType.Dormitory => (0, 6 * tier, 0),
+                BaseRoomType.Kitchen => (6 * tier, 0, 0),
+                BaseRoomType.Barrack => (3 * tier, 3 * tier, 0),
                 BaseRoomType.Archive => (0, 0, 6 * tier),
                 _ => (0, 0, 0)
             };
