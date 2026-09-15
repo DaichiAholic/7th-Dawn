@@ -10,7 +10,7 @@
 
 **Sprint Goal:** [ทำ prototype gameplay loop]
 **ระยะเวลา:** [9/8] — [12/8]
-**Team:** [รายชื่อ]
+**Team:** [ราชาบัลลังคุกกี้]
 
 ---
 
@@ -23,6 +23,9 @@
 | 3 | ทำ NightExplore.cs  | Patcharapakorn     | Must Have | 5             | 🔄 In Progress |
 | 4 | ทำ Weapon/Item.cs   | Patcharapakorn     | Must Have | 2             | 🔄 In Progress |
 | 5 | ทำ Enemy/Battle.cs  | Patcharapakorn     | Must Have | 4             | 🔄 In Progress |
+| # | User Story                                                                | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status          |
+| - | ------------------------------------------------------------------------- | ------------------ | --------- | ------------- | --------------- |
+| 1 | [As a player, I want to upgrade my base, so that I can get more benefits] | [ปีรติ]       | Must Have | [4]           | 🔲 In Progress |
 
 ## Status Legend
 
@@ -50,6 +53,10 @@
 - [ ] [Enemy Sprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+### Story 1 — [Game Screens]
+
+- [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 12h]  [status:: In Progress]
+- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 12h]  [status::In Progress]
 
 ---
 
@@ -57,9 +64,10 @@
 
 ### [วันที่]
 
-**เมื่อวาน:** ...
-**วันนี้:** ...
-**Blocked:** ...
+
+**เมื่อวาน:วางแผนการวาดฐาน
+**วันนี้: วาดฐานแบบคร่าวๆ**
+**Blocked: -****
 
 ---
 
