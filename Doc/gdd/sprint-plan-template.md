@@ -38,6 +38,7 @@
 | 3 | As a player, I want to see my remaining health, so that I know how close I am to game over | [ปริญญากร] | Should Have | 5             | 🔲 Todo        |
 
 ## Status Legend
+
 - 🔲 Todo
 - 🔄 In Progress
 - ✅ Done
