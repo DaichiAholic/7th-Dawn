@@ -8,9 +8,9 @@
 
 # Sprint [1] Plan
 
-**Sprint Goal:** [ทำ prototype gameplay loop]
-**ระยะเวลา:** [9/8] — [12/8]
-**Team:** [ราชาบัลลังคุกกี้]
+**Sprint Goal:** [เป้าหมายหลักของ Sprint นี้ในหนึ่งประโยค]
+**ระยะเวลา:** [วันที่เริ่ม] — [วันที่สิ้นสุด]
+**Team:** [รายชื่อ]
 
 ---
 
@@ -26,8 +26,14 @@
 | # | User Story                                                                | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------- | ------------------ | --------- | ------------- | --------------- |
 | 1 | [As a player, I want to upgrade my base, so that I can get more benefits] | [ปีรติ]       | Must Have | [4]           | 🔲 In Progress |
+| # | User Story   | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status         |
+| - | ------------ | ------------------ | --------- | ------------- | -------------- |
+| 1 | UI design    | [อิสยาห์]   | Must Have | 3h            | 🔄 In Progress |
+| 2 | Sound design | [อิสยาห์]   | Must Have | 4h            | 🔲 Todo        |
+| 3 | Story design | [อิสยาห์]   | Must Have | 12h           | 🔲 Todo        |
 
 ## Status Legend
+
 
 - 🔲 Todo
 - 🔄 In Progress
@@ -57,6 +63,17 @@
 
 - [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 12h]  [status:: In Progress]
 - [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 12h]  [status::In Progress]
+# Story 1 — [UI Design]
+
+- [ ] [UI design]  [owner:: อิสยาห์]  [estimate:: 3h]  [Domain:: designer] [status:: In Progress]
+
+# Story 2 — [Sound Design]
+
+* [ ] [Sound design]  [owner:: อิสยาห์]  [estimate:: 4h] [Domain:: designer] [status:: todo]
+
+# Story 3 — [Story git statusDesign]
+
+* [ ] [Story design]  [owner:: อิสยาห์]  [estimate:: 12h] [Domain:: designer] [status:: todo]
 
 ---
 
@@ -68,10 +85,16 @@
 **เมื่อวาน:วางแผนการวาดฐาน
 **วันนี้: วาดฐานแบบคร่าวๆ**
 **Blocked: -****
+### [8/9/2569]
+
+**เมื่อวาน:ตรวจดูงานที่ต้อง จัดลำดับการทำงาน โดยเลือกเริ่มที่ UI รวบรวมจัดเป็น list รายการ ui ที่ต้องการ
+**วันนี้:** ... เริ่มรวบรวม ref ui เพื่อส่งงานต่อให้ฝ่าย artist
+**Blocked:** ...
 
 ---
 
 ## Links
+
 
 - [[docs/gdd/00-concept|GDD Concept]]
 - [[docs/agile/01-product-backlog|Product Backlog]]
