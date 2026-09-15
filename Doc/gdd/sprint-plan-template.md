@@ -6,24 +6,38 @@
 
 <!-- Sprint 2-4 ในแลปถัดไป: คัดลอกไฟล์นี้ทั้งไฟล์ไปสร้าง sprint-plan-02.md, sprint-plan-03.md, sprint-plan-04.md ตามลำดับ -->
 
-# Sprint [N] Plan
+# Sprint [1] Plan
 
-**Sprint Goal:** [well done]
+**Sprint Goal:** [เป้าหมายหลักของ Sprint นี้ในหนึ่งประโยค]
 **ระยะเวลา:** [2026-09-01] — [2026-09-14]
-**Team:** [ราชัลบัลลังก์คุกกี้]
+**Team:** [ราชันบัลลังคุกกี้]
 
 ---
 
 ## Sprint Backlog
 
+| # | User Story            | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status          |
+| - | --------------------- | ------------------ | --------- | ------------- | --------------- |
+| 1 | ทำ BaseBuild.cs     | [Patcharapakorn]   | Must Have | 4             | 🔄 In Progress |
+| 2 | ทำ Event/choices.cs | Patcharapakorn     | Must Have | 3             | 🔄 In Progress |
+| 3 | ทำ NightExplore.cs  | Patcharapakorn     | Must Have | 5             | 🔄 In Progress |
+| 4 | ทำ Weapon/Item.cs   | Patcharapakorn     | Must Have | 2             | 🔄 In Progress |
+| 5 | ทำ Enemy/Battle.cs  | Patcharapakorn     | Must Have | 4             | 🔄 In Progress |
+| # | User Story                                                                | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status          |
+| - | ------------------------------------------------------------------------- | ------------------ | --------- | ------------- | --------------- |
+| 1 | [As a player, I want to upgrade my base, so that I can get more benefits] | [ปีรติ]       | Must Have | [4]           | 🔲 In Progress |
 | # | User Story   | รับผิดชอบ | MoSCoW    | Estimate (SP) | Status         |
 | - | ------------ | ------------------ | --------- | ------------- | -------------- |
 | 1 | UI design    | [อิสยาห์]   | Must Have | 3h            | 🔄 In Progress |
 | 2 | Sound design | [อิสยาห์]   | Must Have | 4h            | 🔲 Todo        |
 | 3 | Story design | [อิสยาห์]   | Must Have | 12h           | 🔲 Todo        |
+| # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status         |
+| - | ------------------------------------------------------------------------------------------ | ------------------ | ----------- | ------------- | -------------- |
+| 1 | As a designer, I want have wide variation of enemies, so that player would find new enemy  | [ปริญญากร] | Must Have   | 4             | 🔲 Todo        |
+| 2 | As a player, I want to interact with NPC, so that I can have conversation or interaction   | [ปริญญากร] | Should Have | 3             | 🔄 In Progress |
+| 3 | As a player, I want to see my remaining health, so that I know how close I am to game over | [ปริญญากร] | Should Have | 5             | 🔲 Todo        |
 
 ## Status Legend
-
 - 🔲 Todo
 - 🔄 In Progress
 - ✅ Done
@@ -33,6 +47,25 @@
 
 ## Tasks
 
+### Story 1 — [Coding]
+
+- [ ] [BaseBuild]  [owner:: Patcharapakorn]  [estimate:: 3h]  [status:: 🔄 In Progress]
+- [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: 🔄 In Progress]
+- [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: 🔄 In Progress]
+- [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: 🔄 In Progress]
+- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+
+### Story 2 — [Artist]
+
+- [ ] [BaseSprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [NPC sprite]  [owner::]  [estimate:: h  [status:: 🔄 In Progress]
+- [ ] [Enemy Sprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+### Story 1 — [Game Screens]
+
+- [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 12h]  [status:: In Progress]
+- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 12h]  [status::In Progress]
 # Story 1 — [UI Design]
 
 - [ ] [UI design]  [owner:: อิสยาห์]  [estimate:: 3h]  [Domain:: designer] [status:: In Progress]
@@ -46,18 +79,44 @@
 * [ ] [Story design]  [owner:: อิสยาห์]  [estimate:: 12h] [Domain:: designer] [status:: todo]
 
 ---
+### Story 1 — [Enemies Visual]
+
+* [ ] [Monsters Sprite]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 5 hours]  [status:: To do]
+
+### Story 2 — [Character Visual]
+
+1. [ ] [Characters Sprite]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 3 hours]  [status:: To do]
+2. [ ] [Characters Portrait] [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 10 hours] [status:: In Progress]
+
+
+
+### Story 3 — [Interface]
+
+* [ ] [UI/UX]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 6 hours]  [status:: To do]
 
 ## Daily Notes
 
+### [วันที่]
+
+
+**เมื่อวาน:วางแผนการวาดฐาน
+**วันนี้: วาดฐานแบบคร่าวๆ**
+**Blocked: -****
 ### [8/9/2569]
 
 **เมื่อวาน:ตรวจดูงานที่ต้อง จัดลำดับการทำงาน โดยเลือกเริ่มที่ UI รวบรวมจัดเป็น list รายการ ui ที่ต้องการ
 **วันนี้:** ... เริ่มรวบรวม ref ui เพื่อส่งงานต่อให้ฝ่าย artist
+### [วันที่ 8/9/2569]
+
+**เมื่อวาน:** วางโครง portrait ตัวละคร
+**วันนี้:** วาด Portrait ตัวละคร
 **Blocked:** ...
 
 ---
 
 ## Links
+
+
 
 - [[docs/gdd/00-concept|GDD Concept]]
 - [[docs/agile/01-product-backlog|Product Backlog]]
