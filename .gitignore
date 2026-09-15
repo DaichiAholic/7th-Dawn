@@ -1,0 +1,33 @@
+### Windows
+# Windows thumbnail cache files
+Thumbs.db
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows shortcuts
+*.lnk
+
+# ==========================================
+# Personal IDE & Temp (Added by Member)
+# ==========================================
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# ==========================================
+# Project Build Outputs & IDE Rules
+# ==========================================
+bin/
+obj/
+Content/bin/
+Content/obj/
+*.mgcontent
+.vs/
+*.user
+*.suo
