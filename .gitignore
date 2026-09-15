@@ -12,10 +12,22 @@ $RECYCLE.BIN/
 *.lnk
 
 # ==========================================
-# MonoGame Build Outputs (Added by Dev Lead)
+# Personal IDE & Temp (Added by Member)
+# ==========================================
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# ==========================================
+# Project Build Outputs & IDE Rules
 # ==========================================
 bin/
 obj/
 Content/bin/
 Content/obj/
 *.mgcontent
+.vs/
+*.user
+*.suo
