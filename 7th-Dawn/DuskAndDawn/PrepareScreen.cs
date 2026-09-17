@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended;
@@ -19,9 +19,6 @@ namespace DuskAndDawn
         private readonly List<Button> _weaponButtons = new List<Button>();
         private Button _startButton;
         private MouseState _previousMouse;
-
-        private int _clickCount;
-        private string _lastClickInfo = "no clicks yet";
 
         public PreparationScreen(Game game, PlayerState playerState) : base(game)
         {
@@ -50,31 +47,35 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice));
                 return;
             }
 
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var mouse = Mouse.GetState();
+
+            bool hitStart = _startButton.Contains(mouse.X, mouse.Y);
+            _startButton.UpdateAnimation(dt, hitStart);
+            for (int i = 0; i < _weaponButtons.Count; i++)
+            {
+                _weaponButtons[i].UpdateAnimation(dt, _weaponButtons[i].Contains(mouse.X, mouse.Y));
+            }
 
             if (InputChecker.IsNewLeftClick(mouse, _previousMouse))
             {
-
-                _clickCount++;
-                bool hitStart = _startButton.Contains(mouse.X, mouse.Y);
-                _lastClickInfo = $"click #{_clickCount} at ({mouse.X},{mouse.Y}) - inside Start button: {hitStart}";
-
-
                 for (int i = 0; i < _weaponButtons.Count; i++)
                 {
                     if (_weaponButtons[i].Contains(mouse.X, mouse.Y))
                     {
+                        _weaponButtons[i].TriggerPress();
                         _playerState.EquippedWeapon = _playerState.Inventory[i];
                     }
                 }
 
                 if (hitStart)
                 {
-                    ScreenManager.ShowScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
+                    _startButton.TriggerPress();
+                    ScreenManager.ShowScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                 }
             }
 
@@ -89,30 +90,56 @@ namespace DuskAndDawn
             var font = Game1.Font;
             spriteBatch.Begin();
 
-            spriteBatch.DrawString(font, "Choose your weapon", new Vector2(100, 190), Color.White);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(22, 20, 34), new Color(10, 9, 16), 10);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Choose your weapon", new Vector2(100, 190), Color.White);
 
             for (int i = 0; i < _weaponButtons.Count; i++)
             {
                 var weapon = _playerState.Inventory[i];
                 var button = _weaponButtons[i];
                 bool equipped = weapon == _playerState.EquippedWeapon;
+                float hover = button.HoverAmount;
 
-                spriteBatch.FillRectangle(button.Bounds, equipped ? new Color(120, 90, 40) : new Color(60, 60, 70));
-                spriteBatch.DrawRectangle(button.Bounds, equipped ? Color.Gold : Color.White, equipped ? 3f : 1f);
-                spriteBatch.DrawString(font, weapon.Name, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 10), Color.White);
-                spriteBatch.DrawString(font, weapon.DiceLabel, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 45), Color.LightGray);
+                Color top = equipped ? new Color(150, 112, 44) : new Color(66, 66, 78);
+                Color bottom = equipped ? new Color(110, 80, 28) : new Color(46, 46, 56);
+                Color border = equipped ? Color.Gold : Color.Lerp(Color.White * 0.6f, Color.White, hover);
+                float borderThickness = equipped ? 3f : MathHelper.Lerp(1.5f, 3f, hover);
+
+                if (!equipped && hover > 0f)
+                {
+                    top = UITheme.Brighten(top, hover * 0.2f);
+                    bottom = UITheme.Brighten(bottom, hover * 0.2f);
+                }
+
+                float squash = button.PressAmount * 3f;
+                var bounds = button.Bounds;
+                var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+                UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.6f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.Name, new Vector2(drawBounds.X + 10, drawBounds.Y + 10), Color.White);
+                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.DiceLabel, new Vector2(drawBounds.X + 10, drawBounds.Y + 45), new Color(215, 215, 215));
+                if (equipped)
+                {
+                    UITheme.DrawTextWithShadow(spriteBatch, font, "Equipped", new Vector2(drawBounds.X + 10, drawBounds.Y + drawBounds.Height - 32), new Color(255, 235, 190));
+                }
             }
 
-            spriteBatch.FillRectangle(_startButton.Bounds, new Color(80, 140, 90));
-            spriteBatch.DrawRectangle(_startButton.Bounds, Color.White, 2f);
-            spriteBatch.DrawString(font, _startButton.Label, new Vector2(_startButton.Bounds.X + 20, _startButton.Bounds.Y + 22), Color.White);
+            {
+                float hover = _startButton.HoverAmount;
+                Color top = Color.Lerp(new Color(85, 145, 95), new Color(105, 170, 115), hover);
+                Color bottom = Color.Lerp(new Color(60, 110, 68), new Color(78, 132, 86), hover);
+                Color border = Color.Lerp(Color.White * 0.8f, Color.White, hover);
+                float borderThickness = MathHelper.Lerp(2f, 3f, hover);
 
-            //Debug
-            var mouseNow = Mouse.GetState();
-            spriteBatch.DrawString(font, $"Live mouse: ({mouseNow.X},{mouseNow.Y})   Left button: {mouseNow.LeftButton}", new Vector2(20, 20), Color.Lime);
-            spriteBatch.DrawString(font, _lastClickInfo, new Vector2(20, 50), Color.Lime);
-            spriteBatch.DrawString(font, $"Start button bounds: X {_startButton.Bounds.X}-{_startButton.Bounds.X + _startButton.Bounds.Width}, Y {_startButton.Bounds.Y}-{_startButton.Bounds.Y + _startButton.Bounds.Height}", new Vector2(20, 80), Color.Lime);
-            //END DEBUG
+                float squash = _startButton.PressAmount * 4f;
+                var bounds = _startButton.Bounds;
+                var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+                UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.7f);
+                var textSize = font.MeasureString(_startButton.Label);
+                var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White);
+            }
 
             spriteBatch.End();
         }

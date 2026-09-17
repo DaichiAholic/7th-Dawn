@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Screens;
@@ -105,7 +105,7 @@ namespace DuskAndDawn
 
             if (!string.IsNullOrEmpty(_current))
             {
-                spriteBatch.DrawString(font, _current, basePosition, Color.White);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _current, basePosition, Color.White);
             }
         }
     }
@@ -191,10 +191,11 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice));
                 return;
             }
 
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var mouse = Mouse.GetState();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
 
@@ -205,6 +206,34 @@ namespace DuskAndDawn
             if (_activeCombat != null)
             {
                 _enemyHealthBar?.Update(gameTime, _activeCombat.Enemy.Health);
+            }
+
+            // Every interactive element eases its own hover/press animation forward each
+            // frame (even while its screen isn't the active one - that's harmless, it just
+            // idles at rest) so nothing snaps between visual states.
+            bool headBackHovered = _state == ExplorationState.Map && _headBackButton.Contains(mouse.X, mouse.Y);
+            _headBackButton.UpdateAnimation(dt, headBackHovered);
+
+            foreach (var layer in _map.Layers)
+            {
+                foreach (var node in layer)
+                {
+                    bool isHoverable = _state == ExplorationState.Map && node.Depth == _currentDepth
+                        && !node.Visited && InputChecker.Contains(node.ScreenBounds, mouse.X, mouse.Y);
+                    node.UpdateHover(dt, isHoverable);
+                }
+            }
+
+            bool inCombat = _state == ExplorationState.Encounter;
+            foreach (var button in _combatButtons)
+            {
+                button.UpdateAnimation(dt, inCombat && button.Contains(mouse.X, mouse.Y));
+            }
+
+            bool inSupplies = _state == ExplorationState.Supplies;
+            foreach (var button in _suppliesButtons)
+            {
+                button.UpdateAnimation(dt, inSupplies && button.Contains(mouse.X, mouse.Y));
             }
 
             if (clicked)
@@ -232,6 +261,7 @@ namespace DuskAndDawn
         {
             if (_headBackButton.Contains(x, y))
             {
+                _headBackButton.TriggerPress();
                 GoToDawnReturn();
                 return;
             }
@@ -275,7 +305,7 @@ namespace DuskAndDawn
 
         private void GoToDawnReturn()
         {
-            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _currentDepth), ScreenTransitions.Fade(GraphicsDevice));
+            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _currentDepth), ScreenTransitions.FadeTransition(GraphicsDevice));
         }
 
         // ---------- Encounter (combat) ----------
@@ -329,6 +359,7 @@ namespace DuskAndDawn
             {
                 if (!button.Contains(x, y)) continue;
 
+                button.TriggerPress();
                 var label = button.Label;
 
                 if (_combatMenu == CombatMenu.TopLevel)
@@ -452,6 +483,7 @@ namespace DuskAndDawn
             {
                 if (!_suppliesButtons[i].Contains(x, y)) continue;
 
+                _suppliesButtons[i].TriggerPress();
                 _textLog.Push(_suppliesOptions[i].Resolve(_playerState, _random));
                 _roomsCleared++;
                 _state = ExplorationState.Map;
@@ -494,10 +526,15 @@ namespace DuskAndDawn
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
+            float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
             spriteBatch.Begin();
 
-            DrawClock(spriteBatch, font);
-            spriteBatch.DrawString(font, $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})", new Vector2(40, 100), Color.LightGray);
+            // Subtle gradient instead of a flat fill - just enough depth to read as a night
+            // sky rather than a solid color swatch, while staying dark and calm by design.
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(14, 14, 24), new Color(4, 4, 8), 10);
+
+            DrawClock(spriteBatch, font, totalSeconds);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})", new Vector2(40, 100), Color.LightGray);
             DrawPlayerHealthBar(spriteBatch, font);
 
             switch (_state)
@@ -506,7 +543,7 @@ namespace DuskAndDawn
                     DrawMinimap(spriteBatch, font);
                     break;
                 case ExplorationState.Encounter:
-                    DrawCombat(spriteBatch, font);
+                    DrawCombat(spriteBatch, font, totalSeconds);
                     DrawMapFragment(spriteBatch, font);
                     break;
                 case ExplorationState.Supplies:
@@ -518,24 +555,48 @@ namespace DuskAndDawn
             spriteBatch.End();
         }
 
-        private void DrawClock(SpriteBatch spriteBatch, SpriteFont font)
+        private void DrawClock(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            spriteBatch.DrawString(font, $"Time until dawn: {_dawnTimer.RemainingBudget}/{_dawnTimer.MaxBudget}", new Vector2(40, 30), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Time until dawn: {_dawnTimer.RemainingBudget}/{_dawnTimer.MaxBudget}", new Vector2(40, 28), Color.White);
+
             var clockMax = new RectangleF(40, 60, 300, 20);
-            var clockFill = new RectangleF(40, 60, 300 * (_dawnTimer.RemainingBudget / (float)_dawnTimer.MaxBudget), 20);
-            spriteBatch.FillRectangle(clockMax, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(clockFill, new Color(255, 200, 120));
-            spriteBatch.DrawRectangle(clockMax, Color.White, 2f);
+            float ratio = _dawnTimer.RemainingBudget / (float)_dawnTimer.MaxBudget;
+            var clockFill = new RectangleF(40, 60, 300 * ratio, 20);
+
+            UITheme.DrawSoftShadow(spriteBatch, clockMax, 10f, 0.4f);
+            UITheme.FillRoundedRectGradient(spriteBatch, clockMax, Color.Black * 0.6f, Color.Black * 0.4f, 10f, 6);
+
+            if (clockFill.Width > 1f)
+            {
+                Color top = new Color(255, 210, 140);
+                Color bottom = new Color(225, 160, 80);
+                if (ratio <= 0.2f)
+                {
+                    // Slow warning pulse once the dawn clock is nearly spent - cosmetic only,
+                    // doesn't change the actual budget or thresholds.
+                    float pulse = UITheme.PulseSine(totalSeconds, 5f);
+                    top = Color.Lerp(top, Color.White, pulse * 0.3f);
+                }
+                UITheme.FillRoundedRectGradient(spriteBatch, clockFill, top, bottom, 10f, 6);
+            }
+
+            UITheme.DrawRoundedRectBorder(spriteBatch, clockMax, Color.White * 0.8f, 2f, 10f);
         }
 
         private void DrawPlayerHealthBar(SpriteBatch spriteBatch, SpriteFont font)
         {
-            spriteBatch.DrawString(font, $"Health: {_playerState.Health}/{_playerState.MaxHealth}", new Vector2(40, 135), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Health: {_playerState.Health}/{_playerState.MaxHealth}", new Vector2(40, 132), Color.LightGray);
+
             var barMax = new RectangleF(40, 165, 300, 20);
             var barFill = new RectangleF(40, 165, 300 * _playerHealthBar.Ratio, 20);
-            spriteBatch.FillRectangle(barMax, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(barFill, new Color(200, 50, 50));
-            spriteBatch.DrawRectangle(barMax, Color.White, 2f);
+
+            UITheme.DrawSoftShadow(spriteBatch, barMax, 10f, 0.4f);
+            UITheme.FillRoundedRectGradient(spriteBatch, barMax, Color.Black * 0.6f, Color.Black * 0.4f, 10f, 6);
+            if (barFill.Width > 1f)
+            {
+                UITheme.FillRoundedRectGradient(spriteBatch, barFill, new Color(225, 90, 90), new Color(175, 35, 35), 10f, 6);
+            }
+            UITheme.DrawRoundedRectBorder(spriteBatch, barMax, Color.White * 0.8f, 2f, 10f);
         }
 
         private void DrawMinimap(SpriteBatch spriteBatch, SpriteFont font)
@@ -544,40 +605,50 @@ namespace DuskAndDawn
             {
                 foreach (var node in _map.Layers[depth])
                 {
-                    Color color;
+                    Color top, bottom;
                     string label;
 
                     if (node.Visited)
                     {
-                        color = new Color(60, 60, 60);
+                        top = new Color(66, 66, 66);
+                        bottom = new Color(44, 44, 44);
                         label = node.Type.ToString();
                     }
                     else if (depth == _currentDepth)
                     {
-                        color = node.Type switch
+                        (top, bottom) = node.Type switch
                         {
-                            RoomType.Supplies => new Color(40, 90, 60),
-                            RoomType.Encounter => new Color(110, 30, 30),
-                            RoomType.Special => new Color(80, 40, 110),
-                            _ => Color.Gray
+                            RoomType.Supplies => (new Color(48, 108, 72), new Color(28, 70, 46)),
+                            RoomType.Encounter => (new Color(130, 38, 38), new Color(90, 22, 22)),
+                            RoomType.Special => (new Color(96, 50, 130), new Color(64, 30, 90)),
+                            _ => (Color.Gray, Color.DarkGray)
                         };
                         label = node.Type.ToString();
                     }
                     else
                     {
-                        color = new Color(30, 30, 40);
+                        top = new Color(34, 34, 46);
+                        bottom = new Color(22, 22, 32);
                         label = "?";
                     }
 
-                    spriteBatch.FillRectangle(node.ScreenBounds, color);
-                    spriteBatch.DrawRectangle(node.ScreenBounds, Color.White * 0.5f, 1f);
-                    spriteBatch.DrawString(font, label, new Vector2(node.ScreenBounds.X + 8, node.ScreenBounds.Y + 8), Color.White);
+                    // Clickable tiles ease brighter as the mouse hovers them, and their border
+                    // warms toward an ember glow - a stand-in for the corruption-glow "tell"
+                    // the design calls for on room doors, without needing new art.
+                    if (node.HoverAmount > 0f)
+                    {
+                        top = UITheme.Brighten(top, node.HoverAmount * 0.25f);
+                        bottom = UITheme.Brighten(bottom, node.HoverAmount * 0.25f);
+                    }
+                    Color borderColor = Color.Lerp(Color.White * 0.5f, new Color(255, 130, 60), node.HoverAmount);
+                    float borderThickness = MathHelper.Lerp(1.5f, 3f, node.HoverAmount);
+
+                    UITheme.DrawPanel(spriteBatch, node.ScreenBounds, top, bottom, borderColor, borderThickness, 10f, shadowStrength: 0.4f);
+                    UITheme.DrawTextWithShadow(spriteBatch, font, label, new Vector2(node.ScreenBounds.X + 8, node.ScreenBounds.Y + 8), Color.White);
                 }
             }
 
-            spriteBatch.FillRectangle(_headBackButton.Bounds, new Color(90, 70, 70));
-            spriteBatch.DrawRectangle(_headBackButton.Bounds, Color.White, 2f);
-            spriteBatch.DrawString(font, _headBackButton.Label, new Vector2(_headBackButton.Bounds.X + 10, _headBackButton.Bounds.Y + 14), Color.White);
+            DrawStyledButton(spriteBatch, font, _headBackButton, new Color(105, 82, 82), new Color(75, 56, 56));
         }
 
         private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
@@ -585,21 +656,23 @@ namespace DuskAndDawn
             // Small persistent reminder of where you are in tonight's map, even mid-fight or
             // mid-choice - a stand-in for the reference's parchment map-fragment icon.
             var box = new RectangleF(40, 610, 200, 90);
-            spriteBatch.FillRectangle(box, new Color(55, 45, 30));
-            spriteBatch.DrawRectangle(box, new Color(150, 120, 70), 2f);
-            spriteBatch.DrawString(font, "Tonight's map", new Vector2(box.X + 10, box.Y + 10), new Color(220, 200, 160));
-            spriteBatch.DrawString(font, $"Depth {_currentDepth}/{_map.Layers.Count}", new Vector2(box.X + 10, box.Y + 40), new Color(220, 200, 160));
+            UITheme.DrawPanel(spriteBatch, box, new Color(62, 50, 32), new Color(42, 34, 20), new Color(150, 120, 70), 2f, 12f, shadowStrength: 0.5f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Tonight's map", new Vector2(box.X + 10, box.Y + 10), new Color(225, 205, 165));
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Depth {_currentDepth}/{_map.Layers.Count}", new Vector2(box.X + 10, box.Y + 40), new Color(225, 205, 165));
         }
 
-        private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font)
+        private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            spriteBatch.DrawString(font, _activeCombat.Enemy.Name, new Vector2(480, 210), Color.White);
-            spriteBatch.DrawString(font, $"Turn {_combatTurn + 1}", new Vector2(1000, 210), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _activeCombat.Enemy.Name, new Vector2(480, 210), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 210), Color.LightGray);
 
-            // Portrait placeholder - swap for real enemy art once it exists.
+            // Portrait placeholder - swap for real enemy art once it exists. The slow ember
+            // pulse on its border stands in for the corruption-glow visual language used
+            // elsewhere for enemy readability.
             var portrait = new RectangleF(480, 250, 300, 260);
-            spriteBatch.FillRectangle(portrait, new Color(35, 20, 25));
-            spriteBatch.DrawRectangle(portrait, new Color(120, 40, 40), 2f);
+            float glow = UITheme.PulseSine(totalSeconds, 2.5f);
+            Color emberBorder = Color.Lerp(new Color(150, 45, 40), new Color(255, 130, 60), glow * 0.5f);
+            UITheme.DrawPanel(spriteBatch, portrait, new Color(45, 26, 30), new Color(28, 16, 19), emberBorder, 3f, 14f, shadowStrength: 0.6f);
 
             // Vertical enemy health bar beside the portrait, like the reference - fills from
             // the bottom up so it drains from the top as health drops.
@@ -607,40 +680,69 @@ namespace DuskAndDawn
             float filledHeight = barH * _enemyHealthBar.Ratio;
             var barOuter = new RectangleF(barX, barY, barW, barH);
             var barFill = new RectangleF(barX, barY + (barH - filledHeight), barW, filledHeight);
-            spriteBatch.FillRectangle(barOuter, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(barFill, Color.OrangeRed);
-            spriteBatch.DrawRectangle(barOuter, Color.White, 2f);
+
+            UITheme.DrawSoftShadow(spriteBatch, barOuter, 8f, 0.4f);
+            UITheme.FillRoundedRectGradient(spriteBatch, barOuter, Color.Black * 0.6f, Color.Black * 0.4f, 8f, 6);
+            if (filledHeight > 1f)
+            {
+                UITheme.FillRoundedRectGradient(spriteBatch, barFill, new Color(255, 130, 70), new Color(200, 70, 20), 8f, 6);
+            }
+            UITheme.DrawRoundedRectBorder(spriteBatch, barOuter, Color.White * 0.8f, 2f, 8f);
 
             _textLog.Draw(spriteBatch, font, new Vector2(480, 545));
 
             foreach (var button in _combatButtons)
             {
-                spriteBatch.FillRectangle(button.Bounds, new Color(60, 60, 80));
-                spriteBatch.DrawRectangle(button.Bounds, Color.White, 2f);
-                spriteBatch.DrawString(font, button.Label, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 18), Color.White);
+                DrawStyledButton(spriteBatch, font, button, new Color(64, 64, 88), new Color(44, 44, 64));
             }
         }
 
         private void DrawSupplies(SpriteBatch spriteBatch, SpriteFont font)
         {
-            spriteBatch.DrawString(font, "You find a supply cache.", new Vector2(60, 220), Color.White);
-            spriteBatch.DrawString(font, "What do you do?", new Vector2(60, 250), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "You find a supply cache.", new Vector2(60, 220), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "What do you do?", new Vector2(60, 250), Color.LightGray);
 
             // Loot placeholder - swap for real item art once it exists.
             var lootBox = new RectangleF(60, 300, 260, 260);
-            spriteBatch.FillRectangle(lootBox, new Color(45, 40, 25));
-            spriteBatch.DrawRectangle(lootBox, new Color(140, 110, 60), 2f);
+            UITheme.DrawPanel(spriteBatch, lootBox, new Color(58, 50, 30), new Color(38, 32, 18), new Color(150, 118, 64), 3f, 14f, shadowStrength: 0.6f);
 
             _textLog.Draw(spriteBatch, font, new Vector2(60, 580));
 
             for (int i = 0; i < _suppliesButtons.Count; i++)
             {
-                var button = _suppliesButtons[i];
-                var option = _suppliesOptions[i];
-                spriteBatch.FillRectangle(button.Bounds, new Color(60, 70, 60));
-                spriteBatch.DrawRectangle(button.Bounds, Color.White, 2f);
-                spriteBatch.DrawString(font, option.Title, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 10), Color.White);
-                spriteBatch.DrawString(font, option.Description, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 45), Color.LightGray);
+                DrawStyledButton(spriteBatch, font, _suppliesButtons[i], new Color(66, 78, 66), new Color(46, 56, 46), _suppliesOptions[i].Description);
+            }
+        }
+
+        /// <summary>Shared look for every clickable menu button on this screen: rounded
+        /// gradient panel, hover-eased tint and border, and a small press-squash on click.
+        /// Pass description to render a two-line button (title + a smaller detail line)
+        /// like the supplies options use; omit it for a simple centered label.</summary>
+        private void DrawStyledButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom, string description = null)
+        {
+            float hover = button.HoverAmount;
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = Color.Lerp(Color.White * 0.7f, Color.White, hover);
+            float borderThickness = MathHelper.Lerp(2f, 3f, hover);
+
+            // A brief inward squash while the press pulse decays, so a click reads as a
+            // physical push rather than an instant color swap.
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 10f, shadowStrength: 0.5f);
+
+            if (string.IsNullOrEmpty(description))
+            {
+                var textPos = new Vector2(drawBounds.X + 12, drawBounds.Y + (drawBounds.Height - font.MeasureString(button.Label).Y) / 2f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
+            }
+            else
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 12, drawBounds.Y + 10), Color.White);
+                UITheme.DrawTextWithShadow(spriteBatch, font, description, new Vector2(drawBounds.X + 12, drawBounds.Y + 45), new Color(215, 215, 215));
             }
         }
     }

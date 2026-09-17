@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Screens;
@@ -17,6 +17,9 @@ namespace DuskAndDawn
         public Game1()
         {
             _graphics = new GraphicsDeviceManager(this);
+            // Smooths the diagonal edges on rotated/thin primitives (window mullions, dice-log
+            // lines, etc.) - a free visual upgrade that doesn't touch any drawing code.
+            _graphics.PreferMultiSampling = true;
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
 
@@ -33,6 +36,11 @@ namespace DuskAndDawn
             base.Initialize();
 
             SpriteBatch = new SpriteBatch(GraphicsDevice);
+
+            // Bakes the shared rounded-corner/shadow texture used by every screen's panels
+            // and buttons. Must happen after the GraphicsDevice exists and before any screen
+            // draws for the first time.
+            UITheme.LoadContent(GraphicsDevice);
 
             Font = Content.Load<SpriteFont>("DefaultFont");
             Font.Spacing = 2f;

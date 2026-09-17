@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended.Screens;
@@ -48,11 +48,22 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
+                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice));
                 return;
             }
 
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var mouse = Mouse.GetState();
+
+            if (!_resolved)
+            {
+                _acceptButton.UpdateAnimation(dt, _acceptButton.Contains(mouse.X, mouse.Y));
+                _declineButton.UpdateAnimation(dt, _declineButton.Contains(mouse.X, mouse.Y));
+            }
+            else
+            {
+                _continueButton.UpdateAnimation(dt, _continueButton.Contains(mouse.X, mouse.Y));
+            }
 
             if (InputChecker.IsNewLeftClick(mouse, _previousMouse))
             {
@@ -60,18 +71,21 @@ namespace DuskAndDawn
                 {
                     if (_acceptButton.Contains(mouse.X, mouse.Y))
                     {
+                        _acceptButton.TriggerPress();
                         ResolveAccept();
                         _resolved = true;
                     }
                     else if (_declineButton.Contains(mouse.X, mouse.Y))
                     {
+                        _declineButton.TriggerPress();
                         _resultLog = "You let it pass.";
                         _resolved = true;
                     }
                 }
                 else if (_continueButton.Contains(mouse.X, mouse.Y))
                 {
-                    ScreenManager.ShowScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.Fade(GraphicsDevice));
+                    _continueButton.TriggerPress();
+                    ScreenManager.ShowScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                 }
             }
 
@@ -99,36 +113,54 @@ namespace DuskAndDawn
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(new Color(230, 200, 160));
+            GraphicsDevice.Clear(new Color(235, 205, 165));
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
             spriteBatch.Begin();
 
-            spriteBatch.DrawString(font, _event.Title, new Vector2(300, 200), Color.Black);
-            spriteBatch.DrawString(font, _event.Description, new Vector2(300, 240), Color.Black);
-            spriteBatch.DrawString(font, $"Price: {_event.CostLabel()}", new Vector2(300, 280), new Color(120, 30, 30));
-            spriteBatch.DrawString(font, $"Reward: {_event.RewardLabel()}", new Vector2(300, 310), new Color(30, 100, 30));
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(245, 218, 178), new Color(215, 180, 140), 10);
+
+            var eventPanel = new RectangleF(260, 170, 760, 200);
+            UITheme.DrawPanel(spriteBatch, eventPanel, new Color(255, 250, 238), new Color(232, 216, 188), new Color(150, 110, 70), 3f, 16f, shadowStrength: 0.6f);
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, _event.Title, new Vector2(eventPanel.X + 40, eventPanel.Y + 30), Color.Black);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _event.Description, new Vector2(eventPanel.X + 40, eventPanel.Y + 70), Color.Black);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Price: {_event.CostLabel()}", new Vector2(eventPanel.X + 40, eventPanel.Y + 110), new Color(140, 30, 30));
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Reward: {_event.RewardLabel()}", new Vector2(eventPanel.X + 40, eventPanel.Y + 140), new Color(20, 110, 30));
 
             if (!_resolved)
             {
-                DrawButton(spriteBatch, font, _acceptButton, new Color(80, 140, 90));
-                DrawButton(spriteBatch, font, _declineButton, new Color(140, 80, 80));
+                DrawButton(spriteBatch, font, _acceptButton, new Color(90, 155, 100), new Color(64, 118, 72));
+                DrawButton(spriteBatch, font, _declineButton, new Color(160, 90, 90), new Color(120, 60, 60));
             }
             else
             {
-                spriteBatch.DrawString(font, _resultLog, new Vector2(300, 400), Color.Black);
-                DrawButton(spriteBatch, font, _continueButton, new Color(90, 90, 140));
+                var resultPanel = new RectangleF(300, 390, 680, 60);
+                UITheme.DrawPanel(spriteBatch, resultPanel, new Color(255, 250, 238), new Color(232, 216, 188), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.5f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _resultLog, new Vector2(resultPanel.X + 20, resultPanel.Y + 16), Color.Black);
+                DrawButton(spriteBatch, font, _continueButton, new Color(95, 95, 150), new Color(70, 70, 115));
             }
 
             spriteBatch.End();
         }
 
-        private void DrawButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color color)
+        private void DrawButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom)
         {
-            spriteBatch.FillRectangle(button.Bounds, color);
-            spriteBatch.DrawRectangle(button.Bounds, Color.White, 2f);
-            spriteBatch.DrawString(font, button.Label, new Vector2(button.Bounds.X + 20, button.Bounds.Y + 20), Color.White);
+            float hover = button.HoverAmount;
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = Color.Lerp(Color.White * 0.8f, Color.White, hover);
+            float borderThickness = MathHelper.Lerp(2f, 3f, hover);
+
+            float squash = button.PressAmount * 4f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.6f);
+            var textSize = font.MeasureString(button.Label);
+            var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
         }
     }
 }
