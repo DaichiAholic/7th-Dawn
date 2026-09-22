@@ -54,7 +54,7 @@
 - [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: ✅ Done]
 - [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: ✅ Done]
 - [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
-- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
 
 ### Story 2 — [Artist]
 

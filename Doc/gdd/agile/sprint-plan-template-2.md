@@ -50,11 +50,11 @@
 
 ### Story 1 — [Coding]
 
-- [ ] [ทำ Base Mechanics]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
-- [ ] [ทำ events]  [owner:: Patcharapakorn]  [estimate:: 3h  [status:: ✅ Done]
-- [ ] [ทำ battle anims]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
-- [ ] [ทำ map dynamic]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
-- [ ] [ทำ weapon variety]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
+- [ ] [ทำ Base Mechanics]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+- [ ] [ทำ events]  [owner:: Patcharapakorn]  [estimate:: 3h  [status:: 🔄 In Progress]
+- [ ] [ทำ battle anims]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: 🔄 In Progress]
+- [ ] [ทำ map dynamic]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+- [ ] [ทำ weapon variety]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: 🔄 In Progress]
 
 ### Story 2 — [Artist]
 
