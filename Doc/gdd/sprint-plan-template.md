@@ -18,11 +18,11 @@
 
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------------------------ | ------------------ | ----------- | ------------- | --------------- |
-| 1 | ทำ BaseBuild.cs                                                                          | [Patcharapakorn]   | Must Have   | 4             | ✅ Done         |
-| 2 | ทำ Event/choices.cs                                                                      | Patcharapakorn     | Must Have   | 3             | ✅ Done         |
-| 3 | ทำ NightExplore.cs                                                                       | Patcharapakorn     | Must Have   | 5             | ✅ Done         |
-| 4 | ทำ Weapon/Item.cs                                                                        | Patcharapakorn     | Must Have   | 2             | ✅ Done         |
-| 5 | ทำ Enemy/Battle.cs                                                                       | Patcharapakorn     | Must Have   | 4             | ✅ Done         |
+| 1 | As a Player, I want to be able to build base, so that I can have progression and benefits. | [Patcharapakorn]   | Must Have   | 4             | ✅ Done         |
+| 2 | As a designer, I want to give player events, so that they can choose their choice.         | Patcharapakorn     | Must Have   | 3             | ✅ Done         |
+| 3 | As a Player, I want to scavenge, so that I can get supplies and materials.                 | Patcharapakorn     | Must Have   | 5             | ✅ Done         |
+| 4 | As a Player, I want to have weapons, so that I can fight monsters.                         | Patcharapakorn     | Must Have   | 2             | ✅ Done         |
+| 5 | As a designer, I want to make monster, so that player can fight it.                        | Patcharapakorn     | Must Have   | 4             | ✅ Done         |
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | -------------------------------------------------------------------------                  | ------------------ | ---------   | ------------- | --------------- |
 | 1 | [As a player, I want to upgrade my base, so that I can get more benefits]                  | [ปีรติ]       | Must Have   | [4]           | 🔲 In Progress |
@@ -54,7 +54,7 @@
 - [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: ✅ Done]
 - [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: ✅ Done]
 - [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
-- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
 
 ### Story 2 — [Artist]
 

@@ -18,11 +18,11 @@
 
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------------------------ | ------------------ | ----------- | ------------- | --------------- |
-| 1 | ทำ Base Mechanics                                                                        | [Patcharapakorn]   | Must Have   | 5             | 🔄 In Progress  |
-| 2 | ทำ events                                                                                | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
-| 3 | ทำ battle anims                                                                          | Patcharapakorn     | Must Have   | 3             | 🔄 In Progress  |
-| 4 | ทำ map dynamic                                                                           | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
-| 5 | ทำ weapon variety                                                                        | Patcharapakorn     | Must Have   | 2             | 🔄 In Progress  |
+| 1 | As a programmer, I want to add base mechanics, so that each area have its own benefits     | [Patcharapakorn]   | Must Have   | 5             | 🔄 In Progress  |
+| 2 | As a designer, I want to add more events, so that player can have randomize events         | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 3 | As a designer, I want battle to have animations, so that it'll have more feedback          | Patcharapakorn     | Must Have   | 3             | 🔄 In Progress  |
+| 4 | As a programmer, I want to add more maps, so that player can choose where to go.           | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 5 | As a designer, I want to add more weapos, so that player can choose what they want to use. | Patcharapakorn     | Must Have   | 2             | 🔄 In Progress  |
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | -------------------------------------------------------------------------                  | ------------------ | ---------   | ------------- | --------------- |
 | 1 | [As a player, I want to upgrade my base, so that I can get more benefits]                  | [ปีรติ]       | Must Have   | [4]           | 🔲 In Progress |
