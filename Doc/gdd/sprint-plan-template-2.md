@@ -18,14 +18,14 @@
 
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------------------------ | ------------------ | ----------- | ------------- | --------------- |
-| 1 | ทำ BaseBuild.cs                                                                          | [Patcharapakorn]   | Must Have   | 4             | 🔄 In Progress |
-| 2 | ทำ Event/choices.cs                                                                      | Patcharapakorn     | Must Have   | 3             | 🔄 In Progress |
-| 3 | ทำ NightExplore.cs                                                                       | Patcharapakorn     | Must Have   | 5             | 🔄 In Progress |
-| 4 | ทำ Weapon/Item.cs                                                                        | Patcharapakorn     | Must Have   | 2             | 🔄 In Progress |
-| 5 | ทำ Enemy/Battle.cs                                                                       | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress |
+| 1 | As a programmer, I want to add base mechanics, so that each area have its own benefits     | [Patcharapakorn]   | Must Have   | 5             | 🔄 In Progress  |
+| 2 | As a designer, I want to add more events, so that player can have randomize events         | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 3 | As a designer, I want battle to have animations, so that it'll have more feedback          | Patcharapakorn     | Must Have   | 3             | 🔄 In Progress  |
+| 4 | As a programmer, I want to add more maps, so that player can choose where to go.           | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 5 | As a designer, I want to add more weapos, so that player can choose what they want to use. | Patcharapakorn     | Must Have   | 2             | 🔄 In Progress  |
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | -------------------------------------------------------------------------                  | ------------------ | ---------   | ------------- | --------------- |
-| 1 | BaseBuild design                                                                           | [ปีรติ]       | Must Have   | 48h           | 🔄 In Progress |
+| 1 | BaseBuild design                                                                           | [ปีรติ]       | Must Have   | 30            | 🔄 In Progress |
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------                                                                               | ------------------ | ---------   | ------------- | --------------  |
 | 1 | UI design                                                                                  | [อิสยาห์]   | Must Have   | 3h            | 🔄 In Progress  |
@@ -50,24 +50,20 @@
 
 ### Story 1 — [Coding]
 
-- [ ] [BaseBuild]  [owner:: Patcharapakorn]  [estimate:: 3h]  [status:: 🔄 In Progress]
-- [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: 🔄 In Progress]
-- [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: 🔄 In Progress]
-- [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: 🔄 In Progress]
-- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: 🔄 In Progress]
+- [ ] [ทำ Base Mechanics]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [ทำ events]  [owner:: Patcharapakorn]  [estimate:: 3h  [status:: ✅ Done]
+- [ ] [ทำ battle anims]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
+- [ ] [ทำ map dynamic]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [ทำ weapon variety]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
 
 ### Story 2 — [Artist]
 
-- [ ] [BaseSprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [BaseSprite]  [owner:: ปีรติ ]  [estimate:: 30h]  [status:: 🔄 In Progress]
 - [ ] [NPC sprite]  [owner::]  [estimate:: h  [status:: 🔄 In Progress]
 - [ ] [Enemy Sprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
-
-### Story 1 — [Game Screens]
-
-- [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 48h]  [status:: In Progress]
-- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 18h]  [status::In Progress]
+- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 30h]  [status::🔄In Progress]
 
 # Story 1 — [UI Design]
 
