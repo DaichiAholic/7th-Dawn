@@ -18,6 +18,9 @@ date: [22/9]
 | Prinyakorn     | UI                  | ✅ Done        |                  |
 | Prinyakorn     | Enemy               | 🔄 In Progress | 23/9             |
 | Prinyakorn     | NPC Sprite/Portrait | 🔄 In Progress | 23/9             |
+| อิสาสห์ | ui design           | 🔄 In Progress | 23/9             |
+| อิสาสห์ | sound design       | 🔲 Todo        |                  |
+| อิสาสห์ | event story         | 🔲 Todo        |                  |
 
 ## Sprint 2
 
@@ -31,6 +34,9 @@ date: [22/9]
 | peerati        | BaseBuild design     | to do          | 20/10            |
 | Prinyakorn     | Combat animation VFX | 🔄 In Progress | 24/9             |
 | Prinyakorn     | Weapon Sprite        | 🔄 In Progress | 22/9             |
+| อิสาสห์ | ui design            | ✅ Done        |                  |
+| อิสาสห์ | sound design        | 🔄 In Progress | 24/9             |
+| อิสาสห์ | event story          | 🔄 In Progress | 24/9             |
 
 ## Retrospective
 
