@@ -28,9 +28,9 @@
 | 1 | [As a player, I want to upgrade my base, so that I can get more benefits]                       | [ปีรติ]       | Must Have   | [4]           | 🔲 In Progress |
 | # | User Story                                                                                      | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------                                                                                    | ------------------ | ---------   | ------------- | --------------  |
-| 1 | UI design                                                                                       | [อิสยาห์]   | Must Have   | 3h            | 🔄 In Progress  |
-| 2 | Sound design                                                                                    | [อิสยาห์]   | Must Have   | 4h            | 🔲 Todo         |
-| 3 | Story design                                                                                    | [อิสยาห์]   | Must Have   | 12h           | 🔲 Todo         |
+| 1 | As a player, I want clear labels on UI elements so that I understand what I am clicking.   | [อิสยาห์]   | Must Have   | 3h            | ✅ Done         |
+| 2 | As a designer,i want to add sound effece,so that player can enjoy the game.                | [อิสยาห์]   | Must Have   | 4h            | 🔲 Todo         |
+| 3 | As a designer, I want to add an event story, so that users can know what they chose.       | [อิสยาห์]   | Must Have   | 12h           | 🔄 In Progress |
 | # | User Story                                                                                      | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------------------------      | ------------------ | ----------- | ------------- | --------------  |
 | 1 | As a designer, I want have wide variation of enemies, so that player would find new enemy       | [ปริญญากร] | Must Have   | 4             | 🔄 In Progress |
@@ -77,9 +77,11 @@
 - [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 30h]  [status::🔄In Progress]
 
+
+
 # Story 1 — [UI Design]
 
-- [ ] [UI design]  [owner:: อิสยาห์]  [estimate:: 3h]  [Domain:: designer] [status:: In Progress]
+- [X] [UI design]  [owner:: อิสยาห์]  [estimate:: 3h]  [Domain:: designer] [status:: ✅ Done]
 
 # Story 2 — [Sound Design]
 
@@ -87,7 +89,7 @@
 
 # Story 3 — [Story git statusDesign]
 
-* [ ] [Story design]  [owner:: อิสยาห์]  [estimate:: 12h] [Domain:: designer] [status:: todo]
+* [ ] [Story design]  [owner:: อิสยาห์]  [estimate:: 12h] [Domain:: designer] [status:: 🔄 In Progress]
 
 ---
 
@@ -121,6 +123,11 @@
 
 **เมื่อวาน:** ทำ combat UI/VFX เสร็จ
 **วันนี้:** ทำ combat vfx animation
+### [22/9/2569]
+
+**เมื่อวาน:ส่งแบบ ui เรียบร้อย
+**วันนี้:** ... เริ่มเขียน event story
+
 ### [วันที่ 8/9/2569]
 
 **เมื่อวาน:** วางโครง portrait ตัวละคร
