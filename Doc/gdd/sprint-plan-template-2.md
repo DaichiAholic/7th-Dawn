@@ -18,11 +18,11 @@
 
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | ------------------------------------------------------------------------------------------ | ------------------ | ----------- | ------------- | --------------- |
-| 1 | ทำ BaseBuild.cs                                                                          | [Patcharapakorn]   | Must Have   | 4             | ✅ Done         |
-| 2 | ทำ Event/choices.cs                                                                      | Patcharapakorn     | Must Have   | 3             | ✅ Done         |
-| 3 | ทำ NightExplore.cs                                                                       | Patcharapakorn     | Must Have   | 5             | ✅ Done         |
-| 4 | ทำ Weapon/Item.cs                                                                        | Patcharapakorn     | Must Have   | 2             | ✅ Done         |
-| 5 | ทำ Enemy/Battle.cs                                                                       | Patcharapakorn     | Must Have   | 4             | ✅ Done         |
+| 1 | ทำ Base Mechanics                                                                        | [Patcharapakorn]   | Must Have   | 5             | 🔄 In Progress  |
+| 2 | ทำ events                                                                                | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 3 | ทำ battle anims                                                                          | Patcharapakorn     | Must Have   | 3             | 🔄 In Progress  |
+| 4 | ทำ map dynamic                                                                           | Patcharapakorn     | Must Have   | 4             | 🔄 In Progress  |
+| 5 | ทำ weapon variety                                                                        | Patcharapakorn     | Must Have   | 2             | 🔄 In Progress  |
 | # | User Story                                                                                 | รับผิดชอบ | MoSCoW      | Estimate (SP) | Status          |
 | - | -------------------------------------------------------------------------                  | ------------------ | ---------   | ------------- | --------------- |
 | 1 | [As a player, I want to upgrade my base, so that I can get more benefits]                  | [ปีรติ]       | Must Have   | [4]           | 🔲 In Progress |
@@ -50,11 +50,11 @@
 
 ### Story 1 — [Coding]
 
-- [ ] [BaseBuild]  [owner:: Patcharapakorn]  [estimate:: 3h]  [status:: ✅ Done]
-- [ ] [Event]  [owner:: Patcharapakorn]  [estimate:: 2h  [status:: ✅ Done]
-- [ ] [NightExplore]  [owner:: Patcharapakorn]  [estimate:: 4h]  [status:: ✅ Done]
-- [ ] [Weapon]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
-- [ ] [Enemy]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [ทำ Base Mechanics]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [ทำ events]  [owner:: Patcharapakorn]  [estimate:: 3h  [status:: ✅ Done]
+- [ ] [ทำ battle anims]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
+- [ ] [ทำ map dynamic]  [owner:: Patcharapakorn]  [estimate:: 2h]  [status:: ✅ Done]
+- [ ] [ทำ weapon variety]  [owner:: Patcharapakorn]  [estimate:: 1h]  [status:: ✅ Done]
 
 ### Story 2 — [Artist]
 
