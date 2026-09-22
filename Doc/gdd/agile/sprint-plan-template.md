@@ -64,10 +64,12 @@
 - [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
 - [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
 
+
 ### Story 1 — [Game Screens]
 
-- [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 12h]  [status:: In Progress]
-- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 12h]  [status::In Progress]
+
+- [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 48h]  [status:: In Progress]
+- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 18h]  [status::In Progress]
 
 # Story 1 — [UI Design]
 

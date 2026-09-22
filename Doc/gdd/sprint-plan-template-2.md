@@ -70,6 +70,12 @@
 
 - [ ] [ออกแบบและวาดฐาน]  [owner:: ปีรติ]  [estimate:: 12h]  [status:: In Progress]
 - [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 12h]  [status::In Progress]
+- [ ] [BaseSprite]  [owner:: ปีรติ ]  [estimate:: 30h]  [status:: 🔄 In Progress]
+- [ ] [NPC sprite]  [owner::]  [estimate:: h  [status:: 🔄 In Progress]
+- [ ] [Enemy Sprite]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [Weapon Sprite]  [owner:]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [UI]  [owner::]  [estimate:: h]  [status:: 🔄 In Progress]
+- [ ] [Map Background]  [owner:: ปีรติ]  [estimate:: 30h]  [status::🔄In Progress]
 
 # Story 1 — [UI Design]
 
@@ -84,6 +90,19 @@
 * [ ] [Story design]  [owner:: อิสยาห์]  [estimate:: 12h] [Domain:: designer] [status:: todo]
 
 ---
+
+### Story 1 — [Enemies Visual]
+
+* [ ] [Monsters Sprite]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 5 hours]  [status:: To do]
+
+### Story 2 — [Character Visual]
+
+1. [ ] [Characters Sprite]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 3 hours]  [status:: To do]
+2. [ ] [Characters Portrait] [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 10 hours] [status:: In Progress]
+
+### Story 3 — [Interface]
+
+* [ ] [UI/UX]  [owner:: ปริญญากร]  [domain:: Artist]  [estimate:: 6 hours]  [status:: To do]
 
 ## Daily Notes
 
@@ -102,6 +121,10 @@
 
 **เมื่อวาน:** ทำ combat UI/VFX เสร็จ
 **วันนี้:** ทำ combat vfx animation
+### [วันที่ 8/9/2569]
+
+**เมื่อวาน:** วางโครง portrait ตัวละคร
+**วันนี้:** วาด Portrait ตัวละคร
 **Blocked:** ...
 
 ---

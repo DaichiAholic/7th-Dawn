@@ -19,14 +19,14 @@ date: [22/9]
 
 ## Sprint 2
 
-| Member         | assigned Work    | Progress       | หมายเหตุ |
-| -------------- | ---------------- | -------------- | ---------------- |
-| Patcharapakorn | Base Mechanics   | 🔄 In Progress | 23/9             |
-| Patcharapakorn | events           | 🔄 In Progress | 24/9             |
-| Patcharapakorn | battle anims     | 🔄 In Progress | 24/9             |
-| Patcharapakorn | map dynamic      | 🔄 In Progress | 23/9             |
-| Patcharapakorn | weapon variety   | 🔄 In Progress | 23/9             |
-| peerati        | BaseBuild design | to do          | 20/10            |
+| Member         | assigned Work      | Progress       | หมายเหตุ |
+| -------------- | ------------------ | -------------- | ---------------- |
+| Patcharapakorn | Base Mechanics     | 🔄 In Progress | 23/9             |
+| Patcharapakorn | events             | 🔄 In Progress | 24/9             |
+| Patcharapakorn | battle anims       | 🔄 In Progress | 24/9             |
+| Patcharapakorn | map dynamic        | 🔄 In Progress | 23/9             |
+| Patcharapakorn | weapon variety     | 🔄 In Progress | 23/9             |
+| peerati        | Background design | to do          | 20/10            |
 
 ## Retrospective
 
