@@ -27,11 +27,36 @@ namespace DuskAndDawn
         private static readonly Rectangle CornerSource = new Rectangle(0, 0, CircleRadius, CircleRadius);
 
         private static Texture2D _circle;
+        private static Texture2D _glow;
         public static bool IsLoaded => _circle != null;
 
         public static void LoadContent(GraphicsDevice graphicsDevice)
         {
             _circle = BuildSoftCircle(graphicsDevice, CircleTextureSize);
+            _glow = BuildRadialGlow(graphicsDevice, 128);
+        }
+
+        /// <summary>A soft light blob: fully bright in the middle, falling off smoothly to
+        /// nothing at the edge. Used for lantern light, ember glows and room auras.</summary>
+        private static Texture2D BuildRadialGlow(GraphicsDevice graphicsDevice, int size)
+        {
+            var texture = new Texture2D(graphicsDevice, size, size);
+            var data = new Color[size * size];
+            float radius = size / 2f;
+            var center = new Vector2(radius, radius);
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                    float t = MathHelper.Clamp(1f - distance / radius, 0f, 1f);
+                    data[y * size + x] = Color.White * (t * t);
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
         }
 
         private static Texture2D BuildSoftCircle(GraphicsDevice graphicsDevice, int size)
@@ -155,6 +180,25 @@ namespace DuskAndDawn
                 bounds.X - spread + offset.X, bounds.Y - spread + offset.Y,
                 bounds.Width + spread * 2f, bounds.Height + spread * 2f);
             FillRoundedRect(spriteBatch, shadowBounds, Color.Black * alpha, radius + spread);
+        }
+
+        // ---------- Circles & glows ----------
+
+        /// <summary>Solid, smooth-edged filled circle.</summary>
+        public static void FillCircle(SpriteBatch spriteBatch, Vector2 center, float radius, Color color)
+        {
+            if (!IsLoaded || radius <= 0f) return;
+            var bounds = new Rectangle((int)MathF.Round(center.X - radius), (int)MathF.Round(center.Y - radius), (int)MathF.Round(radius * 2f), (int)MathF.Round(radius * 2f));
+            spriteBatch.Draw(_circle, bounds, color);
+        }
+
+        /// <summary>Soft radial light centered on a point. Stack a couple at different sizes
+        /// for a hot core with a wide falloff.</summary>
+        public static void DrawGlow(SpriteBatch spriteBatch, Vector2 center, float radius, Color color)
+        {
+            if (_glow == null || radius <= 0f) return;
+            var bounds = new Rectangle((int)(center.X - radius), (int)(center.Y - radius), (int)(radius * 2f), (int)(radius * 2f));
+            spriteBatch.Draw(_glow, bounds, color);
         }
 
         // ---------- Gradients ----------
