@@ -11,12 +11,87 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
+    /// <summary>
+    /// Something a room can make: a weapon, an item, or (for the Feast) an action.
+    /// RequiredLevel is the room level that unlocks it. BlockedReason lets a recipe refuse
+    /// for reasons other than cost (e.g. Feast already held today) - null means allowed.
+    /// </summary>
+    public class Recipe
+    {
+        public string Name { get; }
+        public string Detail { get; }
+        public BaseRoomType Room { get; }
+        public int RequiredLevel { get; }
+        public int Food { get; }
+        public int Planks { get; }
+        public int Scraps { get; }
+
+        // Set for Workshop recipes so the panel can show the weapon's icon. null for items.
+        public Weapon SampleWeapon { get; }
+
+        private readonly Func<PlayerState, string> _craft;
+        private readonly Func<PlayerState, string> _blockedReason;
+
+        public Recipe(string name, string detail, BaseRoomType room, int requiredLevel,
+            int food, int planks, int scraps,
+            Func<PlayerState, string> craft,
+            Func<PlayerState, string> blockedReason = null,
+            Weapon sampleWeapon = null)
+        {
+            SampleWeapon = sampleWeapon;
+            Name = name;
+            Detail = detail;
+            Room = room;
+            RequiredLevel = requiredLevel;
+            Food = food;
+            Planks = planks;
+            Scraps = scraps;
+            _craft = craft;
+            _blockedReason = blockedReason;
+        }
+
+        public string CostLabel => BaseBuilding.FormatCost(Food, Planks, Scraps);
+
+        public string BlockedReason(PlayerState state) => _blockedReason?.Invoke(state);
+
+        public string Craft(PlayerState state) => _craft(state);
+
+        // ---- Factories so the recipe table below stays one line per entry ----
+
+        public static Recipe ForWeapon(BaseRoomType room, int level, int food, int planks, int scraps, Func<Weapon> make)
+        {
+            var sample = make();
+            string detail = sample.IsHoly
+                ? $"{sample.DiceLabel}, +{sample.CorruptionBonus} per corruption"
+                : sample.DiceLabel;
+
+            return new Recipe(sample.Name, detail, room, level, food, planks, scraps, state =>
+            {
+                state.Inventory.Add(make());
+                return $"Crafted a {sample.Name}.";
+            }, sampleWeapon: sample);
+        }
+
+        public static Recipe ForItem(BaseRoomType room, int level, int food, int planks, int scraps, Func<Item> make)
+        {
+            var sample = make();
+            return new Recipe(sample.Name, sample.Description, room, level, food, planks, scraps, state =>
+            {
+                state.Items.Add(make());
+                int owned = state.Items.Count(i => i.Name == sample.Name);
+                return $"Made a {sample.Name} (you have {owned}).";
+            });
+        }
+    }
+
     public class BaseBuilding : GameScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
 
         private const int MaxRoomLevel = 3;
+        private const int FeastFoodCost = 10;
+        private const int FeastHope = 15;
 
         // Grouped into two rows so the house layout reads as two floors, like a real
         // building cutaway - purely a visual grouping, doesn't change any game logic.
@@ -32,14 +107,57 @@ namespace DuskAndDawn
 
         private static IEnumerable<BaseRoomType> AllRooms => UpperFloorRooms.Concat(GroundFloorRooms);
 
+        // Everything the base can make, in display order.
+        private static readonly List<Recipe> Recipes = new List<Recipe>
+        {
+            // Workshop - weapons
+            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 3, 0, Weapon.WoodenClub),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 2, 3, Weapon.ScrapClub),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 3, 5, Weapon.IronSword),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 2, 6, Weapon.Cleaver),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 3, 4, Weapon.HandAxe),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 0, 4, 10, Weapon.HolyLance),
+
+            // Infirmary - remedies
+            Recipe.ForItem(BaseRoomType.Infirmary, 1, 2, 0, 1, Item.Bandage),
+            Recipe.ForItem(BaseRoomType.Infirmary, 2, 3, 0, 3, Item.Tonic),
+            Recipe.ForItem(BaseRoomType.Infirmary, 2, 0, 1, 4, Item.SmokeFlask),
+            Recipe.ForItem(BaseRoomType.Infirmary, 3, 5, 0, 6, Item.Elixir),
+            Recipe.ForItem(BaseRoomType.Infirmary, 3, 4, 0, 5, Item.DawnTincture),
+
+            // Kitchen
+            Recipe.ForItem(BaseRoomType.Kitchen, 2, 4, 0, 0, Item.Rations),
+            new Recipe("Feast", $"+{FeastHope} Hope, once per day", BaseRoomType.Kitchen, 3, FeastFoodCost, 0, 0,
+                state =>
+                {
+                    state.FeastUsedToday = true;
+                    state.ChangeHope(FeastHope);
+                    return $"The house shares a feast. Hope +{FeastHope}.";
+                },
+                state =>
+                {
+                    if (state.FeastUsedToday) return "You've already feasted today.";
+                    if (state.Hope >= PlayerState.MaxHope) return "Hope is already full.";
+                    return null;
+                })
+        };
+
         private readonly Dictionary<BaseRoomType, Button> _roomButtons = new Dictionary<BaseRoomType, Button>();
         private Button _endDayButton;
         private string _statusLog = "";
+        private bool _statusIsError;
         private MouseState _previousMouse;
 
         // ---- Hover state (UI feedback only, no game-logic effect) ----
         private BaseRoomType? _hoveredRoom;
         private bool _isEndDayHovered;
+
+        // ---- Room detail panel (opens when a room is clicked) ----
+        private BaseRoomType? _openRoom;
+        private Button _upgradeButton;
+        private Button _closeButton;
+        private readonly List<(Button button, Recipe recipe)> _recipeButtons = new List<(Button, Recipe)>();
+        private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 540);
 
         // ---- Resource "pop" animation state ----
         // Tracks the last-seen value of each resource so a change (from an upgrade)
@@ -70,7 +188,6 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            // (This screen was the one place still missing this fix.)
             _previousMouse = Mouse.GetState();
 
             for (int i = 0; i < UpperFloorRooms.Length; i++)
@@ -86,6 +203,9 @@ namespace DuskAndDawn
             }
 
             _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "End the Day");
+
+            _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + 164, 360, 54), "Upgrade");
+            _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 160, DetailPanel.Y + DetailPanel.Height - 64, 130, 46), "Close");
 
             // Snapshot starting resource values so the first frame never reads as a "change"
             // and fires a false pop animation.
@@ -108,19 +228,25 @@ namespace DuskAndDawn
             _scrapsPopTimer = MathF.Max(0f, _scrapsPopTimer - dt);
 
             var mouse = Mouse.GetState();
+            bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
+            bool panelOpen = _openRoom.HasValue;
 
             // Hover state is recomputed every frame (not just on click) so panels can
-            // react as soon as the mouse enters them, not only when clicked.
+            // react as soon as the mouse enters them, not only when clicked. The house
+            // behind the detail panel stops reacting while the panel is open.
             _hoveredRoom = null;
-            foreach (var room in AllRooms)
+            if (!panelOpen)
             {
-                if (_roomButtons[room].Contains(mouse.X, mouse.Y))
+                foreach (var room in AllRooms)
                 {
-                    _hoveredRoom = room;
-                    break;
+                    if (_roomButtons[room].Contains(mouse.X, mouse.Y))
+                    {
+                        _hoveredRoom = room;
+                        break;
+                    }
                 }
             }
-            _isEndDayHovered = _endDayButton.Contains(mouse.X, mouse.Y);
+            _isEndDayHovered = !panelOpen && _endDayButton.Contains(mouse.X, mouse.Y);
 
             // Every button eases its own hover/press animation forward each frame, so the
             // panels fade smoothly between states instead of snapping the instant the mouse
@@ -131,25 +257,40 @@ namespace DuskAndDawn
             }
             _endDayButton.UpdateAnimation(dt, _isEndDayHovered);
 
-            if (InputChecker.IsNewLeftClick(mouse, _previousMouse))
+            _upgradeButton.UpdateAnimation(dt, panelOpen && _upgradeButton.Contains(mouse.X, mouse.Y));
+            _closeButton.UpdateAnimation(dt, panelOpen && _closeButton.Contains(mouse.X, mouse.Y));
+            foreach (var (button, _) in _recipeButtons)
             {
-                foreach (var room in AllRooms)
-                {
-                    if (_roomButtons[room].Contains(mouse.X, mouse.Y))
-                    {
-                        _roomButtons[room].TriggerPress();
-                        TryUpgrade(room);
-                    }
-                }
+                button.UpdateAnimation(dt, panelOpen && button.Contains(mouse.X, mouse.Y));
+            }
 
-                if (_endDayButton.Contains(mouse.X, mouse.Y))
+            if (clicked)
+            {
+                if (panelOpen)
                 {
-                    _endDayButton.TriggerPress();
-                    ScreenManager.ShowScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                    HandleDetailPanelClick(mouse.X, mouse.Y);
+                }
+                else
+                {
+                    foreach (var room in AllRooms)
+                    {
+                        if (_roomButtons[room].Contains(mouse.X, mouse.Y))
+                        {
+                            _roomButtons[room].TriggerPress();
+                            OpenRoom(room);
+                            break;
+                        }
+                    }
+
+                    if (_endDayButton.Contains(mouse.X, mouse.Y))
+                    {
+                        _endDayButton.TriggerPress();
+                        ScreenManager.ShowScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                    }
                 }
             }
 
-            // Any resource change this frame (from an upgrade spend) triggers that
+            // Any resource change this frame (from an upgrade or craft) triggers that
             // resource's pop animation.
             if (_playerState.Food != _lastFood)
             {
@@ -170,12 +311,67 @@ namespace DuskAndDawn
             _previousMouse = mouse;
         }
 
+        // ---------- Room detail panel ----------
+
+        private void OpenRoom(BaseRoomType room)
+        {
+            _openRoom = room;
+            _statusLog = "";
+
+            // Two columns of recipe buttons under the upgrade button - every recipe for the
+            // room is listed, locked ones included, so players can see what's coming.
+            _recipeButtons.Clear();
+            var roomRecipes = Recipes.Where(r => r.Room == room).ToList();
+            const float width = 360f, height = 60f, rowGap = 8f;
+            for (int i = 0; i < roomRecipes.Count; i++)
+            {
+                float x = DetailPanel.X + 30 + (i % 2) * 380f;
+                float y = DetailPanel.Y + 272 + (i / 2) * (height + rowGap);
+                _recipeButtons.Add((new Button(new RectangleF(x, y, width, height), roomRecipes[i].Name), roomRecipes[i]));
+            }
+        }
+
+        private void CloseRoom()
+        {
+            _openRoom = null;
+            _recipeButtons.Clear();
+            _statusLog = "";
+        }
+
+        private void HandleDetailPanelClick(int x, int y)
+        {
+            var room = _openRoom.Value;
+
+            if (_closeButton.Contains(x, y) || !InputChecker.Contains(DetailPanel, x, y))
+            {
+                _closeButton.TriggerPress();
+                CloseRoom();
+                return;
+            }
+
+            if (_upgradeButton.Contains(x, y))
+            {
+                _upgradeButton.TriggerPress();
+                TryUpgrade(room);
+                return;
+            }
+
+            foreach (var (button, recipe) in _recipeButtons)
+            {
+                if (!button.Contains(x, y)) continue;
+
+                button.TriggerPress();
+                TryCraft(recipe);
+                return;
+            }
+        }
+
         private void TryUpgrade(BaseRoomType room)
         {
             int level = _playerState.RoomLevels[room];
             if (level >= MaxRoomLevel)
             {
-                _statusLog = $"{room} is already at max level.";
+                SetStatus($"{room} is already at max level.", isError: true);
                 return;
             }
 
@@ -184,12 +380,43 @@ namespace DuskAndDawn
             if (_playerState.TrySpend(food, planks, scraps))
             {
                 _playerState.RoomLevels[room] = level + 1;
-                _statusLog = $"{room} upgraded to level {level + 1}.";
+                SetStatus($"{room} upgraded to Lv {level + 1}. {UpgradeNote(room, level + 1)}", isError: false);
             }
             else
             {
-                _statusLog = $"Not enough resources to upgrade {room} (needs {food} Food, {planks} Planks, {scraps} Scraps).";
+                SetStatus($"Need {FormatCost(food, planks, scraps)} to upgrade.", isError: true);
             }
+        }
+
+        private void TryCraft(Recipe recipe)
+        {
+            int level = _playerState.RoomLevels[recipe.Room];
+            if (level < recipe.RequiredLevel)
+            {
+                SetStatus($"{recipe.Name} needs {recipe.Room} Lv {recipe.RequiredLevel}.", isError: true);
+                return;
+            }
+
+            string blocked = recipe.BlockedReason(_playerState);
+            if (blocked != null)
+            {
+                SetStatus(blocked, isError: true);
+                return;
+            }
+
+            if (!_playerState.TrySpend(recipe.Food, recipe.Planks, recipe.Scraps))
+            {
+                SetStatus($"Need {recipe.CostLabel} for {recipe.Name}.", isError: true);
+                return;
+            }
+
+            SetStatus(recipe.Craft(_playerState), isError: false);
+        }
+
+        private void SetStatus(string message, bool isError)
+        {
+            _statusLog = message;
+            _statusIsError = isError;
         }
 
         private (int food, int planks, int scraps) GetUpgradeCost(BaseRoomType room, int currentLevel)
@@ -207,6 +434,79 @@ namespace DuskAndDawn
             };
         }
 
+        public static string FormatCost(int food, int planks, int scraps)
+        {
+            var parts = new List<string>();
+            if (food > 0) parts.Add($"{food}F");
+            if (planks > 0) parts.Add($"{planks}P");
+            if (scraps > 0) parts.Add($"{scraps}S");
+            return parts.Count > 0 ? string.Join(" ", parts) : "Free";
+        }
+
+        // ---------- Room text ----------
+
+        private static string RoomRole(BaseRoomType room) => room switch
+        {
+            BaseRoomType.Storage => "Caps how much you can keep. Overflow is lost at dawn.",
+            BaseRoomType.Workshop => "Crafts weapons. Higher levels unlock stronger ones.",
+            BaseRoomType.Infirmary => "Brews remedies you carry into the night.",
+            BaseRoomType.Kitchen => "Cooks free Food every morning.",
+            BaseRoomType.Barrack => "Trains your dice: rerolls, better faces, more dice.",
+            BaseRoomType.Archive => "Maps the ruins. Opens new districts to scavenge.",
+            _ => ""
+        };
+
+        private static string LevelDescription(BaseRoomType room, int level) => (room, level) switch
+        {
+            (BaseRoomType.Storage, 1) => "Holds 30 of each resource",
+            (BaseRoomType.Storage, 2) => "Holds 60 of each resource",
+            (BaseRoomType.Storage, _) => "Holds 100 of each resource",
+
+            (BaseRoomType.Workshop, 1) => "Basic weapons: Wooden Club, Scrap Club",
+            (BaseRoomType.Workshop, 2) => "Iron weapons: Iron Sword, Cleaver, Hand Axe",
+            (BaseRoomType.Workshop, _) => "Holy steel: Holy Lance",
+
+            (BaseRoomType.Infirmary, 1) => "Bandages",
+            (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
+            (BaseRoomType.Infirmary, _) => "Elixirs and Dawn Tinctures",
+
+            (BaseRoomType.Kitchen, 1) => "+2 Food each morning",
+            (BaseRoomType.Kitchen, 2) => "+4 Food each morning, Rations",
+            (BaseRoomType.Kitchen, _) => "+6 Food each morning, Feast",
+
+            (BaseRoomType.Barrack, 1) => "1 auto-reroll per fight",
+            (BaseRoomType.Barrack, 2) => "2 rerolls per fight, dice never roll a 1",
+            (BaseRoomType.Barrack, _) => "2 rerolls, no 1s, +1 extra die on attacks",
+
+            (BaseRoomType.Archive, 1) => "Village Outskirts",
+            (BaseRoomType.Archive, 2) => "+ Church Ruins, scout 1 room ahead",
+            (BaseRoomType.Archive, _) => "+ Castle Keep, scout 2 rooms ahead",
+
+            _ => ""
+        };
+
+        // Short line shown on each room tile so the house reads at a glance.
+        private string TileSummary(BaseRoomType room) => room switch
+        {
+            BaseRoomType.Storage => $"Holds {_playerState.StorageCap} each",
+            BaseRoomType.Workshop => "Crafts weapons",
+            BaseRoomType.Infirmary => "Brews remedies",
+            BaseRoomType.Kitchen => $"+{_playerState.KitchenDailyFood} Food per morning",
+            BaseRoomType.Barrack => $"{_playerState.BarracksRerolls} reroll(s) per fight",
+            BaseRoomType.Archive => $"{DistrictInfo.All.Count(_playerState.IsDistrictUnlocked)} district(s) open",
+            _ => ""
+        };
+
+        private static string UpgradeNote(BaseRoomType room, int newLevel) => room switch
+        {
+            BaseRoomType.Archive when newLevel == 2 => "Church Ruins is now open.",
+            BaseRoomType.Archive when newLevel == 3 => "Castle Keep is now open.",
+            BaseRoomType.Workshop or BaseRoomType.Infirmary => "New recipes unlocked.",
+            BaseRoomType.Kitchen when newLevel == 2 => "Rations unlocked.",
+            BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked.",
+            _ => ""
+        };
+
         // ---------- Draw ----------
 
         public override void Draw(GameTime gameTime)
@@ -219,10 +519,15 @@ namespace DuskAndDawn
 
             DrawBackground(spriteBatch);
             DrawRooms(spriteBatch, font);
-            DrawFooter(spriteBatch, font);
+            if (!_openRoom.HasValue) DrawFooter(spriteBatch, font);
             DrawEndDayButton(spriteBatch, font);
             DrawHopeBar(spriteBatch, font, gameTime);
             DrawResourceIcons(spriteBatch, font);
+
+            if (_openRoom.HasValue)
+            {
+                DrawDetailPanel(spriteBatch, font, _openRoom.Value);
+            }
 
             spriteBatch.End();
         }
@@ -256,32 +561,31 @@ namespace DuskAndDawn
             float hover = button.HoverAmount;
 
             // Window-style panel: a colored "pane" behind a dark frame, so it reads as part
-            // of the house instead of a floating UI square. Hover now eases the tint and
-            // border color in/out instead of snapping between two fixed states.
+            // of the house instead of a floating UI square. Hover eases the tint and border
+            // color in/out instead of snapping between two fixed states.
             Color topColor = maxed ? new Color(64, 84, 72) : new Color(70, 64, 68);
             Color bottomColor = maxed ? new Color(40, 56, 48) : new Color(40, 36, 40);
             Color borderColor = maxed ? new Color(40, 70, 50) : new Color(24, 20, 22);
 
-            if (!maxed)
-            {
-                // Ember-glow border on hover instead of a gold trim - ties this back to the
-                // corruption-glow visual language used for room "tells" at night.
-                borderColor = Color.Lerp(borderColor, new Color(230, 110, 55), hover);
-                topColor = UITheme.Brighten(topColor, hover * 0.15f);
-                bottomColor = UITheme.Brighten(bottomColor, hover * 0.15f);
-            }
+            // Ember-glow border on hover - ties this back to the corruption-glow visual
+            // language used for room "tells" at night. Maxed rooms glow too now, since
+            // they're still clickable for crafting.
+            borderColor = Color.Lerp(borderColor, new Color(230, 110, 55), hover);
+            topColor = UITheme.Brighten(topColor, hover * 0.15f);
+            bottomColor = UITheme.Brighten(bottomColor, hover * 0.15f);
 
             float borderThickness = MathHelper.Lerp(3f, 4f, hover);
             UITheme.DrawPanel(spriteBatch, bounds, topColor, bottomColor, borderColor, borderThickness, 14f, shadowStrength: 0.6f);
 
-            // Plus-shaped window mullion, same idea as before, inset slightly from the
-            // now-rounded frame so it doesn't poke past the corners.
+            // Plus-shaped window mullion, inset slightly from the rounded frame so it
+            // doesn't poke past the corners.
             var midX = bounds.X + bounds.Width / 2f;
             var midY = bounds.Y + bounds.Height / 2f;
             spriteBatch.DrawLine(new Vector2(midX, bounds.Y + 10), new Vector2(midX, bounds.Y + bounds.Height - 10), Color.White * 0.3f, 2f);
             spriteBatch.DrawLine(new Vector2(bounds.X + 10, midY), new Vector2(bounds.X + bounds.Width - 10, midY), Color.White * 0.3f, 2f);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, room.ToString(), new Vector2(bounds.X + 12, bounds.Y + 10), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, TileSummary(room), new Vector2(bounds.X + 12, bounds.Y + 38), new Color(235, 200, 160), 0.8f);
 
             if (maxed)
             {
@@ -290,14 +594,145 @@ namespace DuskAndDawn
             else
             {
                 var (food, planks, scraps) = GetUpgradeCost(room, level);
-                bool canAfford = _playerState.Food >= food && _playerState.Planks >= planks && _playerState.Scraps >= scraps;
+                bool canAfford = _playerState.CanAfford(food, planks, scraps);
                 // Green when the player can afford the upgrade right now, red when they can't -
                 // turns a mental subtraction into an instant glance.
                 Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
 
                 UITheme.DrawTextWithShadow(spriteBatch, font, $"Lv {level}/{MaxRoomLevel}", new Vector2(bounds.X + 12, bounds.Y + bounds.Height - 58), new Color(220, 215, 210));
-                UITheme.DrawTextWithShadow(spriteBatch, font, $"{food}F {planks}P {scraps}S", new Vector2(bounds.X + 12, bounds.Y + bounds.Height - 30), costColor);
+                UITheme.DrawTextWithShadow(spriteBatch, font, FormatCost(food, planks, scraps), new Vector2(bounds.X + 12, bounds.Y + bounds.Height - 30), costColor);
             }
+        }
+
+        private void DrawDetailPanel(SpriteBatch spriteBatch, SpriteFont font, BaseRoomType room)
+        {
+            int level = _playerState.RoomLevels[room];
+            bool maxed = level >= MaxRoomLevel;
+            var panel = DetailPanel;
+
+            // Dim the house behind so the panel reads as the focus.
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * 0.55f, Color.Black * 0.55f, 1);
+            UITheme.DrawPanel(spriteBatch, panel, new Color(62, 54, 58), new Color(34, 30, 34), new Color(200, 100, 55), 3f, 18f, shadowStrength: 0.9f);
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"{room}   Lv {level}/{MaxRoomLevel}", new Vector2(panel.X + 30, panel.Y + 24), Color.White, 1.2f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, RoomRole(room), new Vector2(panel.X + 30, panel.Y + 62), new Color(200, 190, 195));
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Now:  {LevelDescription(room, level)}", new Vector2(panel.X + 30, panel.Y + 100), new Color(235, 220, 200));
+            string nextLine = maxed ? "Next: Fully upgraded" : $"Next: {LevelDescription(room, level + 1)}";
+            UITheme.DrawTextWithShadow(spriteBatch, font, nextLine, new Vector2(panel.X + 30, panel.Y + 128), new Color(170, 165, 160));
+
+            // Upgrade button
+            if (maxed)
+            {
+                _upgradeButton.Label = "Max level";
+                DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(64, 84, 72), new Color(40, 56, 48), null, Color.White, enabled: false);
+            }
+            else
+            {
+                var (food, planks, scraps) = GetUpgradeCost(room, level);
+                bool canAfford = _playerState.CanAfford(food, planks, scraps);
+                _upgradeButton.Label = $"Upgrade to Lv {level + 1}";
+                Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
+                DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(110, 70, 45), new Color(78, 48, 30), FormatCost(food, planks, scraps), costColor, enabled: true);
+            }
+
+            // Recipes
+            if (_recipeButtons.Count > 0)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, "Craft", new Vector2(panel.X + 30, panel.Y + 240), Color.White);
+
+                foreach (var (button, recipe) in _recipeButtons)
+                {
+                    bool unlocked = level >= recipe.RequiredLevel;
+                    bool blocked = unlocked && recipe.BlockedReason(_playerState) != null;
+                    bool canAfford = _playerState.CanAfford(recipe.Food, recipe.Planks, recipe.Scraps);
+
+                    string rightText;
+                    Color rightColor;
+                    if (!unlocked)
+                    {
+                        rightText = $"Needs Lv {recipe.RequiredLevel}";
+                        rightColor = new Color(160, 150, 150);
+                    }
+                    else
+                    {
+                        rightText = recipe.CostLabel;
+                        rightColor = canAfford && !blocked ? new Color(120, 220, 130) : new Color(230, 100, 90);
+                    }
+
+                    DrawRecipeButton(spriteBatch, font, button, recipe, rightText, rightColor, unlocked && !blocked);
+                }
+            }
+
+            // Status line inside the panel
+            if (!string.IsNullOrEmpty(_statusLog))
+            {
+                Color statusColor = _statusIsError ? new Color(255, 170, 160) : new Color(170, 235, 180);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 50), statusColor, 0.85f);
+            }
+
+            DrawDetailButton(spriteBatch, font, _closeButton, new Color(80, 70, 74), new Color(56, 48, 52), null, Color.White, enabled: true);
+        }
+
+        private void DrawDetailButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom, string rightText, Color rightColor, bool enabled)
+        {
+            float hover = enabled ? button.HoverAmount : 0f;
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = Color.Lerp(Color.White * 0.5f, new Color(255, 140, 70), hover);
+
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: 0.5f);
+
+            var labelSize = font.MeasureString(button.Label);
+            float textY = drawBounds.Y + (drawBounds.Height - labelSize.Y) / 2f;
+
+            if (rightText == null)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + (drawBounds.Width - labelSize.X) / 2f, textY), Color.White);
+            }
+            else
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, textY), Color.White);
+                var rightSize = font.MeasureString(rightText);
+                UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, textY), rightColor);
+            }
+        }
+
+        private void DrawRecipeButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Recipe recipe, string rightText, Color rightColor, bool available)
+        {
+            float hover = available ? button.HoverAmount : 0f;
+            Color baseTop = available ? new Color(74, 66, 70) : new Color(48, 44, 48);
+            Color baseBottom = available ? new Color(50, 44, 48) : new Color(34, 30, 34);
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = Color.Lerp(Color.White * (available ? 0.45f : 0.2f), new Color(255, 140, 70), hover);
+
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.4f);
+
+            Color nameColor = available ? Color.White : new Color(150, 145, 145);
+            Color detailColor = available ? new Color(200, 195, 190) : new Color(120, 115, 115);
+
+            // Weapon recipes get their icon at native 32px on the left; text shifts over.
+            float textX = drawBounds.X + 12;
+            if (recipe.SampleWeapon != null)
+            {
+                UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(recipe.SampleWeapon), new Vector2(drawBounds.X + 14, drawBounds.Y + (drawBounds.Height - 32) / 2f), 1);
+                textX = drawBounds.X + 56;
+            }
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 8), nameColor);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Detail, new Vector2(textX, drawBounds.Y + 34), detailColor, 0.75f);
+
+            var rightSize = font.MeasureString(rightText) * 0.85f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 9), rightColor, 0.85f);
         }
 
         private void DrawFooter(SpriteBatch spriteBatch, SpriteFont font)
@@ -375,6 +810,11 @@ namespace DuskAndDawn
             DrawResourceSlot(spriteBatch, font, 900, "Food", _playerState.Food, DrawFoodIcon, _foodPopTimer, new Color(150, 60, 55));
             DrawResourceSlot(spriteBatch, font, 1010, "Planks", _playerState.Planks, DrawPlanksIcon, _planksPopTimer, new Color(120, 85, 50));
             DrawResourceSlot(spriteBatch, font, 1120, "Scraps", _playerState.Scraps, DrawScrapsIcon, _scrapsPopTimer, new Color(90, 90, 100));
+
+            // Storage cap under the resource row, so the limit is always in view.
+            string capText = $"Storage: max {_playerState.StorageCap} each";
+            var capSize = font.MeasureString(capText) * 0.8f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, capText, new Vector2(1010 - capSize.X / 2f, 116), new Color(200, 190, 195), 0.8f);
         }
 
         private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float centerX, string label, int value, Action<SpriteBatch, float> drawIcon, float popTimer, Color slotTint)
@@ -391,10 +831,13 @@ namespace DuskAndDawn
             float decay = 1f - UITheme.EaseOutCubic(elapsedRatio);
             float popScale = 1f + decay * 0.4f;
 
+            // Count turns amber once it's sitting at the Storage cap - a nudge to upgrade.
+            Color countColor = value >= _playerState.StorageCap ? new Color(255, 190, 90) : Color.White;
+
             var countText = value.ToString();
             float scale = 1.3f * popScale;
             var countSize = font.MeasureString(countText) * scale;
-            UITheme.DrawTextWithShadow(spriteBatch, font, countText, new Vector2(centerX - countSize.X / 2f, 60), Color.White, scale);
+            UITheme.DrawTextWithShadow(spriteBatch, font, countText, new Vector2(centerX - countSize.X / 2f, 60), countColor, scale);
 
             var labelSize = font.MeasureString(label);
             UITheme.DrawTextWithShadow(spriteBatch, font, label, new Vector2(centerX - labelSize.X / 2f, 92), new Color(225, 225, 225));
@@ -402,37 +845,28 @@ namespace DuskAndDawn
 
         private void DrawFoodIcon(SpriteBatch spriteBatch, float centerX)
         {
-            FillCircleApprox(spriteBatch, new Vector2(centerX, 36), 16f, new Color(190, 60, 50));
+            DrawResourceSprite(spriteBatch, Game1.BreadTexture, centerX);
         }
 
         private void DrawPlanksIcon(SpriteBatch spriteBatch, float centerX)
         {
-            for (int i = 0; i < 3; i++)
-            {
-                var plankRect = new RectangleF(centerX - 22, 22 + i * 10, 44, 7);
-                spriteBatch.FillRectangle(plankRect, new Color(160, 110, 60));
-            }
+            DrawResourceSprite(spriteBatch, Game1.PlanksTexture, centerX);
         }
 
         private void DrawScrapsIcon(SpriteBatch spriteBatch, float centerX)
         {
-            spriteBatch.FillRectangle(new RectangleF(centerX - 16, 20, 32, 32), new Color(150, 150, 160));
-            spriteBatch.FillRectangle(new RectangleF(centerX - 6, 30, 18, 14), new Color(95, 95, 105));
+            DrawResourceSprite(spriteBatch, Game1.ScrapsTexture, centerX);
         }
 
-        private static void FillCircleApprox(SpriteBatch spriteBatch, Vector2 center, float radius, Color color, int slices = 20)
+        // Sprites are 320x320 source canvases - scaled down and drawn from their own center so
+        // they sit centered in the icon area of each 96x96 resource slot regardless of how
+        // much transparent padding the source image has around the actual art.
+        private void DrawResourceSprite(SpriteBatch spriteBatch, Texture2D texture, float centerX)
         {
-            for (int i = 0; i < slices; i++)
-            {
-                float t0 = i / (float)slices;
-                float t1 = (i + 1) / (float)slices;
-                float y0 = MathHelper.Lerp(-radius, radius, t0);
-                float y1 = MathHelper.Lerp(-radius, radius, t1);
-                float yMid = (y0 + y1) / 2f;
-                float halfWidth = (float)Math.Sqrt(Math.Max(0f, radius * radius - yMid * yMid));
-
-                spriteBatch.FillRectangle(new RectangleF(center.X - halfWidth, center.Y + y0, halfWidth * 2f, y1 - y0 + 1f), color);
-            }
+            if (texture == null) return;
+            const float scale = 0.2f; // 320px source -> 64px on screen, fits the slot with margin
+            var origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
+            spriteBatch.Draw(texture, new Vector2(centerX, 40f), null, Color.White, 0f, origin, scale, SpriteEffects.None, 0f);
         }
     }
 }

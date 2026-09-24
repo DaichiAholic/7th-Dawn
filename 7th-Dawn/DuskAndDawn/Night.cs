@@ -68,6 +68,7 @@ namespace DuskAndDawn
     {
         private const float RiseSpeed = 18f;  // pixels/second the fading line drifts upward
         private const float FadeSpeed = 0.6f; // alpha lost per second
+        private const float LineHeight = 24f; // vertical spacing between wrapped lines
 
         private string _current = "";
         private string _fading = "";
@@ -93,19 +94,220 @@ namespace DuskAndDawn
             _fadeOffset += RiseSpeed * dt;
         }
 
-        /// <summary>Draws the current (bright) line at basePosition, and the fading (dim,
-        /// rising) line above it while it's still visible.</summary>
-        public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition)
+        /// <summary>Draws the current (bright) line(s) at basePosition, and the fading (dim,
+        /// rising) line(s) above them while still visible. Long messages wrap to fit within
+        /// maxWidth instead of running off the edge of the screen.</summary>
+        public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition, float maxWidth)
         {
+            var currentLines = string.IsNullOrEmpty(_current) ? null : WrapText(font, _current, maxWidth);
+
             if (_fadeAlpha > 0f && !string.IsNullOrEmpty(_fading))
             {
-                var fadingPos = basePosition - new Vector2(0, 26 + _fadeOffset);
-                spriteBatch.DrawString(font, _fading, fadingPos, Color.Gray * _fadeAlpha);
+                var fadingLines = WrapText(font, _fading, maxWidth);
+                float blockHeight = fadingLines.Count * LineHeight;
+                float startY = basePosition.Y - _fadeOffset - blockHeight;
+                for (int i = 0; i < fadingLines.Count; i++)
+                {
+                    spriteBatch.DrawString(font, fadingLines[i], new Vector2(basePosition.X, startY + i * LineHeight), Color.Gray * _fadeAlpha);
+                }
             }
 
-            if (!string.IsNullOrEmpty(_current))
+            if (currentLines != null)
             {
-                UITheme.DrawTextWithShadow(spriteBatch, font, _current, basePosition, Color.White);
+                for (int i = 0; i < currentLines.Count; i++)
+                {
+                    UITheme.DrawTextWithShadow(spriteBatch, font, currentLines[i], basePosition + new Vector2(0, LineHeight * i), Color.White);
+                }
+            }
+        }
+
+        // Splits on spaces and greedily packs words onto each line up to maxWidth, so a long
+        // combat message wraps instead of running past the edge of the screen.
+        private static List<string> WrapText(SpriteFont font, string text, float maxWidth)
+        {
+            var words = text.Split(' ');
+            var lines = new List<string>();
+            var line = new StringBuilder();
+
+            foreach (var word in words)
+            {
+                string candidate = line.Length == 0 ? word : line.ToString() + " " + word;
+                if (line.Length > 0 && font.MeasureString(candidate).X > maxWidth)
+                {
+                    lines.Add(line.ToString());
+                    line.Clear();
+                    line.Append(word);
+                }
+                else
+                {
+                    if (line.Length > 0) line.Append(' ');
+                    line.Append(word);
+                }
+            }
+
+            if (line.Length > 0) lines.Add(line.ToString());
+            if (lines.Count == 0) lines.Add("");
+            return lines;
+        }
+    }
+
+    /// <summary>
+    /// A one-shot frame animation played from a horizontal spritesheet of square frames
+    /// (Attack.png, Skill.png, Attacked.png - 7 frames of 64x64 each). The frame size is read
+    /// from the texture height, so a sheet with a different frame count just works.
+    /// Drawn centered on a point, at a whole-number scale with point sampling so the pixel
+    /// art stays crisp. One instance is reused per "slot" (enemy hit, player hit, cast) -
+    /// calling Play again restarts it, so there's never more than one of a given effect at once.
+    /// </summary>
+    public class SpriteEffect
+    {
+        private Texture2D _texture;
+        private int _frameSize;
+        private int _frameCount;
+        private Vector2 _center;
+        private int _scale;
+        private float _duration;
+        private float _delay;          // seconds to wait before the first frame shows
+        private float _elapsed = -1f;  // negative = not playing
+
+        public bool IsPlaying => _elapsed >= 0f;
+
+        /// <summary>Cuts the animation off immediately (used when a fight ends).</summary>
+        public void Stop()
+        {
+            _elapsed = -1f;
+            _delay = 0f;
+        }
+
+        /// <param name="duration">Total time for all frames, in seconds.</param>
+        /// <param name="scale">Whole-number pixel scale (2 = 64px frames drawn at 128px).</param>
+        /// <param name="delay">Optional wait before it starts - used to land the enemy's
+        /// hit reaction a beat after the slash begins instead of on top of it.</param>
+        public const int FrameSize = 64;
+
+        public void Play(Texture2D texture, Vector2 center, float duration, int scale, float delay = 0f)
+        {
+            if (texture == null) return;
+
+            _texture = texture;
+            _frameSize = FrameSize;
+            _frameCount = Math.Max(1, texture.Width / FrameSize);
+            _center = center;
+            _duration = duration;
+            _scale = scale;
+            _delay = delay;
+            _elapsed = 0f;
+        }
+
+        public void Update(GameTime gameTime)
+        {
+            if (_elapsed < 0f) return;
+
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_delay > 0f)
+            {
+                _delay -= dt;
+                return;
+            }
+
+            _elapsed += dt;
+            if (_elapsed >= _duration) _elapsed = -1f;
+        }
+
+        public void Draw(SpriteBatch spriteBatch)
+        {
+            if (!IsPlaying || _delay > 0f || _texture == null) return;
+
+            int frame = Math.Min(_frameCount - 1, (int)(_elapsed / _duration * _frameCount));
+            var source = new Rectangle(frame * _frameSize, 0, _frameSize, _frameSize);
+            UITheme.DrawPixelSprite(spriteBatch, _texture, source, _center, _scale);
+        }
+    }
+
+    /// <summary>
+    /// A brief "die icon + number" callout showing the result of a damage roll, drifting
+    /// upward and fading out near where the roll happened.
+    /// </summary>
+    public class DiceRollPopup
+    {
+        private const float Duration = 1.1f;
+
+        private Texture2D _texture;
+        private int _value;
+        private Vector2 _position;
+        private float _elapsed = -1f;
+
+        public void Play(Texture2D texture, int value, Vector2 position)
+        {
+            _texture = texture;
+            _value = value;
+            _position = position;
+            _elapsed = 0f;
+        }
+
+        public void Update(GameTime gameTime)
+        {
+            if (_elapsed < 0f) return;
+            _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_elapsed >= Duration) _elapsed = -1f;
+        }
+
+        public void Draw(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            if (_elapsed < 0f || _texture == null) return;
+
+            float t = _elapsed / Duration;
+            float rise = t * 26f;
+            float alpha = t < 0.55f ? 1f : 1f - (t - 0.55f) / 0.45f;
+            var drawPos = _position - new Vector2(0, rise);
+            var color = Color.White * MathHelper.Clamp(alpha, 0f, 1f);
+
+            const float iconScale = 0.2f; // 320px source -> ~64px on screen, sized to leave room for the number on top
+            var origin = new Vector2(_texture.Width / 2f, _texture.Height / 2f);
+            spriteBatch.Draw(_texture, drawPos, null, color, 0f, origin, iconScale, SpriteEffects.None, 0f);
+
+            // Number stamped centered on the die face rather than off to the side.
+            string text = _value.ToString();
+            const float textScale = 1.2f;
+            var textSize = font.MeasureString(text) * textScale;
+            var textPos = drawPos - textSize / 2f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, text, textPos, color, textScale);
+        }
+    }
+
+    /// <summary>
+    /// A brief camera-shake-style jitter, for punctuating a hit with more than just a flash.
+    /// Reads as a little jolt on top of whatever else is playing at that position, and decays
+    /// to nothing over its short duration.
+    /// </summary>
+    public class ImpactShake
+    {
+        private const float Duration = 0.25f;
+        private const float Magnitude = 6f;
+
+        private static readonly Random RandomSource = new Random();
+        private float _elapsed = -1f;
+
+        public void Play() => _elapsed = 0f;
+
+        public void Update(GameTime gameTime)
+        {
+            if (_elapsed < 0f) return;
+            _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (_elapsed >= Duration) _elapsed = -1f;
+        }
+
+        /// <summary>A small random offset that decays to zero - add this to a draw position
+        /// while the shake is playing; it's Vector2.Zero at rest, so it's always safe to add.</summary>
+        public Vector2 Offset
+        {
+            get
+            {
+                if (_elapsed < 0f) return Vector2.Zero;
+                float decay = 1f - (_elapsed / Duration);
+                return new Vector2(
+                    (float)(RandomSource.NextDouble() * 2f - 1f) * Magnitude * decay,
+                    (float)(RandomSource.NextDouble() * 2f - 1f) * Magnitude * decay);
             }
         }
     }
@@ -120,6 +322,7 @@ namespace DuskAndDawn
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
         private readonly Random _random = new Random();
+        private District _district;
 
         private const int LayerCount = 6;
         private const int NodesPerLayer = 2;
@@ -145,9 +348,50 @@ namespace DuskAndDawn
         private CombatMenu _combatMenu = CombatMenu.TopLevel;
         private readonly List<Button> _combatButtons = new List<Button>();
 
+        // Items menu groups identical items into one button ("Bandage x2"), so the button
+        // label no longer matches an item name - this holds the real name for each button.
+        private readonly List<string> _itemButtonNames = new List<string>();
+
         // Supplies sub-state
         private List<ChoiceOption> _suppliesOptions;
         private readonly List<Button> _suppliesButtons = new List<Button>();
+
+        // ---- Combat sprite effects ----
+        // All three sheets are 7 frames of 64x64. Timings are per whole animation.
+        // Both the player's slash and the enemy's hit on the player play big, in the middle
+        // of the screen, at the same scale so they read as equal-weight beats.
+        private const float AttackAnimDuration = 0.35f;   // quick slash
+        private const float SkillAnimDuration = 0.5f;     // heavier, reads as a bigger move
+        private const float AttackedAnimDuration = 0.42f;
+        private const int EffectScale = 4;                // native size: 64px per frame on screen
+
+        // Combat actions are locked until the current exchange has finished playing (our
+        // animation, then the enemy's hit), plus a short breather - so attacks can't be spammed.
+        private const float ActionGap = 0.15f;
+        private const float MinActionLock = 0.3f;
+        private float _actionLock;
+        private bool IsActionLocked => _actionLock > 0f;
+        private static readonly Vector2 ScreenCenter = new Vector2(640, 360);
+
+        private readonly SpriteEffect _castEffect = new SpriteEffect();     // Attack / Skill - when we hit the enemy
+        private readonly SpriteEffect _playerHitFlash = new SpriteEffect(); // Attacked - when the enemy hits us
+        private readonly DiceRollPopup _diceRollPopup = new DiceRollPopup();
+        private readonly ImpactShake _enemyShake = new ImpactShake();  // punches up our own hit landing
+        private readonly ImpactShake _playerShake = new ImpactShake(); // punches up the enemy's counter-hit landing
+
+        // The enemy's counter-attack is resolved instantly under the hood (same method call
+        // as our own action), but showing both hit-flashes at once reads as simultaneous
+        // rather than two separate blows. This delays the player-hit-flash, its log line, and
+        // its shake so the enemy's counter visibly lands a beat after ours instead of on top
+        // of it.
+        private const float EnemyCounterDelay = 0.45f;
+        private float _pendingPlayerHitDelay = -1f;
+        private string _pendingEnemyReplyText = "";
+
+        private const float PlayerHpBarScale = 0.25f;
+        private const float EnemyHpBarScale = 0.3125f;
+        private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
+        private static readonly Vector2 EnemyHpBarPosition = new Vector2(480, 225);
 
         public NightScavengingScreen(Game game, PlayerState playerState) : base(game)
         {
@@ -165,8 +409,9 @@ namespace DuskAndDawn
             _playerState.Health = _playerState.MaxHealth; // rested at the base - full health tonight
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 
+            _district = _playerState.SelectedDistrict;
             _dawnTimer = new DawnTimer(startingBudget: 10);
-            var roomGenerator = new RoomGenerator();
+            var roomGenerator = new RoomGenerator(_district);
             _map = new NightMap(roomGenerator, LayerCount, NodesPerLayer);
             LayoutMapNodes();
 
@@ -199,10 +444,25 @@ namespace DuskAndDawn
             var mouse = Mouse.GetState();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
 
-            // Bars animate every frame regardless of state, so they keep catching up even
-            // right after combat ends or an item heals you.
+            // Bars and one-shot effects animate every frame regardless of state, so they keep
+            // catching up (or finish playing out) even right after combat ends.
             _playerHealthBar.Update(gameTime, _playerState.Health);
             _textLog.Update(gameTime);
+            _castEffect.Update(gameTime);
+            _playerHitFlash.Update(gameTime);
+            _actionLock = Math.Max(0f, _actionLock - dt);
+            _diceRollPopup.Update(gameTime);
+            _enemyShake.Update(gameTime);
+            _playerShake.Update(gameTime);
+
+            if (_pendingPlayerHitDelay >= 0f)
+            {
+                _pendingPlayerHitDelay -= dt;
+                if (_pendingPlayerHitDelay <= 0f)
+                {
+                    FirePendingPlayerHit();
+                }
+            }
             if (_activeCombat != null)
             {
                 _enemyHealthBar?.Update(gameTime, _activeCombat.Enemy.Health);
@@ -227,7 +487,7 @@ namespace DuskAndDawn
             bool inCombat = _state == ExplorationState.Encounter;
             foreach (var button in _combatButtons)
             {
-                button.UpdateAnimation(dt, inCombat && button.Contains(mouse.X, mouse.Y));
+                button.UpdateAnimation(dt, inCombat && !IsActionLocked && button.Contains(mouse.X, mouse.Y));
             }
 
             bool inSupplies = _state == ExplorationState.Supplies;
@@ -244,7 +504,10 @@ namespace DuskAndDawn
                         HandleMapClick(mouse.X, mouse.Y);
                         break;
                     case ExplorationState.Encounter:
-                        HandleCombatClick(mouse.X, mouse.Y);
+                        if (!IsActionLocked)
+                        {
+                            HandleCombatClick(mouse.X, mouse.Y);
+                        }
                         break;
                     case ExplorationState.Supplies:
                         HandleSuppliesClick(mouse.X, mouse.Y);
@@ -312,7 +575,11 @@ namespace DuskAndDawn
 
         private void StartEncounter(int depth)
         {
-            var enemy = new Enemy($"Corrupted Wretch (Depth {depth + 1})", maxHealth: 30 + depth * 3, attackPower: 6 + depth);
+            var enemy = new Enemy(
+                $"{DistrictInfo.RandomEnemyName(_district, _random)} (Depth {depth + 1})",
+                maxHealth: 30 + depth * 3 + DistrictInfo.EnemyHealthBonus(_district),
+                attackPower: 6 + depth + DistrictInfo.EnemyAttackBonus(_district),
+                corruption: DistrictInfo.Corruption(_district));
             _activeCombat = new CombatEncounter(enemy, _playerState, _dawnTimer, _random);
             _enemyHealthBar = new LerpBar(enemy.MaxHealth, enemy.MaxHealth);
             _combatMenu = CombatMenu.TopLevel;
@@ -343,13 +610,22 @@ namespace DuskAndDawn
                     break;
 
                 case CombatMenu.Items:
-                    for (int i = 0; i < _playerState.Items.Count; i++)
                     {
-                        _combatButtons.Add(new Button(new RectangleF(x, y, width, height), _playerState.Items[i].Name));
-                        y += height + gap;
+                        // Grouped by name, and a bit more compact than the other menus, since
+                        // the Infirmary and Kitchen can stock up to six different items.
+                        const float itemHeight = 48, itemGap = 8;
+                        _itemButtonNames.Clear();
+                        foreach (var group in _playerState.Items.GroupBy(it => it.Name))
+                        {
+                            int count = group.Count();
+                            string itemLabel = count > 1 ? $"{group.Key} x{count}" : group.Key;
+                            _combatButtons.Add(new Button(new RectangleF(x, y, width, itemHeight), itemLabel));
+                            _itemButtonNames.Add(group.Key);
+                            y += itemHeight + itemGap;
+                        }
+                        _combatButtons.Add(new Button(new RectangleF(x, y, width, itemHeight), "Back"));
+                        break;
                     }
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Back"));
-                    break;
             }
         }
 
@@ -369,6 +645,7 @@ namespace DuskAndDawn
                         case "Attack":
                             _textLog.Push(_activeCombat.Attack());
                             _combatTurn++;
+                            TriggerCombatEffects(Game1.AttackTexture);
                             break;
                         case "Skills":
                             _combatMenu = CombatMenu.Skills;
@@ -390,15 +667,19 @@ namespace DuskAndDawn
                     var skill = label.StartsWith("Power") ? SkillType.PowerStrike : SkillType.Guard;
                     _textLog.Push(_activeCombat.UseSkill(skill));
                     _combatTurn++;
+                    TriggerCombatEffects(Game1.SkillTexture);
                 }
                 else if (_combatMenu == CombatMenu.Items)
                 {
                     if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
-                    var item = _playerState.Items.Find(it => it.Name == label);
+                    int itemIndex = _combatButtons.IndexOf(button);
+                    string itemName = itemIndex >= 0 && itemIndex < _itemButtonNames.Count ? _itemButtonNames[itemIndex] : label;
+                    var item = _playerState.Items.Find(it => it.Name == itemName);
                     if (item != null)
                     {
                         _textLog.Push(_activeCombat.UseItem(item));
                         _combatTurn++;
+                        TriggerCombatEffects(Game1.AttackTexture);
                     }
                     _combatMenu = CombatMenu.TopLevel;
                 }
@@ -416,12 +697,83 @@ namespace DuskAndDawn
             }
         }
 
+        /// <summary>Fires the dice-roll popup and the enemy/player hit-flashes based on what
+        /// CombatEncounter's last action actually did - castTexture (Attack.png or
+        /// Skill.png) only plays if that action was a damage roll (it's ignored for
+        /// Guard, items, etc. since LastRollWasAttack stays false for those).</summary>
+        /// <summary>Plays the delayed "enemy hits us" beat: Attacked animation, shake, and the
+        /// enemy's log line.</summary>
+        private void FirePendingPlayerHit()
+        {
+            _pendingPlayerHitDelay = -1f;
+            _playerHitFlash.Play(Game1.AttackedTexture, ScreenCenter, AttackedAnimDuration, EffectScale);
+            _playerShake.Play();
+            if (!string.IsNullOrEmpty(_pendingEnemyReplyText))
+            {
+                _textLog.Push(_pendingEnemyReplyText);
+                _pendingEnemyReplyText = "";
+            }
+        }
+
+        private void TriggerCombatEffects(Texture2D castTexture)
+        {
+            // If the last enemy hit is still waiting on its delay when a new action comes in
+            // (clicking faster than EnemyCounterDelay), play it now. Before, the new action
+            // simply reset the timer, so with quick clicks the Attacked animation never played.
+            if (_pendingPlayerHitDelay >= 0f)
+            {
+                FirePendingPlayerHit();
+            }
+
+            var portraitCenter = new Vector2(630, 440);
+
+            if (_activeCombat.LastRollWasAttack)
+            {
+                float castDuration = castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration;
+                _castEffect.Play(castTexture, ScreenCenter, castDuration, EffectScale);
+                _enemyShake.Play();
+                _diceRollPopup.Play(Game1.DiceTexture, _activeCombat.LastPlayerRoll, portraitCenter + new Vector2(-70, -90));
+            }
+
+            if (_activeCombat.PlayerWasHit)
+            {
+                // Scheduled rather than played immediately - see EnemyCounterDelay above.
+                _pendingPlayerHitDelay = EnemyCounterDelay;
+                _pendingEnemyReplyText = _activeCombat.LastEnemyReplyText;
+            }
+            else if (!string.IsNullOrEmpty(_activeCombat.LastEnemyReplyText))
+            {
+                // No counter-attack to wait for (the enemy's already defeated) - nothing to
+                // stagger against, so the resolution line shows right away.
+                _textLog.Push(_activeCombat.LastEnemyReplyText);
+            }
+
+            // Lock the buttons until this whole exchange has played out.
+            float ourPart = _activeCombat.LastRollWasAttack
+                ? (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration)
+                : 0f;
+            float enemyPart = _activeCombat.PlayerWasHit ? EnemyCounterDelay + AttackedAnimDuration : 0f;
+            _actionLock = Math.Max(MinActionLock, Math.Max(ourPart, enemyPart) + ActionGap);
+        }
+
         private void EndCombat(bool fled)
         {
             if (!fled && _activeCombat.PlayerWon)
             {
                 _roomsCleared++;
             }
+
+            // The fight is over - cut any animation still playing and drop the queued enemy
+            // hit (its log line still shows, so the last blow isn't lost from the log).
+            _castEffect.Stop();
+            _playerHitFlash.Stop();
+            if (_pendingPlayerHitDelay >= 0f && !string.IsNullOrEmpty(_pendingEnemyReplyText))
+            {
+                _textLog.Push(_pendingEnemyReplyText);
+            }
+            _pendingPlayerHitDelay = -1f;
+            _pendingEnemyReplyText = "";
+            _actionLock = 0f;
 
             _activeCombat = null;
             _combatMenu = CombatMenu.TopLevel;
@@ -451,17 +803,20 @@ namespace DuskAndDawn
 
         private List<ChoiceOption> BuildSuppliesOptions()
         {
+            // Richer districts add a flat bonus to every resource found.
+            int bonus = DistrictInfo.LootBonus(_district);
+
             return new List<ChoiceOption>
             {
                 new ChoiceOption("Search quickly", "Fast and safe - a modest find.", (state, rng) =>
                 {
-                    state.AddResources(food: rng.Next(1, 4), scraps: rng.Next(1, 3));
+                    state.AddResources(food: rng.Next(1, 4) + bonus, scraps: rng.Next(1, 3) + bonus);
                     return "You grab what's in easy reach.";
                 }),
 
                 new ChoiceOption("Search thoroughly", "Slower, better odds - but noise draws attention.", (state, rng) =>
                 {
-                    state.AddResources(food: rng.Next(3, 7), planks: rng.Next(2, 5), scraps: rng.Next(2, 5));
+                    state.AddResources(food: rng.Next(3, 7) + bonus, planks: rng.Next(2, 5) + bonus, scraps: rng.Next(2, 5) + bonus);
                     if (rng.Next(100) < 30)
                     {
                         state.Health = Math.Max(1, state.Health - 8);
@@ -502,14 +857,15 @@ namespace DuskAndDawn
         {
             if (_random.Next(100) < 50)
             {
-                int food = _random.Next(2, 5);
-                int planks = _random.Next(1, 4);
+                int bonus = DistrictInfo.LootBonus(_district);
+                int food = _random.Next(2, 5) + bonus;
+                int planks = _random.Next(1, 4) + bonus;
                 _playerState.AddResources(food: food, planks: planks);
                 _textLog.Push($"A moment of quiet beauty in the dark. You gather {food} Food and {planks} Planks.");
             }
             else
             {
-                var weapon = Weapon.LootPool[_random.Next(Weapon.LootPool.Length)];
+                var weapon = Weapon.LootPool[_random.Next(Weapon.LootPool.Length)]();
                 _playerState.Inventory.Add(weapon);
                 _textLog.Push($"You find a {weapon.Name} ({weapon.DiceLabel}) left behind by someone else.");
             }
@@ -534,7 +890,12 @@ namespace DuskAndDawn
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(14, 14, 24), new Color(4, 4, 8), 10);
 
             DrawClock(spriteBatch, font, totalSeconds);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})", new Vector2(40, 100), Color.LightGray);
+            string weaponLine = $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})";
+            UITheme.DrawTextWithShadow(spriteBatch, font, weaponLine, new Vector2(40, 100), Color.LightGray);
+            // 1x icon just after the weapon line - small, but crisp at native size.
+            float weaponLineWidth = font.MeasureString(weaponLine).X;
+            UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(_playerState.EquippedWeapon), new Vector2(40 + weaponLineWidth + 8, 94), 1);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"{DistrictInfo.Name(_district)}  -  Corruption {DistrictInfo.Corruption(_district)}", new Vector2(420, 28), new Color(255, 180, 120));
             DrawPlayerHealthBar(spriteBatch, font);
 
             switch (_state)
@@ -550,6 +911,14 @@ namespace DuskAndDawn
                     DrawSupplies(spriteBatch, font);
                     DrawMapFragment(spriteBatch, font);
                     break;
+            }
+
+            // Combat animations go on top of everything, centered on the screen - only while
+            // a fight is actually on (EndCombat also stops them).
+            if (_state == ExplorationState.Encounter)
+            {
+                _castEffect.Draw(spriteBatch);
+                _playerHitFlash.Draw(spriteBatch);
             }
 
             spriteBatch.End();
@@ -583,20 +952,40 @@ namespace DuskAndDawn
             UITheme.DrawRoundedRectBorder(spriteBatch, clockMax, Color.White * 0.8f, 2f, 10f);
         }
 
+        // Hp_bar.png is a single "full" bar sprite (heart + red track), not a separate
+        // empty/full pair. To show partial health without a second asset, this draws a dim
+        // full-width copy as the track, then the same sprite - cropped from its left edge to
+        // just the current-health fraction - at full brightness on top. Both draws share the
+        // same position/scale, so the crop lines up exactly with the track underneath, and the
+        // bar visually drains from the right while the heart and left cap stay put.
+        private void DrawHpBarSprite(SpriteBatch spriteBatch, Vector2 position, float scale, float ratio)
+        {
+            var texture = Game1.HpBarTexture;
+            if (texture == null) return;
+
+            var fullSource = new Rectangle(0, 0, texture.Width, texture.Height);
+            spriteBatch.Draw(texture, position, fullSource, Color.White * 0.35f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+            if (ratio > 0.01f)
+            {
+                int fillWidth = Math.Max(1, (int)(texture.Width * MathHelper.Clamp(ratio, 0f, 1f)));
+                var fillSource = new Rectangle(0, 0, fillWidth, texture.Height);
+                spriteBatch.Draw(texture, position, fillSource, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+        }
+
         private void DrawPlayerHealthBar(SpriteBatch spriteBatch, SpriteFont font)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Health: {_playerState.Health}/{_playerState.MaxHealth}", new Vector2(40, 132), Color.LightGray);
+            var shakenPosition = PlayerHpBarPosition + _playerShake.Offset;
+            DrawHpBarSprite(spriteBatch, shakenPosition, PlayerHpBarScale, _playerHealthBar.Ratio);
 
-            var barMax = new RectangleF(40, 165, 300, 20);
-            var barFill = new RectangleF(40, 165, 300 * _playerHealthBar.Ratio, 20);
+            var texture = Game1.HpBarTexture;
+            float dispW = texture != null ? texture.Width * PlayerHpBarScale : 0f;
+            float dispH = texture != null ? texture.Height * PlayerHpBarScale : 0f;
 
-            UITheme.DrawSoftShadow(spriteBatch, barMax, 10f, 0.4f);
-            UITheme.FillRoundedRectGradient(spriteBatch, barMax, Color.Black * 0.6f, Color.Black * 0.4f, 10f, 6);
-            if (barFill.Width > 1f)
-            {
-                UITheme.FillRoundedRectGradient(spriteBatch, barFill, new Color(225, 90, 90), new Color(175, 35, 35), 10f, 6);
-            }
-            UITheme.DrawRoundedRectBorder(spriteBatch, barMax, Color.White * 0.8f, 2f, 10f);
+            var label = $"{_playerState.Health}/{_playerState.MaxHealth}";
+            var labelPos = new Vector2(shakenPosition.X + dispW + 14, shakenPosition.Y + dispH / 2f - 10);
+            UITheme.DrawTextWithShadow(spriteBatch, font, label, labelPos, Color.White);
         }
 
         private void DrawMinimap(SpriteBatch spriteBatch, SpriteFont font)
@@ -614,7 +1003,7 @@ namespace DuskAndDawn
                         bottom = new Color(44, 44, 44);
                         label = node.Type.ToString();
                     }
-                    else if (depth == _currentDepth)
+                    else if (depth >= _currentDepth && depth <= _currentDepth + _playerState.ArchiveRevealDepth)
                     {
                         (top, bottom) = node.Type switch
                         {
@@ -624,6 +1013,14 @@ namespace DuskAndDawn
                             _ => (Color.Gray, Color.DarkGray)
                         };
                         label = node.Type.ToString();
+
+                        // Rooms scouted ahead by the Archive show their type but stay dimmed,
+                        // so it's clear only the current layer can be entered.
+                        if (depth > _currentDepth)
+                        {
+                            top = UITheme.Darken(top, 0.45f);
+                            bottom = UITheme.Darken(bottom, 0.45f);
+                        }
                     }
                     else
                     {
@@ -655,45 +1052,54 @@ namespace DuskAndDawn
         {
             // Small persistent reminder of where you are in tonight's map, even mid-fight or
             // mid-choice - a stand-in for the reference's parchment map-fragment icon.
-            var box = new RectangleF(40, 610, 200, 90);
+            var box = new RectangleF(40, 610, 220, 90);
             UITheme.DrawPanel(spriteBatch, box, new Color(62, 50, 32), new Color(42, 34, 20), new Color(150, 120, 70), 2f, 12f, shadowStrength: 0.5f);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Tonight's map", new Vector2(box.X + 10, box.Y + 10), new Color(225, 205, 165));
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Depth {_currentDepth}/{_map.Layers.Count}", new Vector2(box.X + 10, box.Y + 40), new Color(225, 205, 165));
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Depth {_currentDepth}/{_map.Layers.Count}", new Vector2(box.X + 10, box.Y + 38), new Color(225, 205, 165));
+            UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(box.X + 10, box.Y + 64), new Color(200, 180, 140), 0.8f);
         }
 
         private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, _activeCombat.Enemy.Name, new Vector2(480, 210), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 210), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _activeCombat.Enemy.Name, new Vector2(480, 195), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 195), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Rerolls: {_activeCombat.RerollsLeft}", new Vector2(1000, 225), new Color(200, 210, 255), 0.85f);
+
+            var shakeOffset = _enemyShake.Offset;
+
+            var enemyBarPosition = EnemyHpBarPosition + shakeOffset;
+            DrawHpBarSprite(spriteBatch, enemyBarPosition, EnemyHpBarScale, _enemyHealthBar.Ratio);
+            var enemyTexture = Game1.HpBarTexture;
+            float enemyDispW = enemyTexture != null ? enemyTexture.Width * EnemyHpBarScale : 0f;
+            float enemyDispH = enemyTexture != null ? enemyTexture.Height * EnemyHpBarScale : 0f;
+            var enemyLabel = $"{_activeCombat.Enemy.Health}/{_activeCombat.Enemy.MaxHealth}";
+            UITheme.DrawTextWithShadow(spriteBatch, font, enemyLabel, new Vector2(enemyBarPosition.X + enemyDispW + 14, enemyBarPosition.Y + enemyDispH / 2f - 10), Color.White);
 
             // Portrait placeholder - swap for real enemy art once it exists. The slow ember
             // pulse on its border stands in for the corruption-glow visual language used
             // elsewhere for enemy readability.
-            var portrait = new RectangleF(480, 250, 300, 260);
+            var portrait = new RectangleF(480 + shakeOffset.X, 335 + shakeOffset.Y, 300, 210);
             float glow = UITheme.PulseSine(totalSeconds, 2.5f);
             Color emberBorder = Color.Lerp(new Color(150, 45, 40), new Color(255, 130, 60), glow * 0.5f);
             UITheme.DrawPanel(spriteBatch, portrait, new Color(45, 26, 30), new Color(28, 16, 19), emberBorder, 3f, 14f, shadowStrength: 0.6f);
 
-            // Vertical enemy health bar beside the portrait, like the reference - fills from
-            // the bottom up so it drains from the top as health drops.
-            const float barX = 800, barY = 250, barW = 30, barH = 260;
-            float filledHeight = barH * _enemyHealthBar.Ratio;
-            var barOuter = new RectangleF(barX, barY, barW, barH);
-            var barFill = new RectangleF(barX, barY + (barH - filledHeight), barW, filledHeight);
+            // Roll readout over the portrait. The slash / hit animations are drawn last in
+            // Draw(), centered on the screen, so they sit on top of everything.
+            _diceRollPopup.Draw(spriteBatch, font);
 
-            UITheme.DrawSoftShadow(spriteBatch, barOuter, 8f, 0.4f);
-            UITheme.FillRoundedRectGradient(spriteBatch, barOuter, Color.Black * 0.6f, Color.Black * 0.4f, 8f, 6);
-            if (filledHeight > 1f)
-            {
-                UITheme.FillRoundedRectGradient(spriteBatch, barFill, new Color(255, 130, 70), new Color(200, 70, 20), 8f, 6);
-            }
-            UITheme.DrawRoundedRectBorder(spriteBatch, barOuter, Color.White * 0.8f, 2f, 8f);
-
-            _textLog.Draw(spriteBatch, font, new Vector2(480, 545));
+            _textLog.Draw(spriteBatch, font, new Vector2(480, 575), maxWidth: 760f);
 
             foreach (var button in _combatButtons)
             {
-                DrawStyledButton(spriteBatch, font, button, new Color(64, 64, 88), new Color(44, 44, 64));
+                // Dimmed while locked, so it's clear the next action isn't ready yet.
+                if (IsActionLocked)
+                {
+                    DrawStyledButton(spriteBatch, font, button, new Color(40, 40, 50), new Color(30, 30, 38));
+                }
+                else
+                {
+                    DrawStyledButton(spriteBatch, font, button, new Color(64, 64, 88), new Color(44, 44, 64));
+                }
             }
         }
 
@@ -706,7 +1112,7 @@ namespace DuskAndDawn
             var lootBox = new RectangleF(60, 300, 260, 260);
             UITheme.DrawPanel(spriteBatch, lootBox, new Color(58, 50, 30), new Color(38, 32, 18), new Color(150, 118, 64), 3f, 14f, shadowStrength: 0.6f);
 
-            _textLog.Draw(spriteBatch, font, new Vector2(60, 580));
+            _textLog.Draw(spriteBatch, font, new Vector2(60, 580), maxWidth: 740f);
 
             for (int i = 0; i < _suppliesButtons.Count; i++)
             {

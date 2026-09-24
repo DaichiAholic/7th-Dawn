@@ -25,6 +25,12 @@ namespace DuskAndDawn
 
         public Dictionary<BaseRoomType, int> RoomLevels { get; } = new Dictionary<BaseRoomType, int>();
 
+        // Chosen on the Prepare screen, read by the Night screen.
+        public District SelectedDistrict = District.VillageOutskirts;
+
+        // Kitchen Lv 3 Feast can only be held once per day. Reset each morning.
+        public bool FeastUsedToday;
+
         public PlayerState()
         {
             foreach (BaseRoomType room in Enum.GetValues(typeof(BaseRoomType)))
@@ -57,11 +63,66 @@ namespace DuskAndDawn
             return true;
         }
 
+        public bool CanAfford(int food = 0, int planks = 0, int scraps = 0)
+        {
+            return Food >= food && Planks >= planks && Scraps >= scraps;
+        }
+
+        // Deliberately NOT capped - the night haul can go over the Storage cap, and the
+        // overflow is only lost at Dawn (see ApplyStorageCap). That's what makes "one more
+        // room?" a real question even when a run is going well.
         public void AddResources(int food = 0, int planks = 0, int scraps = 0)
         {
             Food += food;
             Planks += planks;
             Scraps += scraps;
+        }
+
+        // =====================================================================
+        // Room effects - every "what does this room do at this level" number lives here,
+        // so screens just read a property instead of switching on levels themselves.
+        // =====================================================================
+
+        public int Level(BaseRoomType room) => RoomLevels[room];
+
+        // ---- Storage: max of each resource ----
+        public int StorageCap => Level(BaseRoomType.Storage) switch
+        {
+            1 => 30,
+            2 => 60,
+            _ => 100
+        };
+
+        /// <summary>Trims each resource down to the Storage cap and returns how much was
+        /// lost, so the caller can tell the player.</summary>
+        public (int food, int planks, int scraps) ApplyStorageCap()
+        {
+            int cap = StorageCap;
+            int lostFood = Math.Max(0, Food - cap);
+            int lostPlanks = Math.Max(0, Planks - cap);
+            int lostScraps = Math.Max(0, Scraps - cap);
+
+            Food -= lostFood;
+            Planks -= lostPlanks;
+            Scraps -= lostScraps;
+
+            return (lostFood, lostPlanks, lostScraps);
+        }
+
+        // ---- Kitchen: free Food each morning ----
+        public int KitchenDailyFood => Level(BaseRoomType.Kitchen) * 2;
+
+        // ---- Barracks: dice training ----
+        public int BarracksRerolls => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
+        public int BarracksMinFace => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
+        public int BarracksExtraDice => Level(BaseRoomType.Barrack) >= 3 ? 1 : 0;
+
+        // ---- Archive: districts + minimap scouting ----
+        public int ArchiveRevealDepth => Level(BaseRoomType.Archive) - 1;
+
+        public bool IsDistrictUnlocked(District district)
+        {
+            return Level(BaseRoomType.Archive) >= DistrictInfo.RequiredArchiveLevel(district);
         }
     }
 }

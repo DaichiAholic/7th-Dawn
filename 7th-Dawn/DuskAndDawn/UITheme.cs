@@ -213,6 +213,52 @@ namespace DuskAndDawn
             FillRoundedRectGradient(spriteBatch, bounds, topColor, bottomColor, radius, 14);
         }
 
+        // ---------- Pixel-art icons ----------
+
+        /// <summary>Draws a small pixel-art sprite (weapon icons etc.) at a whole-number scale
+        /// with point sampling, so it stays crisp instead of being blurred by the default
+        /// linear filter. Briefly restarts the batch to switch sampler, then restores the
+        /// default Begin() every screen uses. Safe to call with a null texture (draws nothing).</summary>
+        public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale)
+        {
+            if (texture == null) return;
+
+            spriteBatch.End();
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            // Snapped to whole pixels - a fractional position smears pixel art even with point sampling.
+            var snapped = new Vector2(MathF.Round(topLeft.X), MathF.Round(topLeft.Y));
+            spriteBatch.Draw(texture, snapped, null, Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            spriteBatch.Begin();
+        }
+
+        /// <summary>One frame of a pixel-art spritesheet, centered on a point, at a whole-number
+        /// scale with point sampling. Used for the combat animations.</summary>
+        public static void DrawPixelSprite(SpriteBatch spriteBatch, Texture2D texture, Rectangle source, Vector2 center, int scale)
+        {
+            if (texture == null) return;
+
+            var topLeft = new Vector2(
+                MathF.Round(center.X - source.Width * scale / 2f),
+                MathF.Round(center.Y - source.Height * scale / 2f));
+
+            spriteBatch.End();
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            spriteBatch.Draw(texture, topLeft, source, Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            spriteBatch.Begin();
+        }
+
+        /// <summary>Icon with a dark rounded backing slot. The slot is drawn even when there's
+        /// no icon yet, so cards keep the same layout for weapons still waiting on art.</summary>
+        public static void DrawIconSlot(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, int nativeSize = 32)
+        {
+            float size = nativeSize * scale;
+            var slot = new RectangleF(topLeft.X - 4, topLeft.Y - 4, size + 8, size + 8);
+            FillRoundedRect(spriteBatch, slot, Color.Black * 0.35f, 8f);
+            DrawPixelIcon(spriteBatch, texture, topLeft, scale);
+        }
+
         // ---------- Text ----------
 
         public static void DrawTextWithShadow(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 position, Color color, float scale = 1f)

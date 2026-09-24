@@ -28,5 +28,11 @@ namespace DuskAndDawn
         {
             RemainingBudget = Math.Max(0, RemainingBudget - cost);
         }
+
+        /// <summary>Gives time back (Dawn Tincture). Never goes above the night's max.</summary>
+        public void Restore(int amount)
+        {
+            RemainingBudget = Math.Min(MaxBudget, RemainingBudget + amount);
+        }
     }
 }

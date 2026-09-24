@@ -18,6 +18,9 @@ namespace DuskAndDawn
         private readonly int _roomsCleared;
         private readonly int _roomsVisited;
 
+        // What the Storage cap cut off from tonight's haul.
+        private readonly int _lostFood, _lostPlanks, _lostScraps;
+
         private Button _continueButton;
         private MouseState _previousMouse;
 
@@ -26,6 +29,10 @@ namespace DuskAndDawn
             _playerState = playerState;
             _roomsCleared = roomsCleared;
             _roomsVisited = roomsVisited;
+
+            // The night's haul can exceed Storage - this is the moment the overflow is lost.
+            // Done in the constructor so it runs exactly once per dawn.
+            (_lostFood, _lostPlanks, _lostScraps) = _playerState.ApplyStorageCap();
         }
 
         public override void Initialize()
@@ -72,10 +79,14 @@ namespace DuskAndDawn
             // flat color swatch.
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(255, 205, 150), new Color(210, 150, 120), 12);
 
-            var statsPanel = new RectangleF(260, 250, 760, 120);
+            var statsPanel = new RectangleF(260, 230, 760, 170);
             UITheme.DrawPanel(spriteBatch, statsPanel, new Color(70, 45, 35), new Color(48, 30, 24), new Color(150, 105, 70), 3f, 16f, shadowStrength: 0.7f);
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Rooms resolved: {_roomsCleared} / {_roomsVisited}", new Vector2(statsPanel.X + 40, statsPanel.Y + 30), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Food: {_playerState.Food}   Planks: {_playerState.Planks}   Scraps: {_playerState.Scraps}", new Vector2(statsPanel.X + 40, statsPanel.Y + 70), new Color(230, 220, 210));
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Food: {_playerState.Food}   Planks: {_playerState.Planks}   Scraps: {_playerState.Scraps}   (max {_playerState.StorageCap})", new Vector2(statsPanel.X + 40, statsPanel.Y + 70), new Color(230, 220, 210));
+
+            string storageLine = LostLabel();
+            Color storageColor = storageLine == null ? new Color(170, 220, 170) : new Color(255, 160, 140);
+            UITheme.DrawTextWithShadow(spriteBatch, font, storageLine ?? "Everything fit in Storage.", new Vector2(statsPanel.X + 40, statsPanel.Y + 110), storageColor);
 
             float hover = _continueButton.HoverAmount;
             Color top = Color.Lerp(new Color(95, 95, 150), new Color(120, 120, 180), hover);
@@ -93,6 +104,16 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, _continueButton.Label, textPos, Color.White);
 
             spriteBatch.End();
+        }
+
+        /// <summary>"Storage overflowed - lost 4 Food, 2 Scraps." or null if nothing was lost.</summary>
+        private string LostLabel()
+        {
+            var parts = new List<string>();
+            if (_lostFood > 0) parts.Add($"{_lostFood} Food");
+            if (_lostPlanks > 0) parts.Add($"{_lostPlanks} Planks");
+            if (_lostScraps > 0) parts.Add($"{_lostScraps} Scraps");
+            return parts.Count > 0 ? "Storage overflowed - lost " + string.Join(", ", parts) + "." : null;
         }
     }
 }

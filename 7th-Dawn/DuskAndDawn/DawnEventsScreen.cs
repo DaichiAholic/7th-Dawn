@@ -23,12 +23,24 @@ namespace DuskAndDawn
 
         private bool _resolved;
         private string _resultLog = "";
+        private readonly string _kitchenLog;
         private MouseState _previousMouse;
 
         public DawnEventsScreen(Game game, PlayerState playerState) : base(game)
         {
             _playerState = playerState;
             _event = MorningEventPool.GetRandom(new Random());
+
+            // A new day: the Kitchen cooks, and the Feast is available again. Done in the
+            // constructor so it happens exactly once per morning.
+            int cooked = _playerState.KitchenDailyFood;
+            _playerState.AddResources(food: cooked);
+            var (lostFood, _, _) = _playerState.ApplyStorageCap();
+            _playerState.FeastUsedToday = false;
+
+            _kitchenLog = lostFood > 0
+                ? $"The Kitchen cooked {cooked} Food, but Storage only had room for {cooked - lostFood}."
+                : $"The Kitchen cooked {cooked} Food.";
         }
 
         public override void Initialize()
@@ -103,7 +115,10 @@ namespace DuskAndDawn
                 _playerState.TrySpend(_event.FoodCost, _event.PlanksCost, _event.ScrapsCost);
                 _playerState.AddResources(_event.FoodReward, _event.PlanksReward, _event.ScrapsReward);
                 _playerState.ChangeHope(_event.HopeReward - _event.HopeCost);
-                _resultLog = $"Deal made: gained {_event.RewardLabel()}.";
+                var (lostFood, lostPlanks, lostScraps) = _playerState.ApplyStorageCap();
+                _resultLog = (lostFood + lostPlanks + lostScraps) > 0
+                    ? $"Deal made, but Storage is full - some of it spills."
+                    : $"Deal made: gained {_event.RewardLabel()}.";
             }
             else
             {
@@ -120,6 +135,10 @@ namespace DuskAndDawn
             spriteBatch.Begin();
 
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(245, 218, 178), new Color(215, 180, 140), 10);
+
+            var kitchenPanel = new RectangleF(260, 100, 760, 50);
+            UITheme.DrawPanel(spriteBatch, kitchenPanel, new Color(255, 244, 222), new Color(236, 214, 180), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.4f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _kitchenLog, new Vector2(kitchenPanel.X + 20, kitchenPanel.Y + 12), new Color(90, 55, 20));
 
             var eventPanel = new RectangleF(260, 170, 760, 200);
             UITheme.DrawPanel(spriteBatch, eventPanel, new Color(255, 250, 238), new Color(232, 216, 188), new Color(150, 110, 70), 3f, 16f, shadowStrength: 0.6f);

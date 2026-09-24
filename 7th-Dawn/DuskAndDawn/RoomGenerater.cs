@@ -9,27 +9,30 @@ namespace DuskAndDawn
     public class RoomGenerator
     {
         private readonly Random _random;
+        private readonly District _district;
 
-        public RoomGenerator(int? seed = null)
+        public RoomGenerator(District district, int? seed = null)
         {
+            _district = district;
             _random = seed.HasValue ? new Random(seed.Value) : new Random();
         }
 
         public RoomType PickNext(int depth)
         {
-            var weights = GetBaselineWeights(depth);
+            var weights = GetWeights(depth);
             return WeightedPick(weights);
         }
 
-        private Dictionary<RoomType, int> GetBaselineWeights(int depth)
+        private Dictionary<RoomType, int> GetWeights(int depth)
         {
             int encounterWeight = 40 + depth * 5;
+            var (supplies, encounter, special) = DistrictInfo.WeightSkew(_district);
 
             return new Dictionary<RoomType, int>
             {
-                { RoomType.Supplies, 45 },
-                { RoomType.Encounter, encounterWeight },
-                { RoomType.Special, 10 }
+                { RoomType.Supplies, Math.Max(1, 45 + supplies) },
+                { RoomType.Encounter, Math.Max(1, encounterWeight + encounter) },
+                { RoomType.Special, Math.Max(1, 10 + special) }
             };
         }
 
