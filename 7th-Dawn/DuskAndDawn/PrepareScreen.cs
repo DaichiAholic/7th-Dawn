@@ -77,7 +77,7 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            _previousMouse = Mouse.GetState();
+            _previousMouse = InputChecker.GetMouse();
 
             // If the saved choice is somehow locked (shouldn't happen, Archive never
             // downgrades), fall back to the Outskirts.
@@ -115,7 +115,7 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            var mouse = Mouse.GetState();
+            var mouse = InputChecker.GetMouse();
 
             bool hitStart = _startButton.Contains(mouse.X, mouse.Y);
             _startButton.UpdateAnimation(dt, hitStart);

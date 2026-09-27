@@ -60,64 +60,78 @@ namespace DuskAndDawn
     }
 
     /// <summary>
-    /// A 2-line action log: the newest message shows bright and steady; the previous one
-    /// drifts upward and dims as the new one arrives, then vanishes outright the moment a
-    /// third message pushes it out - there's only ever one "fading" slot, no stacking history.
+    /// A 2-message action log. The newest message shows bright. When another arrives, the
+    /// old one slides up above it and dims - but stays put and readable until the *next*
+    /// message comes in, at which point it fades out and the cycle repeats. So the log always
+    /// holds exactly what just happened and what happened right before it.
     /// </summary>
     public class TextLog
     {
-        private const float RiseSpeed = 18f;  // pixels/second the fading line drifts upward
-        private const float FadeSpeed = 0.6f; // alpha lost per second
-        private const float LineHeight = 24f; // vertical spacing between wrapped lines
+        private const float LineHeight = 24f;     // vertical spacing between wrapped lines
+        private const float ShiftSpeed = 5f;      // the slide/dim after a push takes ~0.2s
+        private const float PreviousAlpha = 0.5f; // how dim the older message settles
+        private const float OutgoingRise = 10f;   // pixels the pushed-out message drifts as it fades
 
         private string _current = "";
-        private string _fading = "";
-        private float _fadeAlpha;
-        private float _fadeOffset;
+        private string _previous = "";
+        private string _outgoing = ""; // the message being pushed out - only visible mid-shift
+        private float _shift = 1f;     // 0 right after a push, eases to 1
 
         public void Push(string message)
         {
             if (string.IsNullOrEmpty(message)) return;
 
-            _fading = _current;   // whatever was current becomes the dimming line...
-            _fadeAlpha = 1f;
-            _fadeOffset = 0f;
-            _current = message;   // ...and the new message takes the bright slot
+            _outgoing = _previous;
+            _previous = _current;
+            _current = message;
+            _shift = 0f;
         }
 
         public void Update(GameTime gameTime)
         {
-            if (_fadeAlpha <= 0f) return;
-
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _fadeAlpha = Math.Max(0f, _fadeAlpha - FadeSpeed * dt);
-            _fadeOffset += RiseSpeed * dt;
+            _shift = Math.Min(1f, _shift + ShiftSpeed * dt);
         }
 
-        /// <summary>Draws the current (bright) line(s) at basePosition, and the fading (dim,
-        /// rising) line(s) above them while still visible. Long messages wrap to fit within
-        /// maxWidth instead of running off the edge of the screen.</summary>
+        /// <summary>Draws the newest message at basePosition (wrapping downward), the previous
+        /// one dimmed directly above it, and - only while a push is animating - the message
+        /// that just got pushed out, fading away above that. Long messages wrap to maxWidth.</summary>
         public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition, float maxWidth)
         {
-            var currentLines = string.IsNullOrEmpty(_current) ? null : WrapText(font, _current, maxWidth);
+            float t = UITheme.EaseOutCubic(_shift);
 
-            if (_fadeAlpha > 0f && !string.IsNullOrEmpty(_fading))
+            // Previous: slides up from the bright slot into the slot above it, dimming as it goes.
+            float previousTop = basePosition.Y;
+            if (!string.IsNullOrEmpty(_previous))
             {
-                var fadingLines = WrapText(font, _fading, maxWidth);
-                float blockHeight = fadingLines.Count * LineHeight;
-                float startY = basePosition.Y - _fadeOffset - blockHeight;
-                for (int i = 0; i < fadingLines.Count; i++)
-                {
-                    spriteBatch.DrawString(font, fadingLines[i], new Vector2(basePosition.X, startY + i * LineHeight), Color.Gray * _fadeAlpha);
-                }
+                var lines = WrapText(font, _previous, maxWidth);
+                previousTop = basePosition.Y - lines.Count * LineHeight * t;
+                float alpha = MathHelper.Lerp(1f, PreviousAlpha, t);
+                DrawLines(spriteBatch, font, lines, new Vector2(basePosition.X, previousTop), new Color(200, 196, 214) * alpha, alpha);
             }
 
-            if (currentLines != null)
+            // Outgoing: the one before that, fading out above the previous as it arrives.
+            if (_shift < 1f && !string.IsNullOrEmpty(_outgoing))
             {
-                for (int i = 0; i < currentLines.Count; i++)
-                {
-                    UITheme.DrawTextWithShadow(spriteBatch, font, currentLines[i], basePosition + new Vector2(0, LineHeight * i), Color.White);
-                }
+                var lines = WrapText(font, _outgoing, maxWidth);
+                float alpha = PreviousAlpha * (1f - t);
+                float top = previousTop - lines.Count * LineHeight - OutgoingRise * t;
+                DrawLines(spriteBatch, font, lines, new Vector2(basePosition.X, top), new Color(200, 196, 214) * alpha, alpha);
+            }
+
+            // Current: eases in from just below.
+            if (!string.IsNullOrEmpty(_current))
+            {
+                var lines = WrapText(font, _current, maxWidth);
+                DrawLines(spriteBatch, font, lines, basePosition + new Vector2(0, (1f - t) * 8f), Color.White * t, t);
+            }
+        }
+
+        private static void DrawLines(SpriteBatch spriteBatch, SpriteFont font, List<string> lines, Vector2 topLeft, Color color, float alpha)
+        {
+            for (int i = 0; i < lines.Count; i++)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], topLeft + new Vector2(0, LineHeight * i), color, 1f, shadowAlpha: 0.45f * alpha);
             }
         }
 
@@ -493,7 +507,7 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            _previousMouse = Mouse.GetState();
+            _previousMouse = InputChecker.GetMouse();
 
             _playerState.Health = _playerState.MaxHealth; // rested at the base - full health tonight
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
@@ -546,7 +560,7 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            var mouse = Mouse.GetState();
+            var mouse = InputChecker.GetMouse();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
 
             // Bars and one-shot effects animate every frame regardless of state, so they keep

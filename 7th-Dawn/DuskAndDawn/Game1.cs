@@ -11,6 +11,15 @@ namespace DuskAndDawn
         private readonly GraphicsDeviceManager _graphics;
         private readonly ScreenManager _screenManager;
 
+        // Every screen is laid out for a fixed 1280x720 canvas. The game draws into this
+        // render target, then scales it to fill the real window/monitor (letterboxed to keep
+        // the 16:9 shape), so the layouts never have to know the actual resolution.
+        public const int CanvasWidth = 1280;
+        public const int CanvasHeight = 720;
+        private RenderTarget2D _canvas;
+        private Rectangle _canvasDestination;
+        private KeyboardState _previousKeyboard;
+
         public SpriteBatch SpriteBatch { get; private set; }
         public SpriteFont Font { get; private set; }
         public PlayerState PlayerState { get; private set; }
@@ -52,13 +61,14 @@ namespace DuskAndDawn
 
         protected override void Initialize()
         {
-            _graphics.PreferredBackBufferWidth = 1280;
-            _graphics.PreferredBackBufferHeight = 720;
-            _graphics.ApplyChanges();
+            SetFullScreen(true);
 
             base.Initialize();
 
             SpriteBatch = new SpriteBatch(GraphicsDevice);
+            _canvas = new RenderTarget2D(GraphicsDevice, CanvasWidth, CanvasHeight, false,
+                SurfaceFormat.Color, DepthFormat.None, GraphicsDevice.PresentationParameters.MultiSampleCount,
+                RenderTargetUsage.DiscardContents);
 
             // Bakes the shared rounded-corner/shadow texture used by every screen's panels
             // and buttons. Must happen after the GraphicsDevice exists and before any screen
@@ -85,6 +95,72 @@ namespace DuskAndDawn
             PlayerState = new PlayerState();
 
             _screenManager.ShowScreen(new BaseBuilding(this, PlayerState));
+        }
+
+        /// <summary>Borderless fullscreen at the monitor's resolution, or a 1280x720 window.</summary>
+        private void SetFullScreen(bool fullScreen)
+        {
+            if (fullScreen)
+            {
+                var mode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+                // Borderless rather than an exclusive mode switch: no flicker when toggling,
+                // and alt-tabbing out behaves.
+                _graphics.HardwareModeSwitch = false;
+                _graphics.PreferredBackBufferWidth = mode.Width;
+                _graphics.PreferredBackBufferHeight = mode.Height;
+            }
+            else
+            {
+                _graphics.PreferredBackBufferWidth = CanvasWidth;
+                _graphics.PreferredBackBufferHeight = CanvasHeight;
+            }
+            _graphics.IsFullScreen = fullScreen;
+            _graphics.ApplyChanges();
+        }
+
+        /// <summary>Largest 16:9 area that fits the back buffer, centered. Also tells
+        /// InputChecker how to map the mouse back onto the canvas.</summary>
+        private void UpdateCanvasDestination()
+        {
+            var pp = GraphicsDevice.PresentationParameters;
+            float scale = System.Math.Min(pp.BackBufferWidth / (float)CanvasWidth, pp.BackBufferHeight / (float)CanvasHeight);
+            int width = (int)(CanvasWidth * scale);
+            int height = (int)(CanvasHeight * scale);
+            _canvasDestination = new Rectangle((pp.BackBufferWidth - width) / 2, (pp.BackBufferHeight - height) / 2, width, height);
+
+            InputChecker.CanvasScale = scale;
+            InputChecker.CanvasOffset = new Vector2(_canvasDestination.X, _canvasDestination.Y);
+        }
+
+        protected override void Update(GameTime gameTime)
+        {
+            // F11 or Alt+Enter flips between fullscreen and a window.
+            var keyboard = Keyboard.GetState();
+            bool altEnter = keyboard.IsKeyDown(Keys.Enter) && !_previousKeyboard.IsKeyDown(Keys.Enter)
+                && (keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt));
+            bool f11 = keyboard.IsKeyDown(Keys.F11) && !_previousKeyboard.IsKeyDown(Keys.F11);
+            if (altEnter || f11)
+            {
+                SetFullScreen(!_graphics.IsFullScreen);
+            }
+            _previousKeyboard = keyboard;
+
+            UpdateCanvasDestination();
+            base.Update(gameTime);
+        }
+
+        protected override void Draw(GameTime gameTime)
+        {
+            // Screens (and their fade transitions) draw at 1280x720 into the canvas...
+            GraphicsDevice.SetRenderTarget(_canvas);
+            base.Draw(gameTime);
+
+            // ...which is then scaled onto the real screen, with black bars if the aspect differs.
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.Clear(Color.Black);
+            SpriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            SpriteBatch.Draw(_canvas, _canvasDestination, Color.White);
+            SpriteBatch.End();
         }
     }
 }

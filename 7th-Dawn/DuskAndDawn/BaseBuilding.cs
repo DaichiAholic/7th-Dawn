@@ -29,6 +29,9 @@ namespace DuskAndDawn
         // Set for Workshop recipes so the panel can show the weapon's icon. null for items.
         public Weapon SampleWeapon { get; }
 
+        // Set for item recipes, so craft feedback can draw the right vial. null otherwise.
+        public Item SampleItem { get; }
+
         private readonly Func<PlayerState, string> _craft;
         private readonly Func<PlayerState, string> _blockedReason;
 
@@ -36,9 +39,11 @@ namespace DuskAndDawn
             int food, int planks, int scraps,
             Func<PlayerState, string> craft,
             Func<PlayerState, string> blockedReason = null,
-            Weapon sampleWeapon = null)
+            Weapon sampleWeapon = null,
+            Item sampleItem = null)
         {
             SampleWeapon = sampleWeapon;
+            SampleItem = sampleItem;
             Name = name;
             Detail = detail;
             Room = room;
@@ -68,7 +73,7 @@ namespace DuskAndDawn
             return new Recipe(sample.Name, detail, room, level, food, planks, scraps, state =>
             {
                 state.Inventory.Add(make());
-                return $"Crafted a {sample.Name}.";
+                return $"Crafted a {sample.Name}. Equip it on the Prepare screen.";
             }, sampleWeapon: sample);
         }
 
@@ -80,7 +85,7 @@ namespace DuskAndDawn
                 state.Items.Add(make());
                 int owned = state.Items.Count(i => i.Name == sample.Name);
                 return $"Made a {sample.Name} (you have {owned}).";
-            });
+            }, sampleItem: sample);
         }
     }
 
@@ -160,6 +165,38 @@ namespace DuskAndDawn
         private readonly List<(Button button, Recipe recipe)> _recipeButtons = new List<(Button, Recipe)>();
         private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 540);
 
+        // ---- Craft feedback ----
+        // A successful craft gets a "Crafted!" card up top with the thing's icon, a burst of
+        // sparks and a flash on the recipe button, a "+1" rising off it, and the spent
+        // resources floating off their counters - so it can't be missed.
+        private const float CraftToastDuration = 2.4f;
+        private const float CraftFlashDuration = 0.8f;
+        private float _craftToastTimer;
+        private Recipe _craftToastRecipe;
+        private string _craftToastDetail = "";
+        private Button _craftFlashButton;
+        private float _craftFlashTimer;
+        private readonly Random _fxRandom = new Random();
+
+        private class Spark
+        {
+            public Vector2 Position, Velocity;
+            public float Life, MaxLife, Size;
+            public Color Color;
+        }
+        private readonly List<Spark> _sparks = new List<Spark>();
+
+        private class Floater
+        {
+            public string Text;
+            public Vector2 Position;
+            public Color Color;
+            public float Life;
+            public float Scale;
+        }
+        private const float FloaterDuration = 1.3f;
+        private readonly List<Floater> _floaters = new List<Floater>();
+
         // ---- Resource "pop" animation state ----
         // Tracks the last-seen value of each resource so a change (from an upgrade)
         // can trigger a brief pop-then-settle animation on that resource's count.
@@ -189,7 +226,7 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            _previousMouse = Mouse.GetState();
+            _previousMouse = InputChecker.GetMouse();
 
             for (int i = 0; i < UpperFloorRooms.Length; i++)
             {
@@ -224,11 +261,12 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateCraftEffects(dt);
             _foodPopTimer = MathF.Max(0f, _foodPopTimer - dt);
             _planksPopTimer = MathF.Max(0f, _planksPopTimer - dt);
             _scrapsPopTimer = MathF.Max(0f, _scrapsPopTimer - dt);
 
-            var mouse = Mouse.GetState();
+            var mouse = InputChecker.GetMouse();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
             bool panelOpen = _openRoom.HasValue;
 
@@ -362,7 +400,7 @@ namespace DuskAndDawn
                 if (!button.Contains(x, y)) continue;
 
                 button.TriggerPress();
-                TryCraft(recipe);
+                TryCraft(recipe, button);
                 return;
             }
         }
@@ -381,6 +419,7 @@ namespace DuskAndDawn
             if (_playerState.TrySpend(food, planks, scraps))
             {
                 _playerState.RoomLevels[room] = level + 1;
+                SpawnSpendFloaters(food, planks, scraps);
                 SetStatus($"{room} upgraded to Lv {level + 1}. {UpgradeNote(room, level + 1)} Upkeep is now {_playerState.DailyUpkeep} Food.", isError: false);
             }
             else
@@ -389,7 +428,7 @@ namespace DuskAndDawn
             }
         }
 
-        private void TryCraft(Recipe recipe)
+        private void TryCraft(Recipe recipe, Button button)
         {
             int level = _playerState.RoomLevels[recipe.Room];
             if (level < recipe.RequiredLevel)
@@ -411,7 +450,91 @@ namespace DuskAndDawn
                 return;
             }
 
-            SetStatus(recipe.Craft(_playerState), isError: false);
+            string message = recipe.Craft(_playerState);
+            SetStatus(message, isError: false);
+            SpawnSpendFloaters(recipe.Food, recipe.Planks, recipe.Scraps);
+            CelebrateCraft(recipe, button);
+        }
+
+        // ---------- Craft feedback ----------
+
+        private void CelebrateCraft(Recipe recipe, Button button)
+        {
+            _craftToastRecipe = recipe;
+            // One short line that fits the card: where it went, or what it did.
+            _craftToastDetail = recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
+                : recipe.SampleItem != null ? $"Now in your pack: {OwnedCount(recipe)}"
+                : recipe.Detail;
+            _craftToastTimer = CraftToastDuration;
+            _craftFlashButton = button;
+            _craftFlashTimer = CraftFlashDuration;
+
+            var center = new Vector2(button.Bounds.X + button.Bounds.Width / 2f, button.Bounds.Y + button.Bounds.Height / 2f);
+            var palette = new[] { new Color(255, 225, 140), new Color(255, 250, 220), new Color(150, 240, 160), new Color(255, 170, 80) };
+            for (int i = 0; i < 34; i++)
+            {
+                float angle = (float)(_fxRandom.NextDouble() * MathF.PI * 2f);
+                float speed = 140f + (float)_fxRandom.NextDouble() * 260f;
+                _sparks.Add(new Spark
+                {
+                    Position = center + new Vector2((float)(_fxRandom.NextDouble() - 0.5) * button.Bounds.Width * 0.6f, 0f),
+                    Velocity = new Vector2(MathF.Cos(angle), MathF.Sin(angle) - 0.8f) * speed,
+                    MaxLife = 0.55f + (float)_fxRandom.NextDouble() * 0.5f,
+                    Size = 2f + (float)_fxRandom.NextDouble() * 2.5f,
+                    Color = palette[_fxRandom.Next(palette.Length)]
+                });
+            }
+
+            _floaters.Add(new Floater
+            {
+                Text = $"+1 {recipe.Name}",
+                Position = new Vector2(button.Bounds.X + 16, button.Bounds.Y - 6),
+                Color = new Color(150, 240, 160),
+                Scale = 0.9f
+            });
+        }
+
+        /// <summary>"-3" readouts rising off whichever resource counters just paid for something.</summary>
+        private void SpawnSpendFloaters(int food, int planks, int scraps)
+        {
+            void Spawn(int amount, float centerX)
+            {
+                if (amount <= 0) return;
+                _floaters.Add(new Floater
+                {
+                    Text = $"-{amount}",
+                    Position = new Vector2(centerX + 20, 70),
+                    Color = new Color(255, 130, 110),
+                    Scale = 1.1f
+                });
+            }
+            Spawn(food, 900);
+            Spawn(planks, 1010);
+            Spawn(scraps, 1120);
+        }
+
+        private void UpdateCraftEffects(float dt)
+        {
+            _craftToastTimer = MathF.Max(0f, _craftToastTimer - dt);
+            _craftFlashTimer = MathF.Max(0f, _craftFlashTimer - dt);
+
+            for (int i = _sparks.Count - 1; i >= 0; i--)
+            {
+                var spark = _sparks[i];
+                spark.Life += dt;
+                spark.Velocity += new Vector2(0f, 520f) * dt; // gravity
+                spark.Velocity *= 1f - 1.5f * dt;             // drag
+                spark.Position += spark.Velocity * dt;
+                if (spark.Life >= spark.MaxLife) _sparks.RemoveAt(i);
+            }
+
+            for (int i = _floaters.Count - 1; i >= 0; i--)
+            {
+                var floater = _floaters[i];
+                floater.Life += dt;
+                floater.Position.Y -= 34f * dt;
+                if (floater.Life >= FloaterDuration) _floaters.RemoveAt(i);
+            }
         }
 
         private void SetStatus(string message, bool isError)
@@ -531,6 +654,9 @@ namespace DuskAndDawn
             {
                 DrawDetailPanel(spriteBatch, font, _openRoom.Value);
             }
+
+            // Over everything, including the detail panel's dimming.
+            DrawCraftEffects(spriteBatch, font);
 
             spriteBatch.End();
         }
@@ -742,6 +868,109 @@ namespace DuskAndDawn
 
             var rightSize = font.MeasureString(rightText) * 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 9), rightColor, 0.85f);
+
+            // How many you already have, so repeat crafts are visibly adding up.
+            int owned = OwnedCount(recipe);
+            if (owned > 0)
+            {
+                string ownedText = $"Owned: {owned}";
+                var ownedSize = font.MeasureString(ownedText) * 0.7f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 36), new Color(170, 220, 175), 0.7f);
+            }
+
+            // Just crafted: a bright green flash that fades out.
+            if (button == _craftFlashButton && _craftFlashTimer > 0f)
+            {
+                float flash = _craftFlashTimer / CraftFlashDuration;
+                UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(140, 255, 160) * (0.35f * flash));
+                UITheme.FillRoundedRect(spriteBatch, drawBounds, new Color(140, 255, 160) * (0.3f * flash), 10f);
+            }
+        }
+
+        private int OwnedCount(Recipe recipe)
+        {
+            if (recipe.SampleWeapon != null) return _playerState.Inventory.Count(w => w.Name == recipe.Name);
+            if (recipe.SampleItem != null) return _playerState.Items.Count(i => i.Name == recipe.Name);
+            return 0;
+        }
+
+        private void DrawCraftEffects(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            foreach (var spark in _sparks)
+            {
+                float alpha = 1f - spark.Life / spark.MaxLife;
+                UITheme.DrawGlow(spriteBatch, spark.Position, spark.Size * 4f, spark.Color * (0.35f * alpha));
+                UITheme.FillCircle(spriteBatch, spark.Position, spark.Size, spark.Color * alpha);
+            }
+
+            foreach (var floater in _floaters)
+            {
+                float alpha = 1f - MathF.Pow(floater.Life / FloaterDuration, 2f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, floater.Text, floater.Position, floater.Color * alpha, floater.Scale, shadowAlpha: 0.45f * alpha);
+            }
+
+            if (_craftToastTimer > 0f && _craftToastRecipe != null)
+            {
+                DrawCraftToast(spriteBatch, font);
+            }
+        }
+
+        /// <summary>The "Crafted!" card between the Hope bar and the resource counters: drops in
+        /// with a little overshoot, holds, then fades.</summary>
+        private void DrawCraftToast(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            float elapsed = CraftToastDuration - _craftToastTimer;
+            float drop = UITheme.EaseOutBack(elapsed / 0.3f);
+            float alpha = MathHelper.Clamp(_craftToastTimer / 0.45f, 0f, 1f) * MathHelper.Clamp(elapsed / 0.12f, 0f, 1f);
+
+            var card = new RectangleF(500, -70 + 86 * drop, 340, 84);
+            var gold = new Color(255, 215, 120);
+            UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 230f, gold * (0.3f * alpha));
+            UITheme.DrawPanel(spriteBatch, card, new Color(72, 96, 62) * alpha, new Color(40, 58, 36) * alpha, gold * alpha, 3f, 14f, shadowStrength: 0.8f * alpha);
+
+            // Icon on the left: the weapon's pixel art, bread for food, a vial for remedies.
+            var iconCenter = new Vector2(card.X + 44, card.Y + card.Height / 2f);
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 34, iconCenter.Y - 34, 68, 68), Color.Black * (0.35f * alpha), 10f);
+            var recipe = _craftToastRecipe;
+            if (recipe.SampleWeapon != null && Game1.GetWeaponIcon(recipe.SampleWeapon) != null)
+            {
+                UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(recipe.SampleWeapon), iconCenter - new Vector2(32, 32), 2, Color.White * alpha);
+            }
+            else if (recipe.Room == BaseRoomType.Kitchen && Game1.BreadTexture != null)
+            {
+                var bread = Game1.BreadTexture;
+                spriteBatch.Draw(bread, iconCenter, null, Color.White * alpha, 0f, new Vector2(bread.Width / 2f, bread.Height / 2f), 56f / bread.Width, SpriteEffects.None, 0f);
+            }
+            else
+            {
+                DrawVial(spriteBatch, iconCenter, VialColor(recipe.SampleItem), alpha);
+            }
+
+            float textX = card.X + 90;
+            UITheme.DrawTextWithShadow(spriteBatch, font, "CRAFTED!", new Vector2(textX, card.Y + 10), gold * alpha, 0.75f, shadowAlpha: 0.45f * alpha);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, card.Y + 30), Color.White * alpha, 1.1f, shadowAlpha: 0.45f * alpha);
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, _craftToastDetail, new Vector2(textX, card.Y + 60), new Color(210, 230, 200) * alpha, 0.62f, shadowAlpha: 0.45f * alpha);
+        }
+
+        private static Color VialColor(Item item) => item?.Effect switch
+        {
+            ItemEffect.Heal => new Color(220, 70, 70),
+            ItemEffect.FullHeal => new Color(255, 200, 80),
+            ItemEffect.Smoke => new Color(165, 165, 180),
+            ItemEffect.RestoreDawn => new Color(255, 150, 90),
+            _ => new Color(150, 220, 160)
+        };
+
+        // Items have no art yet - a little glass vial stands in, tinted by what it does.
+        private static void DrawVial(SpriteBatch spriteBatch, Vector2 center, Color liquid, float alpha)
+        {
+            var glass = new Color(220, 230, 240);
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 6, center.Y - 24, 12, 14), glass * (0.8f * alpha), 3f);        // neck
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 7, center.Y - 28, 14, 6), new Color(150, 105, 60) * alpha, 2f); // cork
+            UITheme.FillCircle(spriteBatch, center + new Vector2(0, 6), 19f, glass * (0.8f * alpha));
+            UITheme.FillCircle(spriteBatch, center + new Vector2(0, 8), 15f, liquid * alpha);
+            UITheme.FillCircle(spriteBatch, center + new Vector2(-6, 0), 4f, Color.White * (0.6f * alpha));
         }
 
         private void DrawFooter(SpriteBatch spriteBatch, SpriteFont font)

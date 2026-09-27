@@ -263,7 +263,7 @@ namespace DuskAndDawn
         /// with point sampling, so it stays crisp instead of being blurred by the default
         /// linear filter. Briefly restarts the batch to switch sampler, then restores the
         /// default Begin() every screen uses. Safe to call with a null texture (draws nothing).</summary>
-        public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale)
+        public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, Color? tint = null)
         {
             if (texture == null) return;
 
@@ -271,7 +271,7 @@ namespace DuskAndDawn
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             // Snapped to whole pixels - a fractional position smears pixel art even with point sampling.
             var snapped = new Vector2(MathF.Round(topLeft.X), MathF.Round(topLeft.Y));
-            spriteBatch.Draw(texture, snapped, null, Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(texture, snapped, null, tint ?? Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
             spriteBatch.End();
             spriteBatch.Begin();
         }

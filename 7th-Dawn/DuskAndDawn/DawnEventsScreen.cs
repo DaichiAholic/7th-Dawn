@@ -100,7 +100,7 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            _previousMouse = Mouse.GetState();
+            _previousMouse = InputChecker.GetMouse();
 
             _optionButtons.Clear();
             for (int i = 0; i < _options.Count; i++)
@@ -122,7 +122,7 @@ namespace DuskAndDawn
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _deltaTimer = Math.Max(0f, _deltaTimer - dt);
-            var mouse = Mouse.GetState();
+            var mouse = InputChecker.GetMouse();
 
             foreach (var button in _optionButtons)
             {
