@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    public class PreparationScreen : GameScreen
+    public class PreparationScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -152,7 +152,7 @@ namespace DuskAndDawn
                 if (hitStart)
                 {
                     _startButton.TriggerPress();
-                    ScreenManager.ShowScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                    ScreenManager.ReplaceScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                 }
             }
 
@@ -472,10 +472,7 @@ namespace DuskAndDawn
             int weaponChance = DistrictInfo.WeaponFindChance(district);
             Wrapped($"Special rooms: {weaponChance}% weapon, {100 - weaponChance}% material cache", new Color(200, 185, 230), 0.62f);
 
-            int hp = DistrictInfo.EnemyHealthBonus(district);
-            int atk = DistrictInfo.EnemyAttackBonus(district);
-            string enemies = hp == 0 && atk == 0 ? "Enemies: ordinary strength" : $"Enemies: +{hp} health, +{atk} attack";
-            Wrapped(enemies, new Color(235, 150, 140), 0.62f);
+            Wrapped($"Enemies: {DistrictInfo.EnemyHealth(district, 0)}+ health, hit for {DistrictInfo.EnemyAttack(district, 0)}+. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
             Divider();
 
             // ---- Footer ----
@@ -535,9 +532,9 @@ namespace DuskAndDawn
                 UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(weapon), iconPos, IconScale);
 
                 float textX = drawBounds.X + 10 + iconSize + 12;
-                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.Name, new Vector2(textX, drawBounds.Y + 8), Color.White, 0.85f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.DisplayName, new Vector2(textX, drawBounds.Y + 8), Color.White, 0.85f);
 
-                string stats = weapon.IsHoly ? $"{weapon.DiceLabel}  +{weapon.CorruptionBonus}/corr" : weapon.DiceLabel;
+                string stats = weapon.IsHoly ? $"{weapon.DiceLabel}  +{weapon.CorruptionBonus}/corr" : $"{weapon.DiceLabel}  avg {weapon.AverageDamage:0.#}";
                 UITheme.DrawTextWithShadow(spriteBatch, font, stats, new Vector2(textX, drawBounds.Y + 32), new Color(215, 215, 215), 0.75f);
 
                 if (equipped)

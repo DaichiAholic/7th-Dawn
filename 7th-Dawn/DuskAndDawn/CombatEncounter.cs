@@ -67,7 +67,7 @@ namespace DuskAndDawn
             LastRollWasAttack = true;
             EnemyWasHit = true;
 
-            string log = $"You roll {weapon.DiceLabel} with your {weapon.Name} - {damage} damage.";
+            string log = $"You roll {weapon.DiceLabel} with your {weapon.DisplayName} - {damage} damage.";
             if (rerolled) log += " (Barracks reroll)";
             ResolveEnemyReply();
             return log;

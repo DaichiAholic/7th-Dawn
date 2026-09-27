@@ -11,7 +11,7 @@ using MonoGame.Extended;
 
 namespace DuskAndDawn
 {
-    public class DawnEventsScreen : GameScreen
+    public class DawnEventsScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -147,7 +147,7 @@ namespace DuskAndDawn
                 else if (_continueButton.Contains(mouse.X, mouse.Y))
                 {
                     _continueButton.TriggerPress();
-                    ScreenManager.ShowScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                    ScreenManager.ReplaceScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                 }
             }
 

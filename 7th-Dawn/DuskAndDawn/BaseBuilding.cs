@@ -32,18 +32,32 @@ namespace DuskAndDawn
         // Set for item recipes, so craft feedback can draw the right vial. null otherwise.
         public Item SampleItem { get; }
 
+        // True for Reinforce Weapon, which upgrades the equipped weapon instead of making one.
+        public bool IsReinforce { get; }
+
         private readonly Func<PlayerState, string> _craft;
         private readonly Func<PlayerState, string> _blockedReason;
+
+        // Optional overrides for recipes whose cost/text depend on the player's state
+        // (Reinforce Weapon works on whatever is equipped). null = use the fixed values.
+        private readonly Func<PlayerState, (int food, int planks, int scraps)> _dynamicCost;
+        private readonly Func<PlayerState, string> _dynamicDetail;
 
         public Recipe(string name, string detail, BaseRoomType room, int requiredLevel,
             int food, int planks, int scraps,
             Func<PlayerState, string> craft,
             Func<PlayerState, string> blockedReason = null,
             Weapon sampleWeapon = null,
-            Item sampleItem = null)
+            Item sampleItem = null,
+            Func<PlayerState, (int food, int planks, int scraps)> dynamicCost = null,
+            Func<PlayerState, string> dynamicDetail = null,
+            bool isReinforce = false)
         {
             SampleWeapon = sampleWeapon;
             SampleItem = sampleItem;
+            _dynamicCost = dynamicCost;
+            _dynamicDetail = dynamicDetail;
+            IsReinforce = isReinforce;
             Name = name;
             Detail = detail;
             Room = room;
@@ -55,7 +69,20 @@ namespace DuskAndDawn
             _blockedReason = blockedReason;
         }
 
-        public string CostLabel => BaseBuilding.FormatCost(Food, Planks, Scraps);
+        public (int food, int planks, int scraps) GetCost(PlayerState state) =>
+            _dynamicCost?.Invoke(state) ?? (Food, Planks, Scraps);
+
+        public string CostLabel(PlayerState state)
+        {
+            var (food, planks, scraps) = GetCost(state);
+            return BaseBuilding.FormatCost(food, planks, scraps);
+        }
+
+        public string GetDetail(PlayerState state) => _dynamicDetail?.Invoke(state) ?? Detail;
+
+        /// <summary>The weapon whose icon this recipe shows: the one it makes, or for
+        /// Reinforce the one it upgrades. null for item recipes.</summary>
+        public Weapon IconWeapon(PlayerState state) => IsReinforce ? state.EquippedWeapon : SampleWeapon;
 
         public string BlockedReason(PlayerState state) => _blockedReason?.Invoke(state);
 
@@ -66,11 +93,7 @@ namespace DuskAndDawn
         public static Recipe ForWeapon(BaseRoomType room, int level, int food, int planks, int scraps, Func<Weapon> make)
         {
             var sample = make();
-            string detail = sample.IsHoly
-                ? $"{sample.DiceLabel}, +{sample.CorruptionBonus} per corruption"
-                : sample.DiceLabel;
-
-            return new Recipe(sample.Name, detail, room, level, food, planks, scraps, state =>
+            return new Recipe(sample.Name, sample.StatLabel, room, level, food, planks, scraps, state =>
             {
                 state.Inventory.Add(make());
                 return $"Crafted a {sample.Name}. Equip it on the Prepare screen.";
@@ -87,9 +110,39 @@ namespace DuskAndDawn
                 return $"Made a {sample.Name} (you have {owned}).";
             }, sampleItem: sample);
         }
+
+        /// <summary>Workshop upgrade for the equipped weapon: +1 damage per roll per level,
+        /// capped by the Workshop level. The price climbs steeply, so Scraps from fights
+        /// always have somewhere to go once the weapon rack is full.</summary>
+        public static Recipe ReinforceEquipped()
+        {
+            return new Recipe("Reinforce Weapon", "", BaseRoomType.Workshop, 1, 0, 0, 0,
+                craft: state =>
+                {
+                    var weapon = state.EquippedWeapon;
+                    weapon.Reinforce();
+                    return $"Your {weapon.Name} is now +{weapon.Reinforcement} ({weapon.DiceLabel}).";
+                },
+                blockedReason: state =>
+                {
+                    var weapon = state.EquippedWeapon;
+                    if (weapon.Reinforcement >= Weapon.MaxReinforcement) return $"Your {weapon.DisplayName} can't be reinforced further.";
+                    if (weapon.Reinforcement >= state.MaxReinforcement) return $"Reinforcing past +{weapon.Reinforcement} needs Workshop Lv {weapon.Reinforcement + 1}.";
+                    return null;
+                },
+                dynamicCost: state => PlayerState.ReinforceCost(state.EquippedWeapon.Reinforcement + 1),
+                dynamicDetail: state =>
+                {
+                    var weapon = state.EquippedWeapon;
+                    return weapon.Reinforcement >= Weapon.MaxReinforcement
+                        ? $"{weapon.DisplayName} is fully reinforced"
+                        : $"Equipped {weapon.DisplayName} -> +{weapon.Reinforcement + 1}";
+                },
+                isReinforce: true);
+        }
     }
 
-    public class BaseBuilding : GameScreen
+    public class BaseBuilding : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -115,14 +168,17 @@ namespace DuskAndDawn
         // Everything the base can make, in display order.
         private static readonly List<Recipe> Recipes = new List<Recipe>
         {
-            // Workshop - weapons
             // Workshop - weapons. Good metal is rare, so the better the weapon, the more Scraps.
+            // Each tier is a clear jump in damage and costs a few nights of the district it's
+            // built for; Tier 3 is a full Lv 1 Storage of Scraps.
             Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 5, 1, Weapon.WoodenClub),
             Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 3, 6, Weapon.ScrapClub),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 5, 9, Weapon.IronSword),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 3, 10, Weapon.Cleaver),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 6, 7, Weapon.HandAxe),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 8, 16, Weapon.HolyLance),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 5, 12, Weapon.IronSword),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 3, 14, Weapon.Cleaver),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 7, 10, Weapon.HandAxe),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 10, 30, Weapon.HolyLance),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 14, 26, Weapon.WarMaul),
+            Recipe.ReinforceEquipped(),
 
             // Infirmary - remedies, brewed from food stores and scavenged glass and cloth
             Recipe.ForItem(BaseRoomType.Infirmary, 1, 3, 0, 2, Item.Bandage),
@@ -164,6 +220,7 @@ namespace DuskAndDawn
         private Button _closeButton;
         private readonly List<(Button button, Recipe recipe)> _recipeButtons = new List<(Button, Recipe)>();
         private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 540);
+        private const float RecipeTop = 262f;
 
         // ---- Craft feedback ----
         // A successful craft gets a "Crafted!" card up top with the thing's icon, a burst of
@@ -243,7 +300,7 @@ namespace DuskAndDawn
             _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "End the Day");
 
             _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + 164, 360, 54), "Upgrade");
-            _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 160, DetailPanel.Y + DetailPanel.Height - 64, 130, 46), "Close");
+            _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 150, DetailPanel.Y + 20, 120, 42), "Close");
 
             // Snapshot starting resource values so the first frame never reads as a "change"
             // and fires a false pop animation.
@@ -324,7 +381,7 @@ namespace DuskAndDawn
                     if (_endDayButton.Contains(mouse.X, mouse.Y))
                     {
                         _endDayButton.TriggerPress();
-                        ScreenManager.ShowScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                        ScreenManager.ReplaceScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                     }
                 }
             }
@@ -361,11 +418,12 @@ namespace DuskAndDawn
             // room is listed, locked ones included, so players can see what's coming.
             _recipeButtons.Clear();
             var roomRecipes = Recipes.Where(r => r.Room == room).ToList();
-            const float width = 360f, height = 60f, rowGap = 8f;
+            // Sized so four rows (the Workshop's eight recipes) fit above the status line.
+            const float width = 360f, height = 54f, rowGap = 6f;
             for (int i = 0; i < roomRecipes.Count; i++)
             {
                 float x = DetailPanel.X + 30 + (i % 2) * 380f;
-                float y = DetailPanel.Y + 272 + (i / 2) * (height + rowGap);
+                float y = DetailPanel.Y + RecipeTop + (i / 2) * (height + rowGap);
                 _recipeButtons.Add((new Button(new RectangleF(x, y, width, height), roomRecipes[i].Name), roomRecipes[i]));
             }
         }
@@ -444,15 +502,16 @@ namespace DuskAndDawn
                 return;
             }
 
-            if (!_playerState.TrySpend(recipe.Food, recipe.Planks, recipe.Scraps))
+            var (food, planks, scraps) = recipe.GetCost(_playerState);
+            if (!_playerState.TrySpend(food, planks, scraps))
             {
-                SetStatus($"Need {recipe.CostLabel} for {recipe.Name}.", isError: true);
+                SetStatus($"Need {recipe.CostLabel(_playerState)} for {recipe.Name}.", isError: true);
                 return;
             }
 
             string message = recipe.Craft(_playerState);
             SetStatus(message, isError: false);
-            SpawnSpendFloaters(recipe.Food, recipe.Planks, recipe.Scraps);
+            SpawnSpendFloaters(food, planks, scraps);
             CelebrateCraft(recipe, button);
         }
 
@@ -462,7 +521,9 @@ namespace DuskAndDawn
         {
             _craftToastRecipe = recipe;
             // One short line that fits the card: where it went, or what it did.
-            _craftToastDetail = recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
+            var equipped = _playerState.EquippedWeapon;
+            _craftToastDetail = recipe.IsReinforce ? $"{equipped.DisplayName} now rolls {equipped.DiceLabel}"
+                : recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
                 : recipe.SampleItem != null ? $"Now in your pack: {OwnedCount(recipe)}"
                 : recipe.Detail;
             _craftToastTimer = CraftToastDuration;
@@ -487,7 +548,7 @@ namespace DuskAndDawn
 
             _floaters.Add(new Floater
             {
-                Text = $"+1 {recipe.Name}",
+                Text = recipe.IsReinforce ? "+1 damage" : $"+1 {recipe.Name}",
                 Position = new Vector2(button.Bounds.X + 16, button.Bounds.Y - 6),
                 Color = new Color(150, 240, 160),
                 Scale = 0.9f
@@ -574,7 +635,7 @@ namespace DuskAndDawn
         private static string RoomRole(BaseRoomType room) => room switch
         {
             BaseRoomType.Storage => "Caps how much you can keep. Overflow is lost at dawn.",
-            BaseRoomType.Workshop => "Crafts weapons. Higher levels unlock stronger ones.",
+            BaseRoomType.Workshop => "Crafts and reinforces weapons.",
             BaseRoomType.Infirmary => "Brews remedies you carry into the night.",
             BaseRoomType.Kitchen => "Cooks Food every morning to help feed the house.",
             BaseRoomType.Barrack => "Trains your dice: rerolls, better faces, more dice.",
@@ -588,9 +649,9 @@ namespace DuskAndDawn
             (BaseRoomType.Storage, 2) => "Holds 60 of each resource",
             (BaseRoomType.Storage, _) => "Holds 100 of each resource",
 
-            (BaseRoomType.Workshop, 1) => "Basic weapons: Wooden Club, Scrap Club",
-            (BaseRoomType.Workshop, 2) => "Iron weapons: Iron Sword, Cleaver, Hand Axe",
-            (BaseRoomType.Workshop, _) => "Holy steel: Holy Lance",
+            (BaseRoomType.Workshop, 1) => "Clubs, reinforce weapons to +1",
+            (BaseRoomType.Workshop, 2) => "Iron weapons, reinforce to +2",
+            (BaseRoomType.Workshop, _) => "Holy Lance, War Maul, reinforce to +3",
 
             (BaseRoomType.Infirmary, 1) => "Bandages",
             (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
@@ -627,7 +688,8 @@ namespace DuskAndDawn
         {
             BaseRoomType.Archive when newLevel == 2 => "Church Ruins is now open.",
             BaseRoomType.Archive when newLevel == 3 => "Castle Keep is now open.",
-            BaseRoomType.Workshop or BaseRoomType.Infirmary => "New recipes unlocked.",
+            BaseRoomType.Workshop => "New weapons, and reinforcing goes one level higher.",
+            BaseRoomType.Infirmary => "New recipes unlocked.",
             BaseRoomType.Kitchen when newLevel == 2 => "Rations unlocked.",
             BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked.",
             _ => ""
@@ -774,13 +836,14 @@ namespace DuskAndDawn
             // Recipes
             if (_recipeButtons.Count > 0)
             {
-                UITheme.DrawTextWithShadow(spriteBatch, font, "Craft", new Vector2(panel.X + 30, panel.Y + 240), Color.White);
+                UITheme.DrawTextWithShadow(spriteBatch, font, "Craft", new Vector2(panel.X + 30, panel.Y + RecipeTop - 30), Color.White);
 
                 foreach (var (button, recipe) in _recipeButtons)
                 {
                     bool unlocked = level >= recipe.RequiredLevel;
                     bool blocked = unlocked && recipe.BlockedReason(_playerState) != null;
-                    bool canAfford = _playerState.CanAfford(recipe.Food, recipe.Planks, recipe.Scraps);
+                    var (food, planks, scraps) = recipe.GetCost(_playerState);
+                    bool canAfford = _playerState.CanAfford(food, planks, scraps);
 
                     string rightText;
                     Color rightColor;
@@ -791,7 +854,7 @@ namespace DuskAndDawn
                     }
                     else
                     {
-                        rightText = recipe.CostLabel;
+                        rightText = recipe.CostLabel(_playerState);
                         rightColor = canAfford && !blocked ? new Color(120, 220, 130) : new Color(230, 100, 90);
                     }
 
@@ -803,7 +866,7 @@ namespace DuskAndDawn
             if (!string.IsNullOrEmpty(_statusLog))
             {
                 Color statusColor = _statusIsError ? new Color(255, 170, 160) : new Color(170, 235, 180);
-                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 50), statusColor, 0.85f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 36), statusColor, 0.85f);
             }
 
             DrawDetailButton(spriteBatch, font, _closeButton, new Color(80, 70, 74), new Color(56, 48, 52), null, Color.White, enabled: true);
@@ -857,17 +920,18 @@ namespace DuskAndDawn
 
             // Weapon recipes get their icon at native 32px on the left; text shifts over.
             float textX = drawBounds.X + 12;
-            if (recipe.SampleWeapon != null)
+            var iconWeapon = recipe.IconWeapon(_playerState);
+            if (iconWeapon != null)
             {
-                UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(recipe.SampleWeapon), new Vector2(drawBounds.X + 14, drawBounds.Y + (drawBounds.Height - 32) / 2f), 1);
+                UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(iconWeapon), new Vector2(drawBounds.X + 14, drawBounds.Y + (drawBounds.Height - 32) / 2f), 1);
                 textX = drawBounds.X + 56;
             }
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 8), nameColor);
-            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Detail, new Vector2(textX, drawBounds.Y + 34), detailColor, 0.75f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 6), nameColor);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.GetDetail(_playerState), new Vector2(textX, drawBounds.Y + 31), detailColor, 0.75f);
 
             var rightSize = UITheme.MeasureString(font, rightText) * 0.85f;
-            UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 9), rightColor, 0.85f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 7), rightColor, 0.85f);
 
             // How many you already have, so repeat crafts are visibly adding up.
             int owned = OwnedCount(recipe);
@@ -875,7 +939,7 @@ namespace DuskAndDawn
             {
                 string ownedText = $"Owned: {owned}";
                 var ownedSize = UITheme.MeasureString(font, ownedText) * 0.7f;
-                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 36), new Color(170, 220, 175), 0.7f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 32), new Color(170, 220, 175), 0.7f);
             }
 
             // Just crafted: a bright green flash that fades out.
@@ -932,9 +996,10 @@ namespace DuskAndDawn
             var iconCenter = new Vector2(card.X + 44, card.Y + card.Height / 2f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 34, iconCenter.Y - 34, 68, 68), Color.Black * (0.35f * alpha), 10f);
             var recipe = _craftToastRecipe;
-            if (recipe.SampleWeapon != null && Game1.GetWeaponIcon(recipe.SampleWeapon) != null)
+            var toastWeapon = recipe.IconWeapon(_playerState);
+            if (toastWeapon != null && Game1.GetWeaponIcon(toastWeapon) != null)
             {
-                UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(recipe.SampleWeapon), iconCenter - new Vector2(32, 32), 2, Color.White * alpha);
+                UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(toastWeapon), iconCenter - new Vector2(32, 32), 2, Color.White * alpha);
             }
             else if (recipe.Room == BaseRoomType.Kitchen && Game1.BreadTexture != null)
             {

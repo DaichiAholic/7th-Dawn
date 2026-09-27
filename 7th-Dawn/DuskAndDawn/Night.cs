@@ -317,7 +317,7 @@ namespace DuskAndDawn
         {
             get
             {
-                if (_elapsed < 0f) return Vector2.Zero;
+                if (_elapsed < 0f || !GameSettings.Current.ScreenShake) return Vector2.Zero;
                 float decay = 1f - (_elapsed / Duration);
                 return new Vector2(
                     (float)(RandomSource.NextDouble() * 2f - 1f) * Magnitude * decay,
@@ -361,7 +361,7 @@ namespace DuskAndDawn
     /// Creatures roam between unexplored rooms as the night goes on. Being knocked out in a
     /// fight ends the night early and costs half of tonight's haul.
     /// </summary>
-    public class NightScavengingScreen : GameScreen
+    public class NightScavengingScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -463,6 +463,9 @@ namespace DuskAndDawn
         private const float SkillAnimDuration = 0.5f;     // heavier, reads as a bigger move
         private const float AttackedAnimDuration = 0.42f;
         private const int EffectScale = 4;                // native size: 64px per frame on screen
+
+        // Settings > Combat Speed: scales every combat animation and the action lock with it.
+        private static float AnimScale => GameSettings.Current.CombatAnimScale;
 
         // Combat actions are locked until the current exchange has finished playing (our
         // animation, then the enemy's hit), plus a short breather - so attacks can't be spammed.
@@ -888,8 +891,8 @@ namespace DuskAndDawn
                 int tier = Math.Min(6, depth / 2);
                 enemy = new Enemy(
                     $"{DistrictInfo.RandomEnemyName(_district, _random)} (Depth {depth})",
-                    maxHealth: 30 + tier * 3 + DistrictInfo.EnemyHealthBonus(_district),
-                    attackPower: 6 + tier + DistrictInfo.EnemyAttackBonus(_district),
+                    maxHealth: DistrictInfo.EnemyHealth(_district, tier),
+                    attackPower: DistrictInfo.EnemyAttack(_district, tier),
                     corruption: DistrictInfo.Corruption(_district));
             }
             else
@@ -1019,7 +1022,7 @@ namespace DuskAndDawn
         private void FirePendingPlayerHit()
         {
             _pendingPlayerHitDelay = -1f;
-            _playerHitFlash.Play(Game1.AttackedTexture, ScreenCenter, AttackedAnimDuration, EffectScale);
+            _playerHitFlash.Play(Game1.AttackedTexture, ScreenCenter, AttackedAnimDuration * AnimScale, EffectScale);
             _playerShake.Play();
             if (!string.IsNullOrEmpty(_pendingEnemyReplyText))
             {
@@ -1046,7 +1049,7 @@ namespace DuskAndDawn
 
             if (_activeCombat.LastRollWasAttack)
             {
-                float castDuration = castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration;
+                float castDuration = (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration) * AnimScale;
                 _castEffect.Play(castTexture, ScreenCenter, castDuration, EffectScale);
                 _enemyShake.Play();
                 _diceRollPopup.Play(Game1.DiceTexture, _activeCombat.LastPlayerRoll, portraitCenter + new Vector2(-70, -90));
@@ -1055,7 +1058,7 @@ namespace DuskAndDawn
             if (_activeCombat.PlayerWasHit)
             {
                 // Scheduled rather than played immediately - see EnemyCounterDelay above.
-                _pendingPlayerHitDelay = EnemyCounterDelay;
+                _pendingPlayerHitDelay = EnemyCounterDelay * AnimScale;
                 _pendingEnemyReplyText = _activeCombat.LastEnemyReplyText;
             }
             else if (!string.IsNullOrEmpty(_activeCombat.LastEnemyReplyText))
@@ -1070,15 +1073,12 @@ namespace DuskAndDawn
                 ? (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration)
                 : 0f;
             float enemyPart = _activeCombat.PlayerWasHit ? EnemyCounterDelay + AttackedAnimDuration : 0f;
-            _actionLock = Math.Max(MinActionLock, Math.Max(ourPart, enemyPart) + ActionGap);
+            _actionLock = Math.Max(MinActionLock, Math.Max(ourPart, enemyPart) + ActionGap) * AnimScale;
         }
 
         private void EndCombat(bool fled)
         {
-            if (!fled && _activeCombat.PlayerWon)
-            {
-                _roomsCleared++;
-            }
+            bool won = !fled && _activeCombat.PlayerWon;
             bool knockedOut = !fled && _playerState.Health <= 0;
             var enemy = _activeCombat.Enemy;
 
@@ -1102,6 +1102,16 @@ namespace DuskAndDawn
             {
                 Collapse();
                 return;
+            }
+            if (won)
+            {
+                _roomsCleared++;
+
+                // Fights are the main source of Scraps: the better your weapon, the more of
+                // them you can win before your health (or the night) runs out.
+                var (lootFood, lootPlanks, lootScraps) = DistrictInfo.CombatLoot(_district, enemy.MaxHealth, _random);
+                _playerState.AddResources(lootFood, lootPlanks, lootScraps);
+                _textLog.Push($"You strip the remains: {MaterialYield.Describe(lootFood, lootPlanks, lootScraps)}.");
             }
             if (fled)
             {
@@ -1309,13 +1319,31 @@ namespace DuskAndDawn
             }
             else
             {
-                var weapon = Weapon.LootPool[_random.Next(Weapon.LootPool.Length)]();
-                _playerState.Inventory.Add(weapon);
-                _textLog.Push($"You find a {weapon.Name} ({weapon.DiceLabel}) left behind by someone else.");
+                _textLog.Push(FindWeapon(out _));
             }
 
             _roomsCleared++;
             _state = ExplorationState.Map;
+        }
+
+        /// <summary>Rolls a weapon from this district's loot table. New weapons go on the rack;
+        /// one you already own is broken down for Scraps instead of cluttering it.
+        /// Returns the full log line; `brief` is a shorter version to tack onto another line.</summary>
+        private string FindWeapon(out string brief)
+        {
+            var loot = DistrictInfo.WeaponLoot(_district);
+            var weapon = loot[_random.Next(loot.Length)]();
+
+            if (_playerState.Inventory.Any(owned => owned.Name == weapon.Name))
+            {
+                _playerState.AddResources(scraps: weapon.SalvageValue);
+                brief = $"And a spare {weapon.Name}, broken down for {weapon.SalvageValue} Scraps.";
+                return $"You find another {weapon.Name} and break it down for {weapon.SalvageValue} Scraps.";
+            }
+
+            _playerState.Inventory.Add(weapon);
+            brief = $"And a {weapon.Name}.";
+            return $"You find a {weapon.Name} ({weapon.StatLabel}) left behind by someone else.";
         }
 
         private static readonly string[] QuietHallLines =
@@ -1354,9 +1382,8 @@ namespace DuskAndDawn
             string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
             if (_random.Next(100) < 50)
             {
-                var weapon = Weapon.LootPool[_random.Next(Weapon.LootPool.Length)]();
-                _playerState.Inventory.Add(weapon);
-                line += $" And a {weapon.Name}.";
+                FindWeapon(out string brief);
+                line += $" {brief}";
             }
 
             _textLog.Push(line);
@@ -1446,7 +1473,7 @@ namespace DuskAndDawn
             UITheme.DrawPanel(spriteBatch, InfoCard, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 14f, shadowStrength: 0.6f);
 
             DrawClock(spriteBatch, font, totalSeconds);
-            string weaponLine = $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})";
+            string weaponLine = $"Weapon: {_playerState.EquippedWeapon.DisplayName} ({_playerState.EquippedWeapon.DiceLabel})";
             UITheme.DrawTextWithShadow(spriteBatch, font, weaponLine, new Vector2(40, 100), Color.LightGray);
             // 1x icon just after the weapon line - small, but crisp at native size.
             float weaponLineWidth = UITheme.MeasureString(font, weaponLine).X;

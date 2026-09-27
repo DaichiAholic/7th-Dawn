@@ -8,6 +8,12 @@ namespace DuskAndDawn
 {
     public static class ScreenTransitions
     {
+        // The fade currently on screen, if any. Menus and the pause key hold off while one is
+        // playing, since a screen opened mid-fade would be the one the fade then closes.
+        internal static EasedFadeTransition Playing;
+
+        public static bool IsTransitioning => Playing != null;
+
         // Drop-in replacement for every existing call site - same signature, now eased.
         public static Transition FadeTransition(GraphicsDevice graphicsDevice)
         {
@@ -36,6 +42,11 @@ namespace DuskAndDawn
             _graphicsDevice = graphicsDevice;
             _color = color;
             _spriteBatch = new SpriteBatch(graphicsDevice);
+
+            Completed += (_, _) =>
+            {
+                if (ScreenTransitions.Playing == this) ScreenTransitions.Playing = null;
+            };
         }
 
         public override void Dispose() => _spriteBatch.Dispose();
@@ -44,6 +55,9 @@ namespace DuskAndDawn
 
         public override void Draw(GameTime gameTime)
         {
+            // Only a transition the ScreenManager actually runs gets drawn, so this is the
+            // reliable "a fade is playing" signal (a refused transition never gets here).
+            ScreenTransitions.Playing = this;
             float alpha = EaseOutCubic(Value);
 
             _spriteBatch.Begin(SpriteSortMode.Deferred, null, samplerState: SamplerState.PointClamp, null, null);

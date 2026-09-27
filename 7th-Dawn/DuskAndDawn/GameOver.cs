@@ -19,14 +19,30 @@ namespace DuskAndDawn
 
         public GameOverScreen(Game game) : base(game) { }
 
+        public override void Initialize()
+        {
+            base.Initialize();
+            // An Esc/Enter still held from the previous screen shouldn't count as a new press.
+            _previousKeyboard = Keyboard.GetState();
+        }
+
         public override void Update(GameTime gameTime)
         {
             _elapsed += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             var keyboard = Keyboard.GetState();
-            if (keyboard.IsKeyDown(Keys.Enter) && !_previousKeyboard.IsKeyDown(Keys.Enter))
+            bool Pressed(Keys key) => keyboard.IsKeyDown(key) && !_previousKeyboard.IsKeyDown(key);
+
+            if (!ScreenTransitions.IsTransitioning)
             {
-                ScreenManager.ShowScreen(new PreparationScreen(Game, new PlayerState()));
+                if (Pressed(Keys.Enter))
+                {
+                    Game1.StartNewRun();
+                }
+                else if (Pressed(Keys.Escape))
+                {
+                    Game1.EndRunToMainMenu();
+                }
             }
             _previousKeyboard = keyboard;
         }
@@ -47,7 +63,7 @@ namespace DuskAndDawn
             float promptPulse = UITheme.PulseSine(_elapsed, 2.5f);
 
             const string headline = "Hope is gone. The night wins.";
-            const string prompt = "Press Enter to start over.";
+            const string prompt = "Enter: start over     Esc: main menu";
 
             var headlineSize = UITheme.MeasureString(font, headline);
             var headlinePos = new Vector2(640 - headlineSize.X / 2f, 320);

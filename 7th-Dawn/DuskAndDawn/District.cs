@@ -94,18 +94,48 @@ namespace DuskAndDawn
         // ember-glow visual language is meant to express.
         public static int Corruption(District district) => (int)district + 1;
 
-        public static int EnemyHealthBonus(District district) => district switch
+        // ---- Enemies ----
+        // Each district is a clear step up, sized so the gear you can build for it is what
+        // makes it worth fighting in: the Outskirts are fair with a Tier 1 weapon, the Church
+        // wants Tier 2, and the Keep wants Tier 3 (or a well-reinforced Tier 2).
+        // `tier` is 0-6, growing with how deep into the maze the room is.
+        public static int EnemyHealth(District district, int tier) => district switch
         {
-            District.ChurchRuins => 10,
-            District.CastleKeep => 20,
-            _ => 0
+            District.ChurchRuins => 34 + tier * 4,
+            District.CastleKeep => 50 + tier * 5,
+            _ => 18 + tier * 3
         };
 
-        public static int EnemyAttackBonus(District district) => district switch
+        public static int EnemyAttack(District district, int tier) => district switch
         {
-            District.ChurchRuins => 2,
-            District.CastleKeep => 4,
-            _ => 0
+            District.ChurchRuins => 8 + tier,
+            District.CastleKeep => 12 + tier,
+            _ => 4 + tier
+        };
+
+        /// <summary>Scraps (and a few Planks) stripped from a defeated enemy. Scales with the
+        /// enemy's health, so tougher fights pay more - and only a weapon that wins them
+        /// without bleeding out turns that into a good night. The Keep's guards carry the most.</summary>
+        public static (int food, int planks, int scraps) CombatLoot(District district, int enemyMaxHealth, Random random)
+        {
+            int districtBonus = district switch
+            {
+                District.ChurchRuins => 1,
+                District.CastleKeep => 3,
+                _ => 0
+            };
+            int scraps = enemyMaxHealth / 6 + districtBonus + random.Next(0, 3);
+            int planks = random.Next(0, 2) + (int)district;
+            return (0, planks, scraps);
+        }
+
+        // Weapons a Special room or the Hoard can turn up. Tier 3 is Workshop-only, so
+        // crafting always stays ahead of what you can find.
+        public static Func<Weapon>[] WeaponLoot(District district) => district switch
+        {
+            District.ChurchRuins => new Func<Weapon>[] { Weapon.ScrapClub, Weapon.IronSword, Weapon.Cleaver },
+            District.CastleKeep => new Func<Weapon>[] { Weapon.IronSword, Weapon.Cleaver, Weapon.HandAxe },
+            _ => new Func<Weapon>[] { Weapon.WoodenClub, Weapon.ScrapClub }
         };
 
         // ---- Materials ----

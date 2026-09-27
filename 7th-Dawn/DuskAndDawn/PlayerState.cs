@@ -184,6 +184,19 @@ namespace DuskAndDawn
             return HungerHopeCost(shortfall, HungryMornings + 1);
         }
 
+        // ---- Workshop: weapon reinforcement ----
+        // The Workshop level caps how far a weapon can be reinforced (+1 per level).
+        public int MaxReinforcement => Math.Min(Weapon.MaxReinforcement, Level(BaseRoomType.Workshop));
+
+        /// <summary>Cost to take a weapon to the given reinforcement level. Scraps-heavy and
+        /// climbing steeply - the long-term sink for what fights drop.</summary>
+        public static (int food, int planks, int scraps) ReinforceCost(int nextLevel) => nextLevel switch
+        {
+            1 => (0, 1, 5),
+            2 => (1, 3, 12),
+            _ => (2, 5, 22)
+        };
+
         // ---- Barracks: dice training ----
         public int BarracksRerolls => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
         public int BarracksMinFace => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;

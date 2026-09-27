@@ -8,10 +8,22 @@ namespace DuskAndDawn
 {
     public class Weapon
     {
+        public const int MaxReinforcement = 3;
+
         public string Name { get; }
         public int DiceCount { get; }
         public int DiceSides { get; }
-        public int FlatBonus { get; }
+
+        // The weapon's own bonus, before any Workshop reinforcement.
+        public int BaseFlatBonus { get; }
+
+        // Workshop reinforcement level (0 to MaxReinforcement). Each level is +1 damage per roll.
+        public int Reinforcement { get; private set; }
+
+        public int FlatBonus => BaseFlatBonus + Reinforcement;
+
+        // 0 = starter, 1-3 = the Workshop level that makes it. Drives salvage value.
+        public int Tier { get; }
 
         // Holy-steel weapons: extra damage per point of enemy corruption. 0 for normal weapons.
         public int CorruptionBonus { get; }
@@ -20,21 +32,36 @@ namespace DuskAndDawn
         // null = no art yet; screens draw an empty slot in its place.
         public string IconName { get; }
 
-        public Weapon(string name, int diceCount, int diceSides, int flatBonus = 0, int corruptionBonus = 0, string iconName = null)
+        public Weapon(string name, int tier, int diceCount, int diceSides, int flatBonus = 0, int corruptionBonus = 0, string iconName = null)
         {
             Name = name;
+            Tier = tier;
             DiceCount = diceCount;
             DiceSides = diceSides;
-            FlatBonus = flatBonus;
+            BaseFlatBonus = flatBonus;
             CorruptionBonus = corruptionBonus;
             IconName = iconName;
         }
+
+        public string DisplayName => Reinforcement > 0 ? $"{Name} +{Reinforcement}" : Name;
 
         public string DiceLabel => FlatBonus != 0
             ? $"{DiceCount}d{DiceSides}+{FlatBonus}"
             : $"{DiceCount}d{DiceSides}";
 
+        /// <summary>Short stat line for cards and recipes: dice plus average, or the holy bonus.</summary>
+        public string StatLabel => IsHoly
+            ? $"{DiceLabel} +{CorruptionBonus}/corruption"
+            : $"{DiceLabel}  avg {AverageDamage:0.#}";
+
         public bool IsHoly => CorruptionBonus > 0;
+
+        public float AverageDamage => AverageRoll(minFace: 1, extraDice: 0);
+
+        /// <summary>Scraps you get back when a duplicate find is broken down.</summary>
+        public int SalvageValue => 2 + Tier * 3;
+
+        public void Reinforce() => Reinforcement = Math.Min(MaxReinforcement, Reinforcement + 1);
 
         public int RollDamage(Random random) => RollDamage(random, minFace: 1, extraDice: 0);
 
@@ -63,19 +90,23 @@ namespace DuskAndDawn
             return FlatBonus + perDie * (DiceCount + extraDice);
         }
 
-        // ---- Starter / loot ----
-        public static Weapon RustyKnife() => new Weapon("Rusty Knife", 1, 6, iconName: "Dagger");
-        public static Weapon IronSword() => new Weapon("Iron Sword", 2, 6);
-        public static Weapon Cleaver() => new Weapon("Cleaver", 1, 10, 1, iconName: "Cleaver");
-        public static Weapon ScrapClub() => new Weapon("Scrap Club", 2, 4, 2, iconName: "Club");
-        public static Weapon HandAxe() => new Weapon("Hand Axe", 1, 12, iconName: "Axe");
+        // Each tier is a clear step up in average damage (starter 3.5, T1 ~6, T2 ~8.5,
+        // T3 12+), so every Workshop level is worth the materials it costs.
 
-        // ---- Workshop-only ----
-        public static Weapon WoodenClub() => new Weapon("Wooden Club", 1, 8, iconName: "Club");
-        public static Weapon HolyLance() => new Weapon("Holy Lance", 2, 6, 2, corruptionBonus: 2);
+        // ---- Tier 0: starter ----
+        public static Weapon RustyKnife() => new Weapon("Rusty Knife", 0, 1, 6, iconName: "Dagger");
 
-        // Factories rather than shared instances, so finding the same weapon twice gives
-        // two separate weapons instead of the same object added to the inventory twice.
-        public static readonly Func<Weapon>[] LootPool = { IronSword, Cleaver, ScrapClub, HandAxe };
+        // ---- Tier 1: Workshop Lv 1, found in the Outskirts ----
+        public static Weapon WoodenClub() => new Weapon("Wooden Club", 1, 1, 8, 1, iconName: "Club");
+        public static Weapon ScrapClub() => new Weapon("Scrap Club", 1, 2, 4, 1, iconName: "Club");
+
+        // ---- Tier 2: Workshop Lv 2, found in the Church and the Keep ----
+        public static Weapon IronSword() => new Weapon("Iron Sword", 2, 2, 6, 1);
+        public static Weapon Cleaver() => new Weapon("Cleaver", 2, 1, 10, 3, iconName: "Cleaver");
+        public static Weapon HandAxe() => new Weapon("Hand Axe", 2, 1, 12, 2, iconName: "Axe");
+
+        // ---- Tier 3: Workshop Lv 3 only, never found ----
+        public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2);
+        public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2);
     }
 }

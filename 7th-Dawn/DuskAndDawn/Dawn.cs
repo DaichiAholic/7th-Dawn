@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    public class Dawn : GameScreen
+    public class Dawn : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -62,7 +62,7 @@ namespace DuskAndDawn
             if (InputChecker.IsNewLeftClick(mouse, _previousMouse) && isHovered)
             {
                 _continueButton.TriggerPress();
-                ScreenManager.ShowScreen(new DawnEventsScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                ScreenManager.ReplaceScreen(new DawnEventsScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
             }
             _previousMouse = mouse;
         }
