@@ -154,6 +154,7 @@ namespace DuskAndDawn
             }
 
             _headBackButton = new Button(new RectangleF(1000, 30, 240, 56), "Head Back Before Dawn");
+            InitializePack();
         }
 
         private void LayoutMapNodes()
@@ -228,13 +229,15 @@ namespace DuskAndDawn
             // frame (even while its screen isn't the active one - that's harmless, it just
             // idles at rest) so nothing snaps between visual states.
             bool mapInteractive = onMap && !IsWalking;
-            bool headBackHovered = mapInteractive && _headBackButton.Contains(mouse.X, mouse.Y);
+            bool headBackHovered = mapInteractive && !_packOpen && _headBackButton.Contains(mouse.X, mouse.Y);
             _headBackButton.UpdateAnimation(dt, headBackHovered);
+            UpdatePack(dt, mouse, mapInteractive);
 
+            // The maze sits still under the open Pack.
             _hoveredNode = null;
             foreach (var node in _map.Nodes)
             {
-                bool isUnderMouse = mapInteractive && node.Discovered && InputChecker.Contains(node.ScreenBounds, mouse.X, mouse.Y);
+                bool isUnderMouse = mapInteractive && !_packOpen && node.Discovered && InputChecker.Contains(node.ScreenBounds, mouse.X, mouse.Y);
                 if (isUnderMouse) _hoveredNode = node;
                 node.UpdateAnimation(dt, isUnderMouse && _reachable.Contains(node));
             }
@@ -280,6 +283,8 @@ namespace DuskAndDawn
 
         private void HandleMapClick(int x, int y)
         {
+            if (HandlePackClick(x, y)) return;
+
             if (_headBackButton.Contains(x, y))
             {
                 _headBackButton.TriggerPress();

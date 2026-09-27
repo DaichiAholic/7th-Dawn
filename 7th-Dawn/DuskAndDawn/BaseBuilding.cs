@@ -307,7 +307,7 @@ namespace DuskAndDawn
                 _roomButtons[GroundFloorRooms[i]] = new Button(bounds, GroundFloorRooms[i].ToString());
             }
 
-            _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "End the Day");
+            _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "Prepare");
 
             _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + UpgradeTop, 360, 50), "Upgrade");
             _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 150, DetailPanel.Y + 20, 120, 42), "Close");
@@ -392,6 +392,7 @@ namespace DuskAndDawn
                     {
                         _endDayButton.TriggerPress();
                         SaveGame.Save(_playerState); // keep today's crafting and upgrades
+                        // Prepare is a free round trip - its Back to Base button returns here.
                         ScreenManager.ReplaceScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                     }
                 }

@@ -248,7 +248,7 @@ namespace DuskAndDawn
             float hover = button.HoverAmount;
             bool armed = entry == _armedEntry;
 
-            // Same ember language as the base's End the Day button; armed (confirm) entries go red.
+            // Same ember language as the base's Prepare button; armed (confirm) entries go red.
             Color top = armed ? new Color(120, 40, 36) : Color.Lerp(new Color(58, 46, 42), new Color(84, 64, 52), hover);
             Color bottom = armed ? new Color(80, 24, 22) : Color.Lerp(new Color(36, 28, 26), new Color(54, 40, 34), hover);
             Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), armed ? 1f : hover);

@@ -344,6 +344,7 @@ namespace DuskAndDawn
             {
                 DrawRoomTooltip(spriteBatch, font, _hoveredNode);
             }
+            DrawPack(spriteBatch, font);
         }
 
         private void DrawCorridors(SpriteBatch spriteBatch, float totalSeconds)

@@ -22,6 +22,8 @@ namespace DuskAndDawn
         private readonly List<Button> _landmarkButtons = new List<Button>();
         private readonly List<Button> _weaponButtons = new List<Button>();
         private Button _startButton;
+        private Button _backButton; // back to the base - to reinforce the weapon you just equipped
+        private bool _leaving;
         private MouseState _previousMouse;
 
         // ---- Layout ----
@@ -103,7 +105,8 @@ namespace DuskAndDawn
                 _weaponButtons.Add(new Button(new RectangleF(x, y, WeaponCardWidth, WeaponCardHeight), _playerState.Inventory[i].Name));
             }
 
-            _startButton = new Button(new RectangleF(LoadoutPanel.X + 20, 620, LoadoutPanel.Width - 40, 60), "Head Into the Night");
+            _backButton = new Button(new RectangleF(LoadoutPanel.X + 20, 620, 170, 60), "Back to Base");
+            _startButton = new Button(new RectangleF(LoadoutPanel.X + 204, 620, LoadoutPanel.Width - 224, 60), "Head Into the Night");
         }
 
         public override void Update(GameTime gameTime)
@@ -118,7 +121,9 @@ namespace DuskAndDawn
             var mouse = InputChecker.GetMouse();
 
             bool hitStart = _startButton.Contains(mouse.X, mouse.Y);
+            bool hitBack = _backButton.Contains(mouse.X, mouse.Y);
             _startButton.UpdateAnimation(dt, hitStart);
+            _backButton.UpdateAnimation(dt, hitBack);
             foreach (var button in _weaponButtons)
             {
                 button.UpdateAnimation(dt, button.Contains(mouse.X, mouse.Y));
@@ -128,7 +133,7 @@ namespace DuskAndDawn
                 button.UpdateAnimation(dt, button.Contains(mouse.X, mouse.Y));
             }
 
-            if (InputChecker.IsNewLeftClick(mouse, _previousMouse))
+            if (InputChecker.IsNewLeftClick(mouse, _previousMouse) && !_leaving)
             {
                 for (int i = 0; i < _landmarkButtons.Count; i++)
                 {
@@ -152,7 +157,16 @@ namespace DuskAndDawn
                 if (hitStart)
                 {
                     _startButton.TriggerPress();
+                    _leaving = true;
                     ScreenManager.ReplaceScreen(new NightScavengingScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                }
+                else if (hitBack)
+                {
+                    // Nothing here costs anything, so going back is free - equip a weapon here,
+                    // reinforce it in the Workshop, and come back.
+                    _backButton.TriggerPress();
+                    _leaving = true;
+                    ScreenManager.ReplaceScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                 }
             }
 
@@ -600,6 +614,8 @@ namespace DuskAndDawn
 
         private void DrawStartButton(SpriteBatch spriteBatch, SpriteFont font)
         {
+            DrawBackButton(spriteBatch, font);
+
             float hover = _startButton.HoverAmount;
             Color top = Color.Lerp(new Color(85, 145, 95), new Color(105, 170, 115), hover);
             Color bottom = Color.Lerp(new Color(60, 110, 68), new Color(78, 132, 86), hover);
@@ -614,6 +630,23 @@ namespace DuskAndDawn
             var textSize = UITheme.MeasureString(font, _startButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White);
+        }
+
+        private void DrawBackButton(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            float hover = _backButton.HoverAmount;
+            Color top = Color.Lerp(new Color(70, 62, 78), new Color(92, 82, 102), hover);
+            Color bottom = Color.Lerp(new Color(48, 42, 56), new Color(64, 56, 76), hover);
+            Color border = Color.Lerp(Color.White * 0.6f, Color.White, hover);
+
+            float squash = _backButton.PressAmount * 4f;
+            var bounds = _backButton.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 14f, shadowStrength: 0.6f);
+            var textSize = UITheme.MeasureString(font, _backButton.Label) * 0.9f;
+            var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White, 0.9f);
         }
 
         // =====================================================================

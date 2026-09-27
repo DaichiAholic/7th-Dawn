@@ -134,23 +134,14 @@ namespace DuskAndDawn
         {
             ResetLastActionEffects();
 
-            string log;
+            // Heals and the Dawn Tincture work the same in or out of a fight.
+            string log = item.ApplyRemedy(_playerState, _dawnTimer);
             switch (item.Effect)
             {
                 case ItemEffect.Heal:
-                    {
-                        int before = _playerState.Health;
-                        _playerState.Health = Math.Min(_playerState.MaxHealth, _playerState.Health + item.HealAmount(_playerState));
-                        log = $"You use {item.Name} and recover {_playerState.Health - before} health.";
-                        break;
-                    }
                 case ItemEffect.FullHeal:
-                    {
-                        int before = _playerState.Health;
-                        _playerState.Health = _playerState.MaxHealth;
-                        log = $"You drink the {item.Name} and recover {_playerState.Health - before} health.";
-                        break;
-                    }
+                case ItemEffect.RestoreDawn:
+                    break;
                 case ItemEffect.Smoke:
                     _smokeActive = true;
                     log = $"You shatter the {item.Name}. Thick smoke fills the room.";
@@ -165,10 +156,6 @@ namespace DuskAndDawn
                         if (Target == null || Target.IsDefeated) Target = Living.FirstOrDefault(e => e.IsBoss) ?? Living.FirstOrDefault();
                         break;
                     }
-                case ItemEffect.RestoreDawn:
-                    _dawnTimer.Restore(item.Amount);
-                    log = $"You drink the {item.Name}. The clock slips back {DawnTimer.FormatDuration(item.Amount)}.";
-                    break;
                 default:
                     log = "Nothing happens.";
                     break;

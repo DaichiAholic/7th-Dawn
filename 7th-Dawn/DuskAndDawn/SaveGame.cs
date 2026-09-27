@@ -8,8 +8,8 @@ using System.Text.Json.Serialization;
 namespace DuskAndDawn
 {
     /// <summary>
-    /// The run on disk. Saved each morning when you reach the base and again when you end
-    /// the day, so quitting at any point resumes from the base on that day (a night in
+    /// The run on disk. Saved whenever you arrive at the base and again when you leave it for
+    /// the Prepare screen, so quitting at any point resumes from the base on that day (a night in
     /// progress is replayed from the start). Deleted when the run ends, win or lose.
     /// Lives next to settings.json in the user's app-data folder.
     /// </summary>
