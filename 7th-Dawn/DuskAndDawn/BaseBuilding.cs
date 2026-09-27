@@ -90,7 +90,7 @@ namespace DuskAndDawn
         private readonly PlayerState _playerState;
 
         private const int MaxRoomLevel = 3;
-        private const int FeastFoodCost = 10;
+        private const int FeastFoodCost = 14;
         private const int FeastHope = 15;
 
         // Grouped into two rows so the house layout reads as two floors, like a real
@@ -111,22 +111,23 @@ namespace DuskAndDawn
         private static readonly List<Recipe> Recipes = new List<Recipe>
         {
             // Workshop - weapons
-            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 3, 0, Weapon.WoodenClub),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 2, 3, Weapon.ScrapClub),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 3, 5, Weapon.IronSword),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 2, 6, Weapon.Cleaver),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 0, 3, 4, Weapon.HandAxe),
-            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 0, 4, 10, Weapon.HolyLance),
+            // Workshop - weapons. Good metal is rare, so the better the weapon, the more Scraps.
+            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 5, 1, Weapon.WoodenClub),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 3, 6, Weapon.ScrapClub),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 5, 9, Weapon.IronSword),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 3, 10, Weapon.Cleaver),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 6, 7, Weapon.HandAxe),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 8, 16, Weapon.HolyLance),
 
-            // Infirmary - remedies
-            Recipe.ForItem(BaseRoomType.Infirmary, 1, 2, 0, 1, Item.Bandage),
-            Recipe.ForItem(BaseRoomType.Infirmary, 2, 3, 0, 3, Item.Tonic),
-            Recipe.ForItem(BaseRoomType.Infirmary, 2, 0, 1, 4, Item.SmokeFlask),
-            Recipe.ForItem(BaseRoomType.Infirmary, 3, 5, 0, 6, Item.Elixir),
-            Recipe.ForItem(BaseRoomType.Infirmary, 3, 4, 0, 5, Item.DawnTincture),
+            // Infirmary - remedies, brewed from food stores and scavenged glass and cloth
+            Recipe.ForItem(BaseRoomType.Infirmary, 1, 3, 0, 2, Item.Bandage),
+            Recipe.ForItem(BaseRoomType.Infirmary, 2, 5, 0, 5, Item.Tonic),
+            Recipe.ForItem(BaseRoomType.Infirmary, 2, 0, 2, 6, Item.SmokeFlask),
+            Recipe.ForItem(BaseRoomType.Infirmary, 3, 8, 0, 10, Item.Elixir),
+            Recipe.ForItem(BaseRoomType.Infirmary, 3, 6, 0, 8, Item.DawnTincture),
 
             // Kitchen
-            Recipe.ForItem(BaseRoomType.Kitchen, 2, 4, 0, 0, Item.Rations),
+            Recipe.ForItem(BaseRoomType.Kitchen, 2, 6, 0, 0, Item.Rations),
             new Recipe("Feast", $"+{FeastHope} Hope, once per day", BaseRoomType.Kitchen, 3, FeastFoodCost, 0, 0,
                 state =>
                 {
@@ -421,17 +422,17 @@ namespace DuskAndDawn
 
         private (int food, int planks, int scraps) GetUpgradeCost(BaseRoomType room, int currentLevel)
         {
-            // Every upgrade now needs Food too - the builders have to eat - and the Food share
-            // grows faster than the materials, so a big upgrade means a lean week.
+            // Nothing is cheap after the end of the world: every upgrade needs Food for the
+            // builders plus a real pile of salvage, and the price climbs steeply with each level.
             int tier = currentLevel;
             return room switch
             {
-                BaseRoomType.Storage => (4 * tier, 3 * tier, 3 * tier),
-                BaseRoomType.Workshop => (4 * tier, 2 * tier, 4 * tier),
-                BaseRoomType.Infirmary => (6 * tier, 0, 3 * tier),
-                BaseRoomType.Kitchen => (5 * tier, 3 * tier, 0),
-                BaseRoomType.Barrack => (7 * tier, 3 * tier, 0),
-                BaseRoomType.Archive => (5 * tier, 0, 6 * tier),
+                BaseRoomType.Storage => (5 * tier, 6 * tier, 5 * tier),
+                BaseRoomType.Workshop => (5 * tier, 4 * tier, 7 * tier),
+                BaseRoomType.Infirmary => (7 * tier, 2 * tier, 6 * tier),
+                BaseRoomType.Kitchen => (6 * tier, 6 * tier, 2 * tier),
+                BaseRoomType.Barrack => (8 * tier, 5 * tier, 3 * tier),
+                BaseRoomType.Archive => (6 * tier, 2 * tier, 9 * tier),
                 _ => (0, 0, 0)
             };
         }
@@ -833,6 +834,14 @@ namespace DuskAndDawn
             var upkeepSize = font.MeasureString(upkeepText) * 0.75f;
             Color upkeepColor = shortTomorrow ? new Color(255, 140, 120) : new Color(235, 200, 160);
             UITheme.DrawTextWithShadow(spriteBatch, font, upkeepText, new Vector2(1010 - upkeepSize.X / 2f, 140), upkeepColor, 0.75f);
+
+            if (shortTomorrow)
+            {
+                // Spell out the price - hunger is steep enough that it should never be a surprise.
+                string warning = $"Bring back food tonight or hunger costs {_playerState.ProjectedHungerCost()} Hope";
+                var warningSize = font.MeasureString(warning) * 0.7f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, warning, new Vector2(1010 - warningSize.X / 2f, 162), new Color(255, 120, 100), 0.7f);
+            }
         }
 
         private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float centerX, string label, int value, Action<SpriteBatch, float> drawIcon, float popTimer, Color slotTint)

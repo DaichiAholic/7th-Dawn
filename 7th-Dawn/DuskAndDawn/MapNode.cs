@@ -24,6 +24,10 @@ namespace DuskAndDawn
         public bool IsDeadEnd => Links.Count == 1;
 
         public bool Visited { get; set; }
+
+        // A creature you fled from stays in its room, wounds and all, until you come back
+        // and finish it. null = none waiting (a fresh one is rolled on entry).
+        public Enemy Enemy { get; set; }
         public bool Discovered { get; set; } // seen at all - drawn as a silhouette
         public bool Scouted { get; set; }    // type known
 

@@ -54,8 +54,9 @@ namespace DuskAndDawn
             return (food, planks, scraps);
         }
 
+        // Skips empty piles ("+3 Food, +1 Scraps"), and says "Nothing" if it all came up empty.
         public static string Describe(int food, int planks, int scraps) =>
-            $"+{food} Food, +{planks} Planks, +{scraps} Scraps";
+            new ResourceDelta(food, planks, scraps).Describe();
     }
 
     /// <summary>
@@ -116,10 +117,12 @@ namespace DuskAndDawn
 
         public static MaterialYield Yield(District district) => district switch
         {
-            District.VillageOutskirts => new MaterialYield(food: new LootRange(3, 6), planks: new LootRange(2, 4), scraps: new LootRange(1, 3)),
-            District.ChurchRuins => new MaterialYield(food: new LootRange(2, 4), planks: new LootRange(4, 7), scraps: new LootRange(2, 4)),
-            District.CastleKeep => new MaterialYield(food: new LootRange(2, 4), planks: new LootRange(3, 5), scraps: new LootRange(5, 8)),
-            _ => new MaterialYield(new LootRange(1, 3), new LootRange(1, 3), new LootRange(1, 3))
+            // The world's been picked over for years: most finds are thin, and a pile can
+            // come up empty. Specialties still stand out, but nothing is plentiful.
+            District.VillageOutskirts => new MaterialYield(food: new LootRange(2, 4), planks: new LootRange(1, 2), scraps: new LootRange(0, 2)),
+            District.ChurchRuins => new MaterialYield(food: new LootRange(1, 2), planks: new LootRange(2, 5), scraps: new LootRange(0, 2)),
+            District.CastleKeep => new MaterialYield(food: new LootRange(1, 2), planks: new LootRange(1, 3), scraps: new LootRange(3, 5)),
+            _ => new MaterialYield(new LootRange(0, 2), new LootRange(0, 2), new LootRange(0, 2))
         };
 
         // The material this district is known for - highlighted on the Prepare map.

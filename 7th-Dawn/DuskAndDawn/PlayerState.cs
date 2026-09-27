@@ -136,9 +136,15 @@ namespace DuskAndDawn
         // ---- Upkeep: the household eats every morning ----
         // A bare base eats BaseUpkeep Food, and every room level bought on top of Lv 1 is
         // another mouth to feed, so growing the base always costs Food on top of its price.
-        // Whatever can't be paid is taken out of Hope instead.
+        // Going hungry is brutal: any shortfall costs a flat chunk of Hope, more for every
+        // missing Food, and more again for each hungry morning in a row.
         public const int BaseUpkeep = 3;
-        public const int HungerHopePerFood = 3;
+        public const int HungerBaseHope = 10;
+        public const int HungerHopePerFood = 4;
+        public const int HungerStreakHope = 5;
+
+        // Consecutive mornings the household couldn't be fed. Reset by a full meal.
+        public int HungryMornings;
 
         public int UpgradesBought => RoomLevels.Values.Sum(level => level - 1);
 
@@ -153,9 +159,29 @@ namespace DuskAndDawn
             Food -= eaten;
 
             int shortfall = needed - eaten;
+            if (shortfall == 0)
+            {
+                HungryMornings = 0;
+                return (eaten, 0, 0);
+            }
+
+            HungryMornings++;
             int hopeBefore = Hope;
-            ChangeHope(-shortfall * HungerHopePerFood);
+            ChangeHope(-HungerHopeCost(shortfall, HungryMornings));
             return (eaten, shortfall, hopeBefore - Hope);
+        }
+
+        /// <summary>Hope lost for going `shortfall` Food short on the Nth hungry morning
+        /// in a row. Also used to warn the player ahead of time.</summary>
+        public static int HungerHopeCost(int shortfall, int hungryStreak) =>
+            shortfall <= 0 ? 0 : HungerBaseHope + shortfall * HungerHopePerFood + Math.Max(0, hungryStreak - 1) * HungerStreakHope;
+
+        /// <summary>What tomorrow morning's hunger would cost if nothing else changes -
+        /// for the warnings on the base screen.</summary>
+        public int ProjectedHungerCost()
+        {
+            int shortfall = Math.Max(0, DailyUpkeep - Food - KitchenDailyFood);
+            return HungerHopeCost(shortfall, HungryMornings + 1);
         }
 
         // ---- Barracks: dice training ----

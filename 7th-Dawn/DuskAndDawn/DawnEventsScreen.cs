@@ -67,7 +67,8 @@ namespace DuskAndDawn
             }
             else
             {
-                _morningReport.Add(($"The household needed {eaten + shortfall} Food but only had {eaten}. Hunger costs {hopeLost} Hope.", true));
+                string streak = _playerState.HungryMornings > 1 ? $" ({_playerState.HungryMornings} hungry mornings running)" : "";
+                _morningReport.Add(($"Needed {eaten + shortfall} Food, had {eaten}. Hunger costs {hopeLost} Hope{streak}.", true));
             }
 
             var (lostFood, _, _) = _playerState.ApplyStorageCap();

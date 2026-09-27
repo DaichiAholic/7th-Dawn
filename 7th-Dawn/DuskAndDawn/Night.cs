@@ -383,6 +383,8 @@ namespace DuskAndDawn
         private const float WalkSpeed = 420f; // pixels per second
         private List<MapNode> _walkPath;
         private int _walkIndex;
+        // The room you were in before this one - where fleeing takes you back to.
+        private MapNode _cameFrom;
         private Vector2 _tokenPosition;
         private bool IsWalking => _walkPath != null;
 
@@ -676,6 +678,7 @@ namespace DuskAndDawn
 
                 _tokenPosition = target;
                 budget -= distance;
+                _cameFrom = _current;
                 _current = _walkPath[_walkIndex];
                 _walkIndex++;
 
@@ -706,7 +709,7 @@ namespace DuskAndDawn
             switch (node.Type)
             {
                 case RoomType.Encounter:
-                    StartEncounter(node.Depth);
+                    StartEncounter(node);
                     break;
                 case RoomType.Supplies:
                     StartSupplies();
@@ -795,6 +798,8 @@ namespace DuskAndDawn
                 var destination = destinations[_random.Next(destinations.Count)];
                 prowler.Type = RoomType.Empty;
                 destination.Type = RoomType.Encounter;
+                destination.Enemy = prowler.Enemy;
+                prowler.Enemy = null;
                 prowler.StirAmount = 1f;
                 destination.StirAmount = 1f;
 
@@ -858,18 +863,28 @@ namespace DuskAndDawn
 
         // ---------- Encounter (combat) ----------
 
-        private void StartEncounter(int depth)
+        private void StartEncounter(MapNode room)
         {
-            // The maze runs deeper than the old 6-layer map; halve the step count so enemy
-            // strength lands in the same range it was tuned for.
-            int tier = Math.Min(6, depth / 2);
-            var enemy = new Enemy(
-                $"{DistrictInfo.RandomEnemyName(_district, _random)} (Depth {depth})",
-                maxHealth: 30 + tier * 3 + DistrictInfo.EnemyHealthBonus(_district),
-                attackPower: 6 + tier + DistrictInfo.EnemyAttackBonus(_district),
-                corruption: DistrictInfo.Corruption(_district));
+            var enemy = room.Enemy;
+            if (enemy == null)
+            {
+                // The maze runs deeper than the old 6-layer map; halve the step count so enemy
+                // strength lands in the same range it was tuned for.
+                int depth = room.Depth;
+                int tier = Math.Min(6, depth / 2);
+                enemy = new Enemy(
+                    $"{DistrictInfo.RandomEnemyName(_district, _random)} (Depth {depth})",
+                    maxHealth: 30 + tier * 3 + DistrictInfo.EnemyHealthBonus(_district),
+                    attackPower: 6 + tier + DistrictInfo.EnemyAttackBonus(_district),
+                    corruption: DistrictInfo.Corruption(_district));
+            }
+            else
+            {
+                _textLog.Push($"{enemy.Name} is still here, waiting for you. ({enemy.Health}/{enemy.MaxHealth})");
+            }
+            room.Enemy = null; // put back by Retreat() if you run again
             _activeCombat = new CombatEncounter(enemy, _playerState, _dawnTimer, _random);
-            _enemyHealthBar = new LerpBar(enemy.MaxHealth, enemy.MaxHealth);
+            _enemyHealthBar = new LerpBar(enemy.Health, enemy.MaxHealth);
             _combatMenu = CombatMenu.TopLevel;
             _combatTurn = 0;
             LayoutCombatButtons();
@@ -1051,6 +1066,7 @@ namespace DuskAndDawn
                 _roomsCleared++;
             }
             bool knockedOut = !fled && _playerState.Health <= 0;
+            var enemy = _activeCombat.Enemy;
 
             // The fight is over - cut any animation still playing and drop the queued enemy
             // hit (its log line still shows, so the last blow isn't lost from the log).
@@ -1071,11 +1087,38 @@ namespace DuskAndDawn
             if (knockedOut)
             {
                 Collapse();
+                return;
             }
-            else if (IsNightOver)
+            if (fled)
+            {
+                Retreat(enemy);
+            }
+            if (IsNightOver)
             {
                 GoToDawnReturn();
             }
+        }
+
+        /// <summary>Fleeing backs you out into the room you came from. The creature stays
+        /// put - still wounded - and its room counts as unexplored again: the corridor through
+        /// it is blocked, and getting past means going back in (and paying the time again).</summary>
+        private void Retreat(Enemy enemy)
+        {
+            var room = _current;
+            room.Type = RoomType.Encounter;
+            room.Enemy = enemy;
+            room.Visited = false;
+            room.StirAmount = 1f;
+            _roomsVisited = Math.Max(0, _roomsVisited - 1);
+
+            var back = _cameFrom != null && _cameFrom.Visited ? _cameFrom : room.Links.FirstOrDefault(l => l.Visited);
+            if (back != null)
+            {
+                _walkPath = new List<MapNode> { back };
+                _walkIndex = 0;
+            }
+
+            _textLog.Push($"You back out the way you came. {enemy.Name} is still in there ({enemy.Health}/{enemy.MaxHealth}).");
         }
 
         /// <summary>Knocked out: half of tonight's haul is dropped in the dark, the house
@@ -1223,14 +1266,15 @@ namespace DuskAndDawn
             }
 
             _textLog.Push(text);
-            _roomsCleared++;
             WarnOfDawn();
 
+            // A fight drawn by the noise decides whether this room counts as cleared.
             if (drewAFight)
             {
-                StartEncounter(_current.Depth);
+                StartEncounter(_current);
                 return;
             }
+            _roomsCleared++;
 
             _state = ExplorationState.Map;
             if (IsNightOver)
@@ -1273,7 +1317,7 @@ namespace DuskAndDawn
         private void ResolveEmpty()
         {
             string line = QuietHallLines[_random.Next(QuietHallLines.Length)];
-            if (_random.Next(100) < 30)
+            if (_random.Next(100) < 20)
             {
                 // A stray bit of whatever this district is rich in - more in the deeper districts.
                 int amount = _random.Next(1, 3) + DistrictInfo.Corruption(_district) - 1;
@@ -1880,7 +1924,9 @@ namespace DuskAndDawn
         private void DrawRoomTooltip(SpriteBatch spriteBatch, SpriteFont font, MapNode node)
         {
             string title = node.Scouted ? RoomTypeInfo.Name(node.Type) : "Unknown room";
-            string detail = node.Scouted ? RoomTypeInfo.Description(node.Type) : "Too dark to make out from here.";
+            string detail = !node.Scouted ? "Too dark to make out from here."
+                : node.Enemy != null ? $"{node.Enemy.Name} - wounded, {node.Enemy.Health}/{node.Enemy.MaxHealth}"
+                : RoomTypeInfo.Description(node.Type);
 
             string action;
             Color actionColor;
