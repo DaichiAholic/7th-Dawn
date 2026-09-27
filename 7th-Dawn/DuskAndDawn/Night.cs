@@ -341,9 +341,11 @@ namespace DuskAndDawn
     /// <summary>
     /// Phase 2: Night Scavenging. The ruins are a small maze you explore room by room: winding
     /// corridors, corners, dead ends and a few loops, hidden under fog until your lantern (or
-    /// the Archive's scouting) reaches them. Entering a new room costs a tick of the dawn
-    /// clock; walking back through rooms you've already explored is free. Creatures roam
-    /// between unexplored rooms as the night goes on. Combat and supply caches work as before.
+    /// the Archive's scouting) reaches them. The night runs on a clock from dusk (8 PM) to
+    /// dawn (6 AM): entering a new room takes 30 minutes and every supply-cache choice has its
+    /// own time cost, while walking back through explored rooms and fighting are free.
+    /// Creatures roam between unexplored rooms as the night goes on. Being knocked out in a
+    /// fight ends the night early and costs half of tonight's haul.
     /// </summary>
     public class NightScavengingScreen : GameScreen
     {
@@ -360,7 +362,12 @@ namespace DuskAndDawn
 
         private const int RoamChancePercent = 35; // per new room entered
 
+        // ---- The night clock ----
+        private const int RoomEntryMinutes = 30;
         private DawnTimer _dawnTimer;
+        // The clock hands sweep to the new time instead of jumping - rendering only.
+        private float _displayedElapsed;
+        private bool _warnedOfDawn;
         private NightMap _map;
         private MapNode _current;
         private int _roomsVisited;
@@ -407,9 +414,30 @@ namespace DuskAndDawn
         // label no longer matches an item name - this holds the real name for each button.
         private readonly List<string> _itemButtonNames = new List<string>();
 
-        // Supplies sub-state
-        private List<ChoiceOption> _suppliesOptions;
+        // Supplies sub-state. Every cache's contents are rolled up front and shown, and each
+        // way of dealing with it trades time, loot, risk and health differently.
+        private enum SupplyAction { Grab, Thorough, Quiet, Rest, Leave }
+
+        private const int GrabMinutes = 15;
+        private const int ThoroughMinutes = 45;
+        private const int QuietMinutes = 90;
+        private const int RestMinutes = 40;
+        private const int ThoroughNoiseChance = 35;   // % chance the noise starts a fight
+        private const int ThoroughRemedyChance = 30;  // % chance of a bonus item
+        private const int RestHeal = 30;
+
+        private ResourceDelta _cache;
+        private readonly List<SupplyAction> _supplyActions = new List<SupplyAction>();
         private readonly List<Button> _suppliesButtons = new List<Button>();
+
+        // ---- Knocked out ----
+        // Losing a fight no longer just burns clock time, so it ends the night instead: a short
+        // beat to read what happened, then home, carrying half of what you found.
+        private const int KnockoutHopeLoss = 5;
+        private const float CollapseDuration = 2.6f;
+        private float _collapseTimer = -1f;
+        private string _collapseText = "";
+        private int _startFood, _startPlanks, _startScraps;
 
         // ---- Combat sprite effects ----
         // All three sheets are 7 frames of 64x64. Timings are per whole animation.
@@ -469,7 +497,10 @@ namespace DuskAndDawn
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 
             _district = _playerState.SelectedDistrict;
-            _dawnTimer = new DawnTimer(startingBudget: 10);
+            _dawnTimer = new DawnTimer();
+            _startFood = _playerState.Food;
+            _startPlanks = _playerState.Planks;
+            _startScraps = _playerState.Scraps;
             var roomGenerator = new RoomGenerator(_district, _random);
             _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
@@ -482,7 +513,7 @@ namespace DuskAndDawn
             // should drift out of the fog.
             foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
 
-            _textLog.Push($"You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
+            _textLog.Push($"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
 
             for (int i = 0; i < EmberCount; i++)
             {
@@ -527,6 +558,16 @@ namespace DuskAndDawn
             _enemyShake.Update(gameTime);
             _playerShake.Update(gameTime);
             UpdateEmbers(dt);
+            // ~2 real seconds to sweep a full hour, so a room's 30 minutes reads as a quick tick forward.
+            _displayedElapsed = UITheme.MoveTowards(_displayedElapsed, _dawnTimer.MinutesElapsed, 180f * dt);
+
+            if (_collapseTimer >= 0f)
+            {
+                _collapseTimer -= dt;
+                if (_collapseTimer < 0f) GoToDawnReturn();
+                _previousMouse = mouse;
+                return;
+            }
 
             if (_pendingPlayerHitDelay >= 0f)
             {
@@ -657,9 +698,10 @@ namespace DuskAndDawn
 
             node.Visited = true;
             _roomsVisited++;
-            _dawnTimer.SpendOnRoomEntry();
+            _dawnTimer.Spend(RoomEntryMinutes);
             RefreshVisibility();
             StirTheDark();
+            WarnOfDawn();
 
             switch (node.Type)
             {
@@ -687,6 +729,14 @@ namespace DuskAndDawn
         }
 
         private bool IsNightOver => !_dawnTimer.HasTimeRemaining || _map.Nodes.All(n => n.Visited);
+
+        /// <summary>One log line the first time the clock drops under an hour.</summary>
+        private void WarnOfDawn()
+        {
+            if (_warnedOfDawn || !_dawnTimer.HasTimeRemaining || _dawnTimer.MinutesLeft > 60) return;
+            _warnedOfDawn = true;
+            _textLog.Push($"{_dawnTimer.ClockLabel}. The sky is starting to pale - under an hour until dawn.");
+        }
 
         /// <summary>What the player can see from where they stand. Explored rooms show their
         /// doorways (neighbors' types are known), the lantern plus the Archive's scouting
@@ -842,7 +892,7 @@ namespace DuskAndDawn
                     break;
 
                 case CombatMenu.Skills:
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Power Strike (2 ticks)")); y += height + gap;
+                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Power Strike (risky)")); y += height + gap;
                     _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Guard")); y += height + gap;
                     _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Back"));
                     break;
@@ -1000,6 +1050,7 @@ namespace DuskAndDawn
             {
                 _roomsCleared++;
             }
+            bool knockedOut = !fled && _playerState.Health <= 0;
 
             // The fight is over - cut any animation still playing and drop the queued enemy
             // hit (its log line still shows, so the last blow isn't lost from the log).
@@ -1017,78 +1068,174 @@ namespace DuskAndDawn
             _combatMenu = CombatMenu.TopLevel;
             _state = ExplorationState.Map;
 
-            if (IsNightOver)
+            if (knockedOut)
+            {
+                Collapse();
+            }
+            else if (IsNightOver)
             {
                 GoToDawnReturn();
             }
+        }
+
+        /// <summary>Knocked out: half of tonight's haul is dropped in the dark, the house
+        /// loses a little Hope, and the night ends.</summary>
+        private void Collapse()
+        {
+            var dropped = new ResourceDelta(
+                -Math.Max(0, _playerState.Food - _startFood) / 2,
+                -Math.Max(0, _playerState.Planks - _startPlanks) / 2,
+                -Math.Max(0, _playerState.Scraps - _startScraps) / 2,
+                -KnockoutHopeLoss);
+            var lost = _playerState.Apply(dropped);
+            _playerState.Health = 1;
+
+            _collapseText = $"You collapse. Someone drags you home before dawn. Lost: {lost.Describe()}.";
+            _collapseTimer = CollapseDuration;
+            _state = ExplorationState.Map;
         }
 
         // ---------- Supplies ----------
 
         private void StartSupplies()
         {
-            _suppliesOptions = BuildSuppliesOptions();
+            // Two finds' worth of this district's materials, rolled up front so every choice
+            // below can say exactly what it gets you.
+            var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 2);
+            _cache = new ResourceDelta(food, planks, scraps);
+
+            _supplyActions.Clear();
+            _supplyActions.AddRange(new[] { SupplyAction.Grab, SupplyAction.Thorough, SupplyAction.Quiet, SupplyAction.Rest, SupplyAction.Leave });
+
             _suppliesButtons.Clear();
-            const float x = 820, width = 380, height = 130, gap = 16;
-            float y = 230;
-            for (int i = 0; i < _suppliesOptions.Count; i++)
+            const float x = 420, width = 820, height = 76, gap = 8;
+            float y = 204;
+            foreach (var action in _supplyActions)
             {
-                _suppliesButtons.Add(new Button(new RectangleF(x, y, width, height), _suppliesOptions[i].Title));
+                _suppliesButtons.Add(new Button(new RectangleF(x, y, width, height), SupplyTitle(action))
+                {
+                    Enabled = SupplyBlockedReason(action) == null
+                });
                 y += height + gap;
             }
             _state = ExplorationState.Supplies;
         }
 
-        private List<ChoiceOption> BuildSuppliesOptions()
+        private static int SupplyMinutes(SupplyAction action) => action switch
         {
-            // Each district leans into its own material - see DistrictInfo.Yield.
-            var materials = DistrictInfo.Yield(_district);
+            SupplyAction.Grab => GrabMinutes,
+            SupplyAction.Thorough => ThoroughMinutes,
+            SupplyAction.Quiet => QuietMinutes,
+            SupplyAction.Rest => RestMinutes,
+            _ => 0
+        };
 
-            return new List<ChoiceOption>
-            {
-                new ChoiceOption("Search quickly", "Fast and safe - one find.", (state, rng) =>
-                {
-                    var (food, planks, scraps) = materials.Roll(rng);
-                    state.AddResources(food, planks, scraps);
-                    return $"You grab what's in easy reach. {MaterialYield.Describe(food, planks, scraps)}.";
-                }),
+        private static string SupplyTitle(SupplyAction action) => action switch
+        {
+            SupplyAction.Grab => "Grab what's in reach",
+            SupplyAction.Thorough => "Search thoroughly",
+            SupplyAction.Quiet => "Search quietly",
+            SupplyAction.Rest => "Rest among the crates",
+            _ => "Leave it"
+        };
 
-                new ChoiceOption("Search thoroughly", "Double the find - but noise draws attention.", (state, rng) =>
-                {
-                    var (food, planks, scraps) = materials.Roll(rng, times: 2);
-                    state.AddResources(food, planks, scraps);
-                    string haul = MaterialYield.Describe(food, planks, scraps);
-                    if (rng.Next(100) < 30)
-                    {
-                        state.Health = Math.Max(1, state.Health - 8);
-                        return $"A good haul ({haul}), but the noise draws something - it clips you on the way out.";
-                    }
-                    return $"You find a good haul and slip away clean. {haul}.";
-                }),
+        // Half of each pile, rounded up.
+        private ResourceDelta HalfCache => new ResourceDelta((_cache.Food + 1) / 2, (_cache.Planks + 1) / 2, (_cache.Scraps + 1) / 2);
 
-                new ChoiceOption("Leave it", "No risk, no reward - just move on.", (state, rng) =>
-                {
-                    return "You decide it isn't worth the time.";
-                })
-            };
+        private int RestHealAmount => Math.Min(RestHeal, _playerState.MaxHealth - _playerState.Health);
+
+        private string SupplyDescription(SupplyAction action) => action switch
+        {
+            SupplyAction.Grab => $"About half: {HalfCache.Describe()}. Quick and safe.",
+            SupplyAction.Thorough => $"Everything, {ThoroughRemedyChance}% chance of a remedy - but {ThoroughNoiseChance}% chance the noise brings a fight.",
+            SupplyAction.Quiet => "Everything, without a sound. Safe, but it eats the night.",
+            SupplyAction.Rest => $"Take nothing. Bar the door and bind your wounds: +{RestHealAmount} health.",
+            _ => "Take nothing and lose no time."
+        };
+
+        /// <summary>Why an option can't be picked right now, or null if it can. Grabbing an
+        /// armful is always allowed, so the last room before dawn is never wasted.</summary>
+        private string SupplyBlockedReason(SupplyAction action)
+        {
+            if (action == SupplyAction.Rest && RestHealAmount <= 0) return "You're unhurt";
+            if (action != SupplyAction.Grab && !_dawnTimer.CanAfford(SupplyMinutes(action))) return "Dawn would break first";
+            return null;
         }
 
         private void HandleSuppliesClick(int x, int y)
         {
             for (int i = 0; i < _suppliesButtons.Count; i++)
             {
+                // Button.Contains is already false for blocked options.
                 if (!_suppliesButtons[i].Contains(x, y)) continue;
 
                 _suppliesButtons[i].TriggerPress();
-                _textLog.Push(_suppliesOptions[i].Resolve(_playerState, _random));
-                _roomsCleared++;
-                _state = ExplorationState.Map;
-
-                if (IsNightOver)
-                {
-                    GoToDawnReturn();
-                }
+                ResolveSupply(_supplyActions[i]);
                 return;
+            }
+        }
+
+        private void ResolveSupply(SupplyAction action)
+        {
+            _dawnTimer.Spend(SupplyMinutes(action));
+            bool drewAFight = false;
+            string text;
+
+            switch (action)
+            {
+                case SupplyAction.Grab:
+                    text = $"You grab what's in easy reach. {_playerState.Apply(HalfCache).Describe()}.";
+                    break;
+
+                case SupplyAction.Thorough:
+                    {
+                        text = $"You turn the place over. {_playerState.Apply(_cache).Describe()}.";
+                        if (_random.Next(100) < ThoroughRemedyChance)
+                        {
+                            var remedies = new Func<Item>[] { Item.Bandage, Item.Tonic, Item.SmokeFlask };
+                            var remedy = remedies[_random.Next(remedies.Length)]();
+                            _playerState.Items.Add(remedy);
+                            text += $" Tucked at the bottom: a {remedy.Name}.";
+                        }
+                        if (_random.Next(100) < ThoroughNoiseChance)
+                        {
+                            drewAFight = true;
+                            text += " Something heard all that...";
+                        }
+                        break;
+                    }
+
+                case SupplyAction.Quiet:
+                    text = $"Slowly, silently, you empty the cache. {_playerState.Apply(_cache).Describe()}.";
+                    break;
+
+                case SupplyAction.Rest:
+                    {
+                        int healed = RestHealAmount;
+                        _playerState.Health += healed;
+                        text = $"You bar the door and bind your wounds. +{healed} health.";
+                        break;
+                    }
+
+                default:
+                    text = "You leave it for another night.";
+                    break;
+            }
+
+            _textLog.Push(text);
+            _roomsCleared++;
+            WarnOfDawn();
+
+            if (drewAFight)
+            {
+                StartEncounter(_current.Depth);
+                return;
+            }
+
+            _state = ExplorationState.Map;
+            if (IsNightOver)
+            {
+                GoToDawnReturn();
             }
         }
 
@@ -1200,7 +1347,25 @@ namespace DuskAndDawn
                 _playerHitFlash.Draw(spriteBatch);
             }
 
+            if (_collapseTimer >= 0f)
+            {
+                DrawCollapse(spriteBatch, font);
+            }
+
             spriteBatch.End();
+        }
+
+        private void DrawCollapse(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            float fade = MathHelper.Clamp((CollapseDuration - _collapseTimer) / 0.6f, 0f, 1f);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(40, 0, 0) * (0.75f * fade), Color.Black * (0.85f * fade), 6);
+
+            var lines = TextLog.WrapText(font, _collapseText, 760f);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var size = font.MeasureString(lines[i]);
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(640 - size.X / 2f, 330 + i * 30), new Color(255, 200, 190) * fade);
+            }
         }
 
         private void DrawEmbers(SpriteBatch spriteBatch)
@@ -1278,39 +1443,80 @@ namespace DuskAndDawn
             return x + iconSize + 6 + font.MeasureString(text).X * 0.9f + 26f;
         }
 
+        // Analog clock face in the status card: the night's arc runs from dusk at 8 o'clock,
+        // clockwise over midnight, to dawn at 6 o'clock. The part already spent is dim; the
+        // part left glows like lamplight and pulses once dawn is under an hour away.
+        private static readonly Vector2 ClockCenter = new Vector2(62, 50);
+        private const float ClockRadius = 34f;
+
+        private static Vector2 ClockDirection(float turns) =>
+            new Vector2(MathF.Sin(turns * MathF.PI * 2f), -MathF.Cos(turns * MathF.PI * 2f));
+
         private void DrawClock(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Time until dawn: {_dawnTimer.RemainingBudget}/{_dawnTimer.MaxBudget}", new Vector2(40, 28), Color.White);
+            var center = ClockCenter;
+            const float r = ClockRadius;
+            int left = _dawnTimer.MinutesLeft;
+            bool nearDawn = left <= 60;
+            float pulse = UITheme.PulseSine(totalSeconds, 4f);
 
-            var clockMax = new RectangleF(40, 60, 300, 20);
-            float ratio = _dawnTimer.RemainingBudget / (float)_dawnTimer.MaxBudget;
-            var clockFill = new RectangleF(40, 60, 300 * ratio, 20);
-
-            UITheme.DrawSoftShadow(spriteBatch, clockMax, 10f, 0.4f);
-            UITheme.FillRoundedRectGradient(spriteBatch, clockMax, Color.Black * 0.6f, Color.Black * 0.4f, 10f, 6);
-
-            if (clockFill.Width > 1f)
+            // Dawn light creeping up behind the clock over the last two hours.
+            float dawnGlow = MathHelper.Clamp(1f - left / 120f, 0f, 1f);
+            if (dawnGlow > 0f)
             {
-                Color top = new Color(255, 210, 140);
-                Color bottom = new Color(225, 160, 80);
-                if (ratio <= 0.2f)
-                {
-                    // Slow warning pulse once the dawn clock is nearly spent - cosmetic only,
-                    // doesn't change the actual budget or thresholds.
-                    float pulse = UITheme.PulseSine(totalSeconds, 5f);
-                    top = Color.Lerp(top, Color.White, pulse * 0.3f);
-                }
-                UITheme.FillRoundedRectGradient(spriteBatch, clockFill, top, bottom, 10f, 6);
+                UITheme.DrawGlow(spriteBatch, center, r + 34f, new Color(255, 150, 90) * (dawnGlow * (0.35f + pulse * 0.15f)));
             }
 
-            // Tick marks, one per unit of the budget, so "one room = one notch" is readable.
-            for (int i = 1; i < _dawnTimer.MaxBudget; i++)
+            UITheme.FillCircle(spriteBatch, center + new Vector2(2, 4), r + 3f, Color.Black * 0.4f);
+            UITheme.FillCircle(spriteBatch, center, r + 3f, new Color(150, 120, 90));
+            UITheme.FillCircle(spriteBatch, center, r, new Color(22, 22, 36));
+
+            // The night's arc, 8 o'clock round to 6 o'clock (10 of the face's 12 hours).
+            float duskTurn = (DawnTimer.DuskHour % 12) / 12f;
+            float nightTurns = _dawnTimer.MaxMinutes / 720f;
+            float progress = MathHelper.Clamp(_displayedElapsed / _dawnTimer.MaxMinutes, 0f, 1f);
+            const int segments = 60;
+            float arcRadius = r - 6f;
+            Color remaining = nearDawn
+                ? Color.Lerp(new Color(255, 170, 90), new Color(255, 235, 190), pulse * 0.6f)
+                : new Color(255, 200, 120);
+            for (int i = 0; i < segments; i++)
             {
-                float tickX = clockMax.X + clockMax.Width * i / _dawnTimer.MaxBudget;
-                spriteBatch.DrawLine(new Vector2(tickX, clockMax.Y + 4), new Vector2(tickX, clockMax.Y + clockMax.Height - 4), Color.Black * 0.35f, 2f);
+                float t0 = i / (float)segments, t1 = (i + 1) / (float)segments;
+                var a = center + ClockDirection(duskTurn + t0 * nightTurns) * arcRadius;
+                var b = center + ClockDirection(duskTurn + t1 * nightTurns) * arcRadius;
+                Color color = t1 <= progress ? new Color(70, 70, 96) : remaining;
+                spriteBatch.DrawLine(a, b, color, 4f);
             }
 
-            UITheme.DrawRoundedRectBorder(spriteBatch, clockMax, Color.White * 0.8f, 2f, 10f);
+            // Hour marks - longer at 12, 3, 6 and 9.
+            for (int h = 0; h < 12; h++)
+            {
+                var dir = ClockDirection(h / 12f);
+                float inner = h % 3 == 0 ? r - 14f : r - 11f;
+                spriteBatch.DrawLine(center + dir * inner, center + dir * (r - 9f), Color.White * (h % 3 == 0 ? 0.7f : 0.35f), h % 3 == 0 ? 2f : 1f);
+            }
+
+            // Dawn marker: a little sun where the arc ends.
+            var sun = center + ClockDirection(duskTurn + nightTurns) * arcRadius;
+            UITheme.DrawGlow(spriteBatch, sun, 14f, new Color(255, 200, 120) * 0.8f);
+            UITheme.FillCircle(spriteBatch, sun, 4f, new Color(255, 230, 170));
+
+            // Hands, from the animated time so they sweep rather than jump.
+            int clockMinutes = DawnTimer.ClockMinutesAt(_displayedElapsed);
+            float minuteTurn = (clockMinutes % 60) / 60f;
+            float hourTurn = (clockMinutes / 60f % 12f) / 12f;
+            spriteBatch.DrawLine(center, center + ClockDirection(hourTurn) * (r * 0.48f), new Color(235, 225, 210), 3f);
+            spriteBatch.DrawLine(center, center + ClockDirection(minuteTurn) * (r * 0.72f), new Color(235, 225, 210), 2f);
+            UITheme.FillCircle(spriteBatch, center, 3.5f, new Color(255, 200, 120));
+
+            // Readout beside the face.
+            float textX = center.X + r + 18f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, _dawnTimer.ClockLabel, new Vector2(textX, 14), Color.White, 1.25f);
+            string untilDawn = left > 0 ? $"{DawnTimer.FormatDuration(left)} until dawn" : "Dawn is breaking";
+            Color untilColor = nearDawn ? Color.Lerp(new Color(255, 170, 110), Color.White, pulse * 0.3f) : new Color(255, 205, 150);
+            UITheme.DrawTextWithShadow(spriteBatch, font, untilDawn, new Vector2(textX, 46), untilColor, 0.85f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"New room {DawnTimer.FormatDuration(RoomEntryMinutes)}.  Fights take no time.", new Vector2(textX, 70), new Color(170, 165, 190), 0.62f);
         }
 
         // Hp_bar.png is a single "full" bar sprite (heart + red track), not a separate
@@ -1696,7 +1902,9 @@ namespace DuskAndDawn
             }
             else
             {
-                action = "Enter - costs 1 tick";
+                action = _dawnTimer.MinutesLeft <= RoomEntryMinutes
+                    ? "Enter - the last room before dawn"
+                    : $"Enter - {DawnTimer.FormatDuration(RoomEntryMinutes)}, until {_dawnTimer.ClockLabelAfter(RoomEntryMinutes)}";
                 actionColor = new Color(255, 180, 110);
             }
 
@@ -1841,31 +2049,92 @@ namespace DuskAndDawn
 
         private void DrawSupplies(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, "You find a supply cache.", new Vector2(60, 220), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, "What do you do?", new Vector2(60, 250), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "You find a supply cache.", new Vector2(60, 212), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Every choice here costs time.", new Vector2(60, 242), Color.LightGray, 0.8f);
 
-            var lootBox = new RectangleF(60, 300, 260, 260);
+            // What's actually inside - the same numbers every option below is working from.
+            var lootBox = new RectangleF(60, 280, 320, 240);
             UITheme.DrawPanel(spriteBatch, lootBox, new Color(58, 50, 30), new Color(38, 32, 18), new Color(150, 118, 64), 3f, 14f, shadowStrength: 0.6f);
+            UITheme.DrawGlow(spriteBatch, new Vector2(lootBox.X + lootBox.Width / 2f, lootBox.Y + lootBox.Height / 2f), 150f, new Color(255, 190, 110) * 0.12f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Inside", new Vector2(lootBox.X + 18, lootBox.Y + 14), new Color(235, 210, 160));
 
-            // What might be inside, gently bobbing in a warm glow.
-            var lootCenter = new Vector2(lootBox.X + lootBox.Width / 2f, lootBox.Y + lootBox.Height / 2f);
-            UITheme.DrawGlow(spriteBatch, lootCenter, 130f, new Color(255, 190, 110) * 0.18f);
-            var icons = new[] { Game1.BreadTexture, Game1.PlanksTexture, Game1.ScrapsTexture };
-            var offsets = new[] { new Vector2(-55, -40), new Vector2(55, -40), new Vector2(0, 50) };
-            for (int i = 0; i < icons.Length; i++)
+            var rows = new (Texture2D icon, int amount, string name)[]
             {
-                if (icons[i] == null) continue;
-                float bob = MathF.Sin(totalSeconds * 2f + i * 2.1f) * 4f;
-                var c = lootCenter + offsets[i] + new Vector2(0, bob);
-                const int size = 80;
-                spriteBatch.Draw(icons[i], new Rectangle((int)(c.X - size / 2f), (int)(c.Y - size / 2f), size, size), Color.White);
+                (Game1.BreadTexture, _cache.Food, "Food"),
+                (Game1.PlanksTexture, _cache.Planks, "Planks"),
+                (Game1.ScrapsTexture, _cache.Scraps, "Scraps")
+            };
+            for (int i = 0; i < rows.Length; i++)
+            {
+                float rowY = lootBox.Y + 52 + i * 60;
+                float bob = MathF.Sin(totalSeconds * 2f + i * 2.1f) * 2f;
+                if (rows[i].icon != null)
+                {
+                    spriteBatch.Draw(rows[i].icon, new Rectangle((int)lootBox.X + 20, (int)(rowY + bob), 52, 52), Color.White);
+                }
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"{rows[i].amount} {rows[i].name}", new Vector2(lootBox.X + 90, rowY + 12), Color.White, 1.1f);
             }
-
-            _textLog.Draw(spriteBatch, font, new Vector2(60, 580), maxWidth: 740f);
 
             for (int i = 0; i < _suppliesButtons.Count; i++)
             {
-                DrawStyledButton(spriteBatch, font, _suppliesButtons[i], new Color(66, 78, 66), new Color(46, 56, 46), _suppliesOptions[i].Description);
+                DrawSupplyButton(spriteBatch, font, _suppliesButtons[i], _supplyActions[i]);
+            }
+
+            _textLog.Draw(spriteBatch, font, new Vector2(420, 636), maxWidth: 820f);
+        }
+
+        private void DrawSupplyButton(SpriteBatch spriteBatch, SpriteFont font, Button button, SupplyAction action)
+        {
+            bool enabled = button.Enabled;
+            float hover = button.HoverAmount;
+            Color baseTop = enabled ? new Color(66, 78, 66) : new Color(44, 46, 50);
+            Color baseBottom = enabled ? new Color(46, 56, 46) : new Color(32, 34, 38);
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = enabled ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
+
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: enabled ? 0.5f : 0.2f);
+
+            Color titleColor = enabled ? Color.White : new Color(140, 140, 150);
+            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, drawBounds.Y + 8), titleColor, 0.95f);
+
+            // Time cost (and what the clock will read after), or why it's unavailable.
+            int minutes = SupplyMinutes(action);
+            string right;
+            Color rightColor;
+            string blocked = SupplyBlockedReason(action);
+            if (blocked != null)
+            {
+                right = blocked;
+                rightColor = new Color(230, 120, 105);
+            }
+            else if (minutes == 0)
+            {
+                right = "No time";
+                rightColor = new Color(170, 220, 170);
+            }
+            else if (!_dawnTimer.CanAfford(minutes))
+            {
+                right = $"{DawnTimer.FormatDuration(minutes)} - dawn breaks";
+                rightColor = new Color(255, 160, 100);
+            }
+            else
+            {
+                right = $"{DawnTimer.FormatDuration(minutes)}  ->  {_dawnTimer.ClockLabelAfter(minutes)}";
+                rightColor = new Color(255, 205, 140);
+            }
+            var rightSize = font.MeasureString(right) * 0.8f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, right, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, drawBounds.Y + 10), rightColor, 0.8f);
+
+            const float descScale = 0.72f;
+            Color descColor = enabled ? new Color(215, 215, 215) : new Color(120, 120, 130);
+            var lines = TextLog.WrapText(font, SupplyDescription(action), (drawBounds.Width - 28) / descScale);
+            for (int i = 0; i < Math.Min(lines.Count, 2); i++)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(drawBounds.X + 14, drawBounds.Y + 38 + i * 18), descColor, descScale);
             }
         }
 

@@ -11,7 +11,7 @@ namespace DuskAndDawn
         Heal,        // restore Amount health
         FullHeal,    // restore to max health
         Smoke,       // the enemy's next attack misses
-        RestoreDawn  // give back Amount ticks of dawn time
+        RestoreDawn  // turn the night clock back Amount minutes
     }
 
     public class Item
@@ -34,7 +34,7 @@ namespace DuskAndDawn
         public static Item Tonic() => new Item("Tonic", "Restores 45 health.", ItemEffect.Heal, 45);
         public static Item SmokeFlask() => new Item("Smoke Flask", "The enemy's next attack misses.", ItemEffect.Smoke);
         public static Item Elixir() => new Item("Elixir", "Restores all health.", ItemEffect.FullHeal);
-        public static Item DawnTincture() => new Item("Dawn Tincture", "Gives back 3 ticks of dawn time.", ItemEffect.RestoreDawn, 3);
+        public static Item DawnTincture() => new Item("Dawn Tincture", "Turns the night clock back 90 minutes.", ItemEffect.RestoreDawn, 90);
 
         // Kitchen
         public static Item Rations() => new Item("Rations", "Restores 30 health.", ItemEffect.Heal, 30);

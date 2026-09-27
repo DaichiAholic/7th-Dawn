@@ -15,6 +15,11 @@ namespace DuskAndDawn
         private bool _guardActive;
         private bool _smokeActive;
 
+        // Combat no longer costs dawn time, so Power Strike's price is risk instead: the
+        // enemy's next hit lands this much harder while you're open.
+        public const float PowerStrikeExposure = 1.5f;
+        private bool _exposed;
+
         // Barracks rerolls left in this fight. When a roll comes in below the weapon's
         // average, one charge is spent automatically and the better of the two rolls is kept.
         private int _rerollsLeft;
@@ -64,7 +69,6 @@ namespace DuskAndDawn
 
             string log = $"You roll {weapon.DiceLabel} with your {weapon.Name} - {damage} damage.";
             if (rerolled) log += " (Barracks reroll)";
-            _dawnTimer.SpendOnCombatRound();
             ResolveEnemyReply();
             return log;
         }
@@ -83,15 +87,14 @@ namespace DuskAndDawn
                     LastPlayerRoll = damage;
                     LastRollWasAttack = true;
                     EnemyWasHit = true;
-                    log = $"Power Strike: two rolls of {weapon.DiceLabel} - {damage} damage!";
+                    log = $"Power Strike: two rolls of {weapon.DiceLabel} - {damage} damage! You're left wide open.";
                     if (rerolledA || rerolledB) log += " (Barracks reroll)";
-                    _dawnTimer.SpendOnCombatRound(2);
+                    _exposed = true;
                     break;
 
                 case SkillType.Guard:
                     _guardActive = true;
                     log = "You brace behind your guard, ready to absorb the next hit.";
-                    _dawnTimer.SpendOnCombatRound();
                     break;
 
                 default:
@@ -129,9 +132,8 @@ namespace DuskAndDawn
                     log = $"You shatter the {item.Name}. Thick smoke fills the room.";
                     break;
                 case ItemEffect.RestoreDawn:
-                    // Restored before the round's tick is spent, so the net gain is Amount - 1.
                     _dawnTimer.Restore(item.Amount);
-                    log = $"You drink the {item.Name}. The night feels a little longer.";
+                    log = $"You drink the {item.Name}. The clock slips back {DawnTimer.FormatDuration(item.Amount)}.";
                     break;
                 default:
                     log = "Nothing happens.";
@@ -139,16 +141,28 @@ namespace DuskAndDawn
             }
 
             _playerState.Items.Remove(item);
-            _dawnTimer.SpendOnCombatRound();
             ResolveEnemyReply();
             return log;
         }
 
+        /// <summary>Running costs no time now, so it costs blood: the enemy gets a parting
+        /// swing at half strength (smoke still covers you). Never knocks you out.</summary>
         public string Flee()
         {
             ResetLastActionEffects();
-            _dawnTimer.SpendOnCombatRound();
-            return "You break off and flee.";
+            if (_smokeActive)
+            {
+                return "You slip away through the smoke.";
+            }
+
+            int parting = Math.Min(Enemy.AttackPower / 2, _playerState.Health - 1);
+            if (parting <= 0)
+            {
+                return "You break off and flee.";
+            }
+
+            _playerState.Health -= parting;
+            return $"You break off and flee - {Enemy.Name} catches you for {parting} on the way out.";
         }
 
         /// <summary>One weapon roll with every Barracks modifier and holy-weapon bonus
@@ -198,6 +212,11 @@ namespace DuskAndDawn
             }
 
             int incoming = Enemy.AttackPower;
+            if (_exposed)
+            {
+                incoming = (int)MathF.Round(incoming * PowerStrikeExposure);
+                _exposed = false;
+            }
             if (_guardActive)
             {
                 incoming /= 2;
