@@ -26,13 +26,25 @@ namespace DuskAndDawn
             return WeightedPick(weights);
         }
 
-        private Dictionary<RoomType, int> GetWeights(int depth, bool isDeadEnd)
+        /// <summary>Chance (0-1) of each room type at a given depth - shown on the Prepare
+        /// screen's district tooltips.</summary>
+        public static (float supplies, float encounter, float special, float empty) Odds(District district, int depth, bool isDeadEnd = false)
+        {
+            var weights = GetWeights(district, depth, isDeadEnd);
+            float total = weights.Values.Sum();
+            return (weights[RoomType.Supplies] / total, weights[RoomType.Encounter] / total,
+                weights[RoomType.Special] / total, weights[RoomType.Empty] / total);
+        }
+
+        private Dictionary<RoomType, int> GetWeights(int depth, bool isDeadEnd) => GetWeights(_district, depth, isDeadEnd);
+
+        private static Dictionary<RoomType, int> GetWeights(District district, int depth, bool isDeadEnd)
         {
             // The maze is deeper than the old 6-layer map, so depth is squashed into the
             // same rough 1-6 band the weights were tuned for.
             int tier = Math.Min(6, 1 + depth / 3);
             int encounterWeight = 40 + tier * 5;
-            var (supplies, encounter, special) = DistrictInfo.WeightSkew(_district);
+            var (supplies, encounter, special) = DistrictInfo.WeightSkew(district);
 
             int deadEndLoot = isDeadEnd ? 20 : 0;
 

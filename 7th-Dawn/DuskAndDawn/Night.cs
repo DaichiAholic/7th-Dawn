@@ -123,7 +123,7 @@ namespace DuskAndDawn
 
         // Splits on spaces and greedily packs words onto each line up to maxWidth, so a long
         // combat message wraps instead of running past the edge of the screen.
-        private static List<string> WrapText(SpriteFont font, string text, float maxWidth)
+        internal static List<string> WrapText(SpriteFont font, string text, float maxWidth)
         {
             var words = text.Split(' ');
             var lines = new List<string>();
@@ -1041,26 +1041,29 @@ namespace DuskAndDawn
 
         private List<ChoiceOption> BuildSuppliesOptions()
         {
-            // Richer districts add a flat bonus to every resource found.
-            int bonus = DistrictInfo.LootBonus(_district);
+            // Each district leans into its own material - see DistrictInfo.Yield.
+            var materials = DistrictInfo.Yield(_district);
 
             return new List<ChoiceOption>
             {
-                new ChoiceOption("Search quickly", "Fast and safe - a modest find.", (state, rng) =>
+                new ChoiceOption("Search quickly", "Fast and safe - one find.", (state, rng) =>
                 {
-                    state.AddResources(food: rng.Next(1, 4) + bonus, scraps: rng.Next(1, 3) + bonus);
-                    return "You grab what's in easy reach.";
+                    var (food, planks, scraps) = materials.Roll(rng);
+                    state.AddResources(food, planks, scraps);
+                    return $"You grab what's in easy reach. {MaterialYield.Describe(food, planks, scraps)}.";
                 }),
 
-                new ChoiceOption("Search thoroughly", "Slower, better odds - but noise draws attention.", (state, rng) =>
+                new ChoiceOption("Search thoroughly", "Double the find - but noise draws attention.", (state, rng) =>
                 {
-                    state.AddResources(food: rng.Next(3, 7) + bonus, planks: rng.Next(2, 5) + bonus, scraps: rng.Next(2, 5) + bonus);
+                    var (food, planks, scraps) = materials.Roll(rng, times: 2);
+                    state.AddResources(food, planks, scraps);
+                    string haul = MaterialYield.Describe(food, planks, scraps);
                     if (rng.Next(100) < 30)
                     {
                         state.Health = Math.Max(1, state.Health - 8);
-                        return "You find a good haul, but the noise draws something - it clips you on the way out.";
+                        return $"A good haul ({haul}), but the noise draws something - it clips you on the way out.";
                     }
-                    return "You find a good haul and slip away clean.";
+                    return $"You find a good haul and slip away clean. {haul}.";
                 }),
 
                 new ChoiceOption("Leave it", "No risk, no reward - just move on.", (state, rng) =>
@@ -1093,13 +1096,11 @@ namespace DuskAndDawn
 
         private void ResolveSpecial()
         {
-            if (_random.Next(100) < 50)
+            if (_random.Next(100) >= DistrictInfo.WeaponFindChance(_district))
             {
-                int bonus = DistrictInfo.LootBonus(_district);
-                int food = _random.Next(2, 5) + bonus;
-                int planks = _random.Next(1, 4) + bonus;
-                _playerState.AddResources(food: food, planks: planks);
-                _textLog.Push($"A moment of quiet beauty in the dark. You gather {food} Food and {planks} Planks.");
+                var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random);
+                _playerState.AddResources(food, planks, scraps);
+                _textLog.Push($"A moment of quiet beauty in the dark, and a forgotten cache. {MaterialYield.Describe(food, planks, scraps)}.");
             }
             else
             {
@@ -1125,11 +1126,13 @@ namespace DuskAndDawn
         private void ResolveEmpty()
         {
             string line = QuietHallLines[_random.Next(QuietHallLines.Length)];
-            if (_random.Next(100) < 25)
+            if (_random.Next(100) < 30)
             {
-                int scraps = 1 + DistrictInfo.LootBonus(_district);
-                _playerState.AddResources(scraps: scraps);
-                line += $" You pocket {scraps} Scraps from the rubble.";
+                // A stray bit of whatever this district is rich in - more in the deeper districts.
+                int amount = _random.Next(1, 3) + DistrictInfo.Corruption(_district) - 1;
+                var (food, planks, scraps) = DistrictInfo.SpecialtyAmount(_district, amount);
+                _playerState.AddResources(food, planks, scraps);
+                line += $" You pocket {amount} {DistrictInfo.SpecialtyMaterial(_district)} from the rubble.";
             }
 
             _textLog.Push(line);
@@ -1139,11 +1142,9 @@ namespace DuskAndDawn
 
         private void ResolveHoard()
         {
-            int bonus = DistrictInfo.LootBonus(_district) * 2;
-            int food = _random.Next(4, 9) + bonus;
-            int planks = _random.Next(3, 7) + bonus;
-            int scraps = _random.Next(3, 7) + bonus;
-            _playerState.AddResources(food: food, planks: planks, scraps: scraps);
+            // Three finds' worth of this district's materials.
+            var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 3);
+            _playerState.AddResources(food, planks, scraps);
 
             string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
             if (_random.Next(100) < 50)
