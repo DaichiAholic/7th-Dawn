@@ -8,7 +8,7 @@ namespace DuskAndDawn
 {
     public class Weapon
     {
-        public const int MaxReinforcement = 3;
+        public const int MaxReinforcement = 5;
 
         public string Name { get; }
         public int DiceCount { get; }
@@ -109,10 +109,13 @@ namespace DuskAndDawn
         public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2);
         public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2);
 
+        // ---- Tier 4: Workshop Lv 5 only - the Knight-killer ----
+        public static Weapon Dawnbreaker() => new Weapon("Dawnbreaker", 4, 3, 6, 3, corruptionBonus: 2);
+
         // Every weapon by name - how a save file turns names back into weapons.
         private static readonly Func<Weapon>[] AllFactories =
         {
-            RustyKnife, WoodenClub, ScrapClub, IronSword, Cleaver, HandAxe, HolyLance, WarMaul
+            RustyKnife, WoodenClub, ScrapClub, IronSword, Cleaver, HandAxe, HolyLance, WarMaul, Dawnbreaker
         };
 
         /// <summary>Rebuilds a saved weapon, reinforcement included. null for an unknown name

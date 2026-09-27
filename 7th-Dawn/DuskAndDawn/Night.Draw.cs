@@ -41,7 +41,8 @@ namespace DuskAndDawn
                     break;
                 case ExplorationState.Encounter:
                     DrawCombat(spriteBatch, font, totalSeconds);
-                    DrawMapFragment(spriteBatch, font);
+                    // A long Items list needs the space the mini-map uses.
+                    if (_combatMenu != CombatMenu.Items) DrawMapFragment(spriteBatch, font);
                     break;
                 case ExplorationState.Supplies:
                     DrawSupplies(spriteBatch, font, totalSeconds);
@@ -606,12 +607,23 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, pos + new Vector2(0, -1), flame, new Color(255, 250, 225));
         }
 
-        /// <summary>Tooltip line for enemies you ran from, e.g. "Penitents x2 - wounded".</summary>
+        /// <summary>Tooltip line for enemies known to be in a room - ones you ran from, or
+        /// ones the Archive's bestiary identified - e.g. "2 Penitents, 22 HP each".</summary>
         private static string DescribeWaiting(List<Enemy> enemies)
         {
             var living = enemies.Where(e => !e.IsDefeated).ToList();
-            if (living.Count == 1) return $"{living[0].Name} - wounded, {living[0].Health}/{living[0].MaxHealth}";
-            return $"{living.Count} enemies waiting, wounded";
+            bool wounded = living.Any(e => e.Health < e.MaxHealth);
+            if (living.Count == 1)
+            {
+                var enemy = living[0];
+                return wounded
+                    ? $"{enemy.Name} - wounded, {enemy.Health}/{enemy.MaxHealth}"
+                    : $"{enemy.Name} - {enemy.MaxHealth} HP, hits {enemy.AttackPower}";
+            }
+            if (wounded) return $"{living.Count} enemies waiting, wounded";
+            return living.All(e => e.Kind == EnemyKind.Penitent)
+                ? $"{living.Count} Penitents, {living[0].MaxHealth} HP each"
+                : $"{living.Count} enemies inside";
         }
 
         private void DrawRoomTooltip(SpriteBatch spriteBatch, SpriteFont font, MapNode node)
@@ -752,10 +764,17 @@ namespace DuskAndDawn
 
             _textLog.Draw(spriteBatch, font, new Vector2(300, 575), maxWidth: 940f);
 
-            foreach (var button in _combatButtons)
+            for (int i = 0; i < _combatButtons.Count; i++)
             {
+                var button = _combatButtons[i];
+                bool isItem = _combatMenu == CombatMenu.Items && i < _itemButtonNames.Count;
+
                 // Dimmed while locked, so it's clear the next action isn't ready yet.
-                if (IsActionLocked)
+                if (isItem)
+                {
+                    DrawItemButton(spriteBatch, font, button, _itemButtonNames[i]);
+                }
+                else if (IsActionLocked)
                 {
                     DrawStyledButton(spriteBatch, font, button, new Color(40, 40, 50), new Color(30, 30, 38));
                 }
@@ -770,6 +789,59 @@ namespace DuskAndDawn
             }
 
             DrawCombatHints(spriteBatch, font);
+            DrawItemTooltip(spriteBatch, font);
+        }
+
+        /// <summary>An item in the combat Items menu: its name (and how many you carry) on
+        /// top, and what it does underneath - so a choice mid-fight never means guessing.</summary>
+        private void DrawItemButton(SpriteBatch spriteBatch, SpriteFont font, Button button, string itemName)
+        {
+            var item = _playerState.Items.Find(it => it.Name == itemName);
+            float hover = IsActionLocked ? 0f : button.HoverAmount;
+            Color top = IsActionLocked ? new Color(40, 40, 50) : UITheme.Brighten(new Color(60, 70, 64), hover * 0.2f);
+            Color bottom = IsActionLocked ? new Color(30, 30, 38) : UITheme.Brighten(new Color(40, 48, 44), hover * 0.2f);
+            Color border = Color.Lerp(Color.White * 0.55f, Color.White, hover);
+
+            float squash = button.PressAmount * 3f;
+            var b = button.Bounds;
+            var draw = new RectangleF(b.X + squash, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
+            UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.5f);
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(draw.X + 12, draw.Y + 6), Color.White, 0.9f);
+            if (item != null)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(draw.X + 12, draw.Y + 32), new Color(170, 230, 180), 0.66f);
+            }
+        }
+
+        /// <summary>The full description of the hovered item, in a card beside the list.</summary>
+        private void DrawItemTooltip(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            if (_combatMenu != CombatMenu.Items || IsActionLocked) return;
+
+            for (int i = 0; i < _itemButtonNames.Count && i < _combatButtons.Count; i++)
+            {
+                var button = _combatButtons[i];
+                if (button.HoverAmount < 0.5f) continue;
+
+                var item = _playerState.Items.Find(it => it.Name == _itemButtonNames[i]);
+                if (item == null) return;
+                int owned = _playerState.Items.Count(it => it.Name == item.Name);
+
+                const float width = 320f, descScale = 0.72f;
+                var lines = TextLog.WrapText(font, item.Description, (width - 28) / descScale);
+                float height = 70 + lines.Count * 20;
+                var card = new RectangleF(button.Bounds.Right + 14, Math.Min(button.Bounds.Y, 700 - height), width, height);
+
+                UITheme.DrawPanel(spriteBatch, card, new Color(34, 30, 46), new Color(20, 18, 28), new Color(150, 200, 160), 1.5f, 10f, shadowStrength: 0.8f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, item.Name, new Vector2(card.X + 14, card.Y + 10), Color.White);
+                for (int l = 0; l < lines.Count; l++)
+                {
+                    UITheme.DrawTextWithShadow(spriteBatch, font, lines[l], new Vector2(card.X + 14, card.Y + 40 + l * 20), new Color(210, 206, 225), descScale);
+                }
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"Carrying {owned}. Using one takes your turn.", new Vector2(card.X + 14, card.Bottom - 26), new Color(160, 156, 178), 0.62f);
+                return;
+            }
         }
 
         /// <summary>A few small lines under the action buttons explaining how to answer

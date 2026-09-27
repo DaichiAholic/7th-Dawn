@@ -90,6 +90,7 @@ namespace DuskAndDawn
             int damage = RollWeapon(target, out bool rerolled);
             string log = $"You roll {weapon.DiceLabel} with your {weapon.DisplayName} - {damage} damage to {target.Name}.";
             if (rerolled) log += " (Barracks reroll)";
+            if (_playerState.WorkshopEdge > 0) log += " (whetstone)";
             log += HitTarget(target, damage);
 
             ResolveEnemyTurn();
@@ -139,7 +140,7 @@ namespace DuskAndDawn
                 case ItemEffect.Heal:
                     {
                         int before = _playerState.Health;
-                        _playerState.Health = Math.Min(_playerState.MaxHealth, _playerState.Health + item.Amount);
+                        _playerState.Health = Math.Min(_playerState.MaxHealth, _playerState.Health + item.HealAmount(_playerState));
                         log = $"You use {item.Name} and recover {_playerState.Health - before} health.";
                         break;
                     }
@@ -154,6 +155,16 @@ namespace DuskAndDawn
                     _smokeActive = true;
                     log = $"You shatter the {item.Name}. Thick smoke fills the room.";
                     break;
+                case ItemEffect.HolyWater:
+                    {
+                        var struck = Living.ToList();
+                        foreach (var enemy in struck) enemy.TakeDamage(item.Amount);
+                        int fallen = struck.Count(e => e.IsDefeated);
+                        log = $"You hurl the {item.Name}. It hisses across {(struck.Count == 1 ? "your foe" : $"all {struck.Count} of them")} for {item.Amount} each"
+                            + (fallen > 0 ? $" - {fallen} fall{(fallen == 1 ? "s" : "")}!" : ".");
+                        if (Target == null || Target.IsDefeated) Target = Living.FirstOrDefault(e => e.IsBoss) ?? Living.FirstOrDefault();
+                        break;
+                    }
                 case ItemEffect.RestoreDawn:
                     _dawnTimer.Restore(item.Amount);
                     log = $"You drink the {item.Name}. The clock slips back {DawnTimer.FormatDuration(item.Amount)}.";
@@ -232,7 +243,19 @@ namespace DuskAndDawn
                 roll = Math.Max(roll, weapon.RollDamage(_random, minFace, extraDice));
             }
 
-            return roll + weapon.CorruptionBonus * target.Corruption;
+            return roll + weapon.CorruptionBonus * target.Corruption + _playerState.WorkshopEdge;
+        }
+
+        /// <summary>Barracks Lv 4: a blocked HEAVY or STUN opens the attacker up for one
+        /// free weapon roll (no reroll spent).</summary>
+        private void Riposte(Enemy enemy, List<string> lines)
+        {
+            if (!_playerState.BarracksRiposte || enemy.IsDefeated) return;
+            var weapon = _playerState.EquippedWeapon;
+            int damage = weapon.RollDamage(_random, _playerState.BarracksMinFace, _playerState.BarracksExtraDice)
+                + weapon.CorruptionBonus * enemy.Corruption + _playerState.WorkshopEdge;
+            enemy.TakeDamage(damage);
+            lines.Add(enemy.IsDefeated ? $"You riposte for {damage} - {enemy.Name} falls!" : $"You riposte for {damage}!");
         }
 
         private void ResetLastActionEffects()
@@ -331,9 +354,11 @@ namespace DuskAndDawn
                 {
                     case IntentType.Heavy:
                         lines.Add($"{enemy.Name}'s heavy blow crashes into your guard - blocked!");
+                        Riposte(enemy, lines);
                         return 0;
                     case IntentType.Stun:
                         lines.Add($"{enemy.Name}'s binding breaks against your guard.");
+                        Riposte(enemy, lines);
                         return 0;
                     case IntentType.Attack:
                         damage /= 2;

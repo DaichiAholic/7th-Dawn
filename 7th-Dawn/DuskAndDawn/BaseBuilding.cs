@@ -147,9 +147,8 @@ namespace DuskAndDawn
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
 
-        private const int MaxRoomLevel = 3;
+        private const int MaxRoomLevel = PlayerState.MaxRoomLevel;
         private const int FeastFoodCost = 14;
-        private const int FeastHope = 15;
 
         // Grouped into two rows so the house layout reads as two floors, like a real
         // building cutaway - purely a visual grouping, doesn't change any game logic.
@@ -178,6 +177,7 @@ namespace DuskAndDawn
             Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 7, 10, Weapon.HandAxe),
             Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 10, 30, Weapon.HolyLance),
             Recipe.ForWeapon(BaseRoomType.Workshop, 3, 4, 14, 26, Weapon.WarMaul),
+            Recipe.ForWeapon(BaseRoomType.Workshop, 5, 6, 16, 40, Weapon.Dawnbreaker),
             Recipe.ReinforceEquipped(),
 
             // Infirmary - remedies, brewed from food stores and scavenged glass and cloth
@@ -186,22 +186,24 @@ namespace DuskAndDawn
             Recipe.ForItem(BaseRoomType.Infirmary, 2, 0, 2, 6, Item.SmokeFlask),
             Recipe.ForItem(BaseRoomType.Infirmary, 3, 8, 0, 10, Item.Elixir),
             Recipe.ForItem(BaseRoomType.Infirmary, 3, 6, 0, 8, Item.DawnTincture),
+            Recipe.ForItem(BaseRoomType.Infirmary, 4, 3, 0, 9, Item.HolyWater),
 
             // Kitchen
             Recipe.ForItem(BaseRoomType.Kitchen, 2, 6, 0, 0, Item.Rations),
-            new Recipe("Feast", $"+{FeastHope} Hope, once per day", BaseRoomType.Kitchen, 3, FeastFoodCost, 0, 0,
+            new Recipe("Feast", "", BaseRoomType.Kitchen, 3, FeastFoodCost, 0, 0,
                 state =>
                 {
                     state.FeastUsedToday = true;
-                    state.ChangeHope(FeastHope);
-                    return $"The house shares a feast. Hope +{FeastHope}.";
+                    state.ChangeHope(state.FeastHope);
+                    return $"The house shares a feast. Hope +{state.FeastHope}.";
                 },
                 state =>
                 {
                     if (state.FeastUsedToday) return "You've already feasted today.";
                     if (state.Hope >= PlayerState.MaxHope) return "Hope is already full.";
                     return null;
-                })
+                },
+                dynamicDetail: state => $"+{state.FeastHope} Hope, once per day")
         };
 
         private readonly Dictionary<BaseRoomType, Button> _roomButtons = new Dictionary<BaseRoomType, Button>();
@@ -219,8 +221,13 @@ namespace DuskAndDawn
         private Button _upgradeButton;
         private Button _closeButton;
         private readonly List<(Button button, Recipe recipe)> _recipeButtons = new List<(Button, Recipe)>();
-        private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 540);
-        private const float RecipeTop = 262f;
+        // Tall enough for the room's five-level ladder above the upgrade button, and five
+        // rows of recipes (the Workshop's nine) under it.
+        private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 600);
+        private const float LadderTop = 94f;
+        private const float UpgradeTop = 200f;
+        private const float RecipeTop = 286f;
+        private const float RecipeHeight = 50f;
 
         // ---- Craft feedback ----
         // A successful craft gets a "Crafted!" card up top with the thing's icon, a burst of
@@ -302,7 +309,7 @@ namespace DuskAndDawn
 
             _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "End the Day");
 
-            _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + 164, 360, 54), "Upgrade");
+            _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + UpgradeTop, 360, 50), "Upgrade");
             _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 150, DetailPanel.Y + 20, 120, 42), "Close");
 
             // Snapshot starting resource values so the first frame never reads as a "change"
@@ -423,7 +430,7 @@ namespace DuskAndDawn
             _recipeButtons.Clear();
             var roomRecipes = Recipes.Where(r => r.Room == room).ToList();
             // Sized so four rows (the Workshop's eight recipes) fit above the status line.
-            const float width = 360f, height = 54f, rowGap = 6f;
+            const float width = 360f, height = RecipeHeight, rowGap = 5f;
             for (int i = 0; i < roomRecipes.Count; i++)
             {
                 float x = DetailPanel.X + 30 + (i % 2) * 380f;
@@ -529,7 +536,7 @@ namespace DuskAndDawn
             _craftToastDetail = recipe.IsReinforce ? $"{equipped.DisplayName} now rolls {equipped.DiceLabel}"
                 : recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
                 : recipe.SampleItem != null ? $"Now in your pack: {OwnedCount(recipe)}"
-                : recipe.Detail;
+                : recipe.GetDetail(_playerState);
             _craftToastTimer = CraftToastDuration;
             _craftFlashButton = button;
             _craftFlashTimer = CraftFlashDuration;
@@ -615,6 +622,7 @@ namespace DuskAndDawn
             int tier = currentLevel;
             return room switch
             {
+                // (tier 1-4: the level you're upgrading from - Lv 4 -> 5 costs four times Lv 1 -> 2)
                 BaseRoomType.Storage => (5 * tier, 6 * tier, 5 * tier),
                 BaseRoomType.Workshop => (5 * tier, 4 * tier, 7 * tier),
                 BaseRoomType.Infirmary => (7 * tier, 2 * tier, 6 * tier),
@@ -638,40 +646,52 @@ namespace DuskAndDawn
 
         private static string RoomRole(BaseRoomType room) => room switch
         {
-            BaseRoomType.Storage => "Caps how much you can keep. Overflow is lost at dawn.",
-            BaseRoomType.Workshop => "Crafts and reinforces weapons.",
-            BaseRoomType.Infirmary => "Brews remedies you carry into the night.",
-            BaseRoomType.Kitchen => "Cooks Food every morning to help feed the house.",
-            BaseRoomType.Barrack => "Trains your dice: rerolls, better faces, more dice.",
-            BaseRoomType.Archive => "Maps the ruins. Opens new districts to scavenge.",
+            BaseRoomType.Storage => "Caps what you keep, and how much you haul home.",
+            BaseRoomType.Workshop => "Crafts, reinforces and sharpens weapons.",
+            BaseRoomType.Infirmary => "Brews remedies and toughens you for the night.",
+            BaseRoomType.Kitchen => "Feeds the house every morning, and holds feasts.",
+            BaseRoomType.Barrack => "Trains your dice - and your guard.",
+            BaseRoomType.Archive => "Maps the ruins: districts, scouting, enemies, time.",
             _ => ""
         };
 
         private static string LevelDescription(BaseRoomType room, int level) => (room, level) switch
         {
             (BaseRoomType.Storage, 1) => "Holds 30 of each resource",
-            (BaseRoomType.Storage, 2) => "Holds 60 of each resource",
-            (BaseRoomType.Storage, _) => "Holds 100 of each resource",
+            (BaseRoomType.Storage, 2) => "Holds 50 of each",
+            (BaseRoomType.Storage, 3) => "Holds 70; packframes - Grab takes the whole cache",
+            (BaseRoomType.Storage, 4) => "Holds 90; root cellar - Food never spoils",
+            (BaseRoomType.Storage, _) => "Holds 120; supply runs - caches hold 25% more",
 
-            (BaseRoomType.Workshop, 1) => "Clubs, reinforce weapons to +1",
-            (BaseRoomType.Workshop, 2) => "Iron weapons, reinforce to +2",
-            (BaseRoomType.Workshop, _) => "Holy Lance, War Maul, reinforce to +3",
+            (BaseRoomType.Workshop, 1) => "Clubs; reinforce weapons to +1",
+            (BaseRoomType.Workshop, 2) => "Iron weapons; reinforce to +2",
+            (BaseRoomType.Workshop, 3) => "Holy Lance and War Maul; reinforce to +3",
+            (BaseRoomType.Workshop, 4) => "Whetstone - +1 damage on every hit; reinforce to +4",
+            (BaseRoomType.Workshop, _) => "Dawnbreaker, the Knight-killer; reinforce to +5",
 
             (BaseRoomType.Infirmary, 1) => "Bandages",
             (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
-            (BaseRoomType.Infirmary, _) => "Elixirs and Dawn Tinctures",
+            (BaseRoomType.Infirmary, 3) => "Elixirs and Dawn Tinctures",
+            (BaseRoomType.Infirmary, 4) => "Holy Water; field kit - 120 health at night",
+            (BaseRoomType.Infirmary, _) => "Surgeon's hands - heals +50%; 140 health at night",
 
             (BaseRoomType.Kitchen, 1) => "+3 Food each morning",
-            (BaseRoomType.Kitchen, 2) => "+6 Food each morning, Rations",
-            (BaseRoomType.Kitchen, _) => "+9 Food each morning, Feast",
+            (BaseRoomType.Kitchen, 2) => "+6 Food each morning; Rations",
+            (BaseRoomType.Kitchen, 3) => "+9 Food each morning; Feast (+15 Hope)",
+            (BaseRoomType.Kitchen, 4) => "+11 Food; smokehouse - upkeep 2 Food less",
+            (BaseRoomType.Kitchen, _) => "+13 Food; grand feast - Feast gives +22 Hope",
 
             (BaseRoomType.Barrack, 1) => "1 auto-reroll per fight",
             (BaseRoomType.Barrack, 2) => "2 rerolls per fight, dice never roll a 1",
-            (BaseRoomType.Barrack, _) => "2 rerolls, no 1s, +1 extra die on attacks",
+            (BaseRoomType.Barrack, 3) => "+1 extra die on every attack",
+            (BaseRoomType.Barrack, 4) => "Riposte - blocking HEAVY or STUN strikes back",
+            (BaseRoomType.Barrack, _) => "3 rerolls, dice never roll below 3",
 
             (BaseRoomType.Archive, 1) => "Village Outskirts",
-            (BaseRoomType.Archive, 2) => "+ Church Ruins, scout 1 room ahead",
-            (BaseRoomType.Archive, _) => "+ Castle Keep, scout 2 rooms ahead",
+            (BaseRoomType.Archive, 2) => "+ Church Ruins; scout 1 room ahead",
+            (BaseRoomType.Archive, 3) => "+ Castle Keep; scout 2 rooms ahead",
+            (BaseRoomType.Archive, 4) => "Bestiary - see what's in scouted enemy rooms",
+            (BaseRoomType.Archive, _) => "Old roads - an extra hour before dawn",
 
             _ => ""
         };
@@ -680,8 +700,8 @@ namespace DuskAndDawn
         private string TileSummary(BaseRoomType room) => room switch
         {
             BaseRoomType.Storage => $"Holds {_playerState.StorageCap} each",
-            BaseRoomType.Workshop => "Crafts weapons",
-            BaseRoomType.Infirmary => "Brews remedies",
+            BaseRoomType.Workshop => _playerState.WorkshopEdge > 0 ? $"Reinforce to +{_playerState.MaxReinforcement}, whetstone" : $"Reinforce to +{_playerState.MaxReinforcement}",
+            BaseRoomType.Infirmary => $"{_playerState.NightMaxHealth} health at night",
             BaseRoomType.Kitchen => $"+{_playerState.KitchenDailyFood} Food per morning",
             BaseRoomType.Barrack => $"{_playerState.BarracksRerolls} reroll(s) per fight",
             BaseRoomType.Archive => $"{DistrictInfo.All.Count(_playerState.IsDistrictUnlocked)} district(s) open",
@@ -692,10 +712,22 @@ namespace DuskAndDawn
         {
             BaseRoomType.Archive when newLevel == 2 => "Church Ruins is now open.",
             BaseRoomType.Archive when newLevel == 3 => "Castle Keep is now open.",
+            BaseRoomType.Archive when newLevel == 4 => "Scouted enemy rooms now show who's inside.",
+            BaseRoomType.Archive => "Nights last an hour longer.",
+            BaseRoomType.Workshop when newLevel == 4 => "Whetstone: +1 damage on every hit.",
+            BaseRoomType.Workshop when newLevel == 5 => "Dawnbreaker unlocked.",
             BaseRoomType.Workshop => "New weapons, and reinforcing goes one level higher.",
+            BaseRoomType.Infirmary when newLevel == 4 => "Holy Water unlocked, and 120 health at night.",
+            BaseRoomType.Infirmary when newLevel == 5 => "Remedies heal 50% more, and 140 health at night.",
             BaseRoomType.Infirmary => "New recipes unlocked.",
             BaseRoomType.Kitchen when newLevel == 2 => "Rations unlocked.",
             BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked.",
+            BaseRoomType.Kitchen when newLevel == 4 => "The smokehouse cuts upkeep by 2 Food.",
+            BaseRoomType.Kitchen when newLevel == 5 => "Feasts now give +22 Hope.",
+            BaseRoomType.Storage when newLevel == 3 => "Packframes: grabbing a cache takes all of it.",
+            BaseRoomType.Storage when newLevel == 4 => "Root cellar: Food never spoils.",
+            BaseRoomType.Storage when newLevel == 5 => "Supply caches now hold 25% more.",
+            BaseRoomType.Barrack when newLevel == 4 => "Riposte: a blocked HEAVY or STUN strikes back.",
             _ => ""
         };
 
@@ -812,9 +844,16 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, $"{room}   Lv {level}/{MaxRoomLevel}", new Vector2(panel.X + 30, panel.Y + 24), Color.White, 1.2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, RoomRole(room), new Vector2(panel.X + 30, panel.Y + 62), new Color(200, 190, 195));
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Now:  {LevelDescription(room, level)}", new Vector2(panel.X + 30, panel.Y + 100), new Color(235, 220, 200));
-            string nextLine = maxed ? "Next: Fully upgraded" : $"Next: {LevelDescription(room, level + 1)}";
-            UITheme.DrawTextWithShadow(spriteBatch, font, nextLine, new Vector2(panel.X + 30, panel.Y + 128), new Color(170, 165, 160));
+            // The whole ladder, so a build can be planned: reached levels lit, the next one
+            // highlighted, the rest dim.
+            for (int lv = 1; lv <= MaxRoomLevel; lv++)
+            {
+                bool reached = lv <= level;
+                bool next = lv == level + 1;
+                Color color = reached ? new Color(235, 220, 200) : next ? new Color(255, 190, 120) : new Color(140, 135, 135);
+                string marker = reached ? "*" : next ? ">" : " ";
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"{marker} Lv {lv}:  {LevelDescription(room, lv)}", new Vector2(panel.X + 30, panel.Y + LadderTop + (lv - 1) * 20), color, 0.72f);
+            }
 
             // Upgrade button
             if (maxed)
@@ -832,9 +871,11 @@ namespace DuskAndDawn
 
                 // Every level is another mouth to feed - say so before the player commits.
                 int upkeep = _playerState.DailyUpkeep;
+                int upkeepAfter = _playerState.UpkeepIfUpgraded(room);
                 float noteX = _upgradeButton.Bounds.X + _upgradeButton.Bounds.Width + 24;
-                UITheme.DrawTextWithShadow(spriteBatch, font, $"Upkeep {upkeep} -> {upkeep + 1} Food each morning", new Vector2(noteX, _upgradeButton.Bounds.Y + 4), new Color(235, 200, 160), 0.8f);
-                UITheme.DrawTextWithShadow(spriteBatch, font, "A bigger house has more mouths to feed.", new Vector2(noteX, _upgradeButton.Bounds.Y + 30), new Color(170, 165, 160), 0.7f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"Upkeep {upkeep} -> {upkeepAfter} Food each morning", new Vector2(noteX, _upgradeButton.Bounds.Y + 2), new Color(235, 200, 160), 0.8f);
+                string upkeepNote = upkeepAfter < upkeep ? "The smokehouse stretches every meal." : "A bigger house has more mouths to feed.";
+                UITheme.DrawTextWithShadow(spriteBatch, font, upkeepNote, new Vector2(noteX, _upgradeButton.Bounds.Y + 28), new Color(170, 165, 160), 0.7f);
             }
 
             // Recipes
@@ -870,7 +911,7 @@ namespace DuskAndDawn
             if (!string.IsNullOrEmpty(_statusLog))
             {
                 Color statusColor = _statusIsError ? new Color(255, 170, 160) : new Color(170, 235, 180);
-                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 36), statusColor, 0.85f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 30), statusColor, 0.85f);
             }
 
             DrawDetailButton(spriteBatch, font, _closeButton, new Color(80, 70, 74), new Color(56, 48, 52), null, Color.White, enabled: true);
@@ -931,11 +972,11 @@ namespace DuskAndDawn
                 textX = drawBounds.X + 56;
             }
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 6), nameColor);
-            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.GetDetail(_playerState), new Vector2(textX, drawBounds.Y + 31), detailColor, 0.75f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 4), nameColor, 0.95f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, recipe.GetDetail(_playerState), new Vector2(textX, drawBounds.Y + 28), detailColor, 0.72f);
 
             var rightSize = UITheme.MeasureString(font, rightText) * 0.85f;
-            UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 7), rightColor, 0.85f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 5), rightColor, 0.85f);
 
             // How many you already have, so repeat crafts are visibly adding up.
             int owned = OwnedCount(recipe);
@@ -943,7 +984,7 @@ namespace DuskAndDawn
             {
                 string ownedText = $"Owned: {owned}";
                 var ownedSize = UITheme.MeasureString(font, ownedText) * 0.7f;
-                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 32), new Color(170, 220, 175), 0.7f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 29), new Color(170, 220, 175), 0.7f);
             }
 
             // Just crafted: a bright green flash that fades out.

@@ -122,22 +122,38 @@ namespace DuskAndDawn
         // so screens just read a property instead of switching on levels themselves.
         // =====================================================================
 
+        // Every room runs Lv 1-5. Each level does something you can feel - a bigger number
+        // AND, from Lv 3 on, a new ability - and with seven days you can't max everything,
+        // so the rooms you push are the run you play.
+        public const int MaxRoomLevel = 5;
+
         public int Level(BaseRoomType room) => RoomLevels[room];
 
-        // ---- Storage: max of each resource ----
+        // ---- Storage: how much you keep, and how you haul it ----
         public int StorageCap => Level(BaseRoomType.Storage) switch
         {
             1 => 30,
-            2 => 60,
-            _ => 100
+            2 => 50,
+            3 => 70,
+            4 => 90,
+            _ => 120
         };
+
+        /// <summary>Lv 3 packframes: "Grab what's in reach" takes the whole cache.</summary>
+        public bool StoragePackframes => Level(BaseRoomType.Storage) >= 3;
+
+        /// <summary>Lv 4 root cellar: Food is never trimmed by the Storage cap.</summary>
+        public bool StorageRootCellar => Level(BaseRoomType.Storage) >= 4;
+
+        /// <summary>Lv 5 supply runs: every supply cache holds this much more.</summary>
+        public float SupplyCacheMultiplier => Level(BaseRoomType.Storage) >= 5 ? 1.25f : 1f;
 
         /// <summary>Trims each resource down to the Storage cap and returns how much was
         /// lost, so the caller can tell the player.</summary>
         public (int food, int planks, int scraps) ApplyStorageCap()
         {
             int cap = StorageCap;
-            int lostFood = Math.Max(0, Food - cap);
+            int lostFood = StorageRootCellar ? 0 : Math.Max(0, Food - cap);
             int lostPlanks = Math.Max(0, Planks - cap);
             int lostScraps = Math.Max(0, Scraps - cap);
 
@@ -148,8 +164,11 @@ namespace DuskAndDawn
             return (lostFood, lostPlanks, lostScraps);
         }
 
-        // ---- Kitchen: free Food each morning ----
-        public int KitchenDailyFood => Level(BaseRoomType.Kitchen) * 3;
+        // ---- Kitchen: Food each morning, a leaner household, and feasts ----
+        public int KitchenDailyFood => Level(BaseRoomType.Kitchen) switch { 1 => 3, 2 => 6, 3 => 9, 4 => 11, _ => 13 };
+
+        /// <summary>Hope from a Feast (Lv 3), grander at Lv 5.</summary>
+        public int FeastHope => Level(BaseRoomType.Kitchen) >= 5 ? 22 : 15;
 
         // ---- Upkeep: the household eats every morning ----
         // A bare base eats BaseUpkeep Food, and every room level bought on top of Lv 1 is
@@ -166,7 +185,15 @@ namespace DuskAndDawn
 
         public int UpgradesBought => RoomLevels.Values.Sum(level => level - 1);
 
-        public int DailyUpkeep => BaseUpkeep + UpgradesBought;
+        public int DailyUpkeep => UpkeepFor(UpgradesBought, Level(BaseRoomType.Kitchen));
+
+        /// <summary>What the daily upkeep would become after upgrading `room` - the Kitchen's
+        /// smokehouse can make an upgrade lower it.</summary>
+        public int UpkeepIfUpgraded(BaseRoomType room) =>
+            UpkeepFor(UpgradesBought + 1, Level(BaseRoomType.Kitchen) + (room == BaseRoomType.Kitchen ? 1 : 0));
+
+        private static int UpkeepFor(int upgrades, int kitchenLevel) =>
+            Math.Max(BaseUpkeep, BaseUpkeep + upgrades - (kitchenLevel >= 4 ? 2 : 0));
 
         /// <summary>Feeds the household for the day. Returns how much was eaten, how much
         /// was missing, and the Hope that hunger cost.</summary>
@@ -202,9 +229,12 @@ namespace DuskAndDawn
             return HungerHopeCost(shortfall, HungryMornings + 1);
         }
 
-        // ---- Workshop: weapon reinforcement ----
+        // ---- Workshop: weapons, reinforcement and a whetstone ----
         // The Workshop level caps how far a weapon can be reinforced (+1 per level).
         public int MaxReinforcement => Math.Min(Weapon.MaxReinforcement, Level(BaseRoomType.Workshop));
+
+        /// <summary>Lv 4 whetstone: every weapon roll deals this much more.</summary>
+        public int WorkshopEdge => Level(BaseRoomType.Workshop) >= 4 ? 1 : 0;
 
         /// <summary>Cost to take a weapon to the given reinforcement level. Scraps-heavy and
         /// climbing steeply - the long-term sink for what fights drop.</summary>
@@ -212,16 +242,34 @@ namespace DuskAndDawn
         {
             1 => (0, 1, 5),
             2 => (1, 3, 12),
-            _ => (2, 5, 22)
+            3 => (2, 5, 22),
+            4 => (3, 7, 30),
+            _ => (4, 9, 38)
         };
 
+        // ---- Infirmary: remedies, and a tougher you ----
+        /// <summary>Health for tonight: +20 at Lv 4 (field kit) and again at Lv 5.</summary>
+        public int NightMaxHealth => 100 + (Level(BaseRoomType.Infirmary) >= 4 ? 20 : 0) + (Level(BaseRoomType.Infirmary) >= 5 ? 20 : 0);
+
+        /// <summary>Lv 5 surgeon's hands: healing remedies restore this much more.</summary>
+        public float RemedyPotency => Level(BaseRoomType.Infirmary) >= 5 ? 1.5f : 1f;
+
         // ---- Barracks: dice training ----
-        public int BarracksRerolls => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
-        public int BarracksMinFace => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
+        public int BarracksRerolls => Level(BaseRoomType.Barrack) switch { 1 => 1, >= 5 => 3, _ => 2 };
+        public int BarracksMinFace => Level(BaseRoomType.Barrack) switch { 1 => 1, >= 5 => 3, _ => 2 };
         public int BarracksExtraDice => Level(BaseRoomType.Barrack) >= 3 ? 1 : 0;
 
-        // ---- Archive: districts + minimap scouting ----
-        public int ArchiveRevealDepth => Level(BaseRoomType.Archive) - 1;
+        /// <summary>Lv 4 riposte: blocking a HEAVY blow or a STUN with Guard strikes back.</summary>
+        public bool BarracksRiposte => Level(BaseRoomType.Barrack) >= 4;
+
+        // ---- Archive: districts, scouting, a bestiary and old roads ----
+        public int ArchiveRevealDepth => Math.Min(2, Level(BaseRoomType.Archive) - 1);
+
+        /// <summary>Lv 4 bestiary: scouted enemy rooms show exactly what's waiting inside.</summary>
+        public bool ArchiveBestiary => Level(BaseRoomType.Archive) >= 4;
+
+        /// <summary>Lv 5 old roads: extra minutes before dawn each night.</summary>
+        public int ArchiveExtraNightMinutes => Level(BaseRoomType.Archive) >= 5 ? 60 : 0;
 
         public bool IsDistrictUnlocked(District district)
         {

@@ -139,7 +139,7 @@ namespace DuskAndDawn
 
                 foreach (var (room, level) in RoomLevels)
                 {
-                    state.RoomLevels[room] = Math.Clamp(level, 1, 3);
+                    state.RoomLevels[room] = Math.Clamp(level, 1, PlayerState.MaxRoomLevel);
                 }
 
                 // The constructor hands out a starter kit - replace it with what was saved,

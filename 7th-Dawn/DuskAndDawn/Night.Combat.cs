@@ -82,9 +82,10 @@ namespace DuskAndDawn
             else
             {
                 enemies = enemies.Where(e => !e.IsDefeated).ToList();
-                _textLog.Push(enemies.Any(e => e.IsBoss)
-                    ? "The Knight lowers its visor. It has been waiting."
-                    : $"{DescribeGroup(enemies)} still here, waiting for you.");
+                bool wounded = enemies.Any(e => e.Health < e.MaxHealth);
+                _textLog.Push(enemies.Any(e => e.IsBoss) ? "The Knight lowers its visor. It has been waiting."
+                    : wounded ? $"{DescribeGroup(enemies)} still here, waiting for you."
+                    : EncounterIntro(enemies)); // identified ahead of time by the Archive's bestiary
             }
 
             room.Enemies = null; // put back by Retreat() if you run again
@@ -150,7 +151,8 @@ namespace DuskAndDawn
                     {
                         // Grouped by name, and a bit more compact than the other menus, since
                         // the Infirmary and Kitchen can stock up to six different items.
-                        const float itemHeight = 48, itemGap = 8;
+                        // Tall enough for the name plus a line on what it does.
+                        const float itemHeight = 56, itemGap = 6;
                         _itemButtonNames.Clear();
                         foreach (var group in _playerState.Items.GroupBy(it => it.Name))
                         {

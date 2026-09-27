@@ -35,7 +35,9 @@ namespace DuskAndDawn
             // Two finds' worth of this district's materials, rolled up front so every choice
             // below can say exactly what it gets you.
             var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 2);
-            _cache = new ResourceDelta(food, planks, scraps);
+            // Storage Lv 5 supply runs: every cache holds a quarter more.
+            float bonus = _playerState.SupplyCacheMultiplier;
+            _cache = new ResourceDelta((int)MathF.Round(food * bonus), (int)MathF.Round(planks * bonus), (int)MathF.Round(scraps * bonus));
 
             _supplyActions.Clear();
             _supplyActions.AddRange(new[] { SupplyAction.Grab, SupplyAction.Thorough, SupplyAction.Quiet, SupplyAction.Rest, SupplyAction.Leave });
@@ -73,13 +75,18 @@ namespace DuskAndDawn
         };
 
         // Half of each pile, rounded up.
-        private ResourceDelta HalfCache => new ResourceDelta((_cache.Food + 1) / 2, (_cache.Planks + 1) / 2, (_cache.Scraps + 1) / 2);
+        // Half of each pile, rounded up - or all of it with Storage Lv 3 packframes.
+        private ResourceDelta HalfCache => _playerState.StoragePackframes
+            ? _cache
+            : new ResourceDelta((_cache.Food + 1) / 2, (_cache.Planks + 1) / 2, (_cache.Scraps + 1) / 2);
 
         private int RestHealAmount => Math.Min(RestHeal, _playerState.MaxHealth - _playerState.Health);
 
         private string SupplyDescription(SupplyAction action) => action switch
         {
-            SupplyAction.Grab => $"About half: {HalfCache.Describe()}. Quick and safe.",
+            SupplyAction.Grab => _playerState.StoragePackframes
+                ? $"Everything, strapped to your packframe: {HalfCache.Describe()}. Quick and safe."
+                : $"About half: {HalfCache.Describe()}. Quick and safe.",
             SupplyAction.Thorough => $"Everything, {ThoroughRemedyChance}% chance of a remedy - but {ThoroughNoiseChance}% chance the noise brings a fight.",
             SupplyAction.Quiet => "Everything, without a sound. Safe, but it eats the night.",
             SupplyAction.Rest => $"Take nothing. Bar the door and bind your wounds: +{RestHealAmount} health.",

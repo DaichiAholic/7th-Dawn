@@ -114,11 +114,13 @@ namespace DuskAndDawn
             // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
-            _playerState.Health = _playerState.MaxHealth; // rested at the base - full health tonight
+            // Rested at the base - full health tonight (more of it with a better Infirmary).
+            _playerState.MaxHealth = _playerState.NightMaxHealth;
+            _playerState.Health = _playerState.MaxHealth;
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 
             _district = _playerState.SelectedDistrict;
-            _dawnTimer = new DawnTimer();
+            _dawnTimer = new DawnTimer(DawnTimer.NightMinutes + _playerState.ArchiveExtraNightMinutes);
             _startFood = _playerState.Food;
             _startPlanks = _playerState.Planks;
             _startScraps = _playerState.Scraps;
@@ -395,6 +397,19 @@ namespace DuskAndDawn
             {
                 kvp.Key.Discovered = true;
                 if (kvp.Value <= scoutSteps) kvp.Key.Scouted = true;
+            }
+
+            // Archive Lv 4 bestiary: a scouted enemy room is identified before you go in -
+            // its occupants are rolled now, so the tooltip can say exactly what's waiting.
+            if (_playerState.ArchiveBestiary)
+            {
+                foreach (var node in _map.Nodes)
+                {
+                    if (node.Scouted && !node.Visited && node.Type == RoomType.Encounter && node.Enemies == null)
+                    {
+                        node.Enemies = EnemyRoster.RollEncounter(_district, Math.Min(6, node.Depth / 2), _playerState.Day, _random);
+                    }
+                }
             }
 
             _reachable.Clear();
