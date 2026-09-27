@@ -305,9 +305,11 @@ namespace DuskAndDawn
 
         // ---------- Text ----------
 
-        public static void DrawTextWithShadow(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 position, Color color, float scale = 1f)
+        /// <param name="shadowAlpha">Lower it for text on light panels, where the default
+        /// shadow reads as a smudge rather than depth.</param>
+        public static void DrawTextWithShadow(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 position, Color color, float scale = 1f, float shadowAlpha = 0.45f)
         {
-            spriteBatch.DrawString(font, text, position + new Vector2(2f, 2f) * scale, Color.Black * 0.45f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(font, text, position + new Vector2(2f, 2f) * scale, Color.Black * shadowAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             spriteBatch.DrawString(font, text, position, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
     }

@@ -380,7 +380,7 @@ namespace DuskAndDawn
             if (_playerState.TrySpend(food, planks, scraps))
             {
                 _playerState.RoomLevels[room] = level + 1;
-                SetStatus($"{room} upgraded to Lv {level + 1}. {UpgradeNote(room, level + 1)}", isError: false);
+                SetStatus($"{room} upgraded to Lv {level + 1}. {UpgradeNote(room, level + 1)} Upkeep is now {_playerState.DailyUpkeep} Food.", isError: false);
             }
             else
             {
@@ -421,15 +421,17 @@ namespace DuskAndDawn
 
         private (int food, int planks, int scraps) GetUpgradeCost(BaseRoomType room, int currentLevel)
         {
+            // Every upgrade now needs Food too - the builders have to eat - and the Food share
+            // grows faster than the materials, so a big upgrade means a lean week.
             int tier = currentLevel;
             return room switch
             {
-                BaseRoomType.Storage => (0, 3 * tier, 3 * tier),
-                BaseRoomType.Workshop => (0, 2 * tier, 4 * tier),
-                BaseRoomType.Infirmary => (3 * tier, 0, 3 * tier),
-                BaseRoomType.Kitchen => (6 * tier, 0, 0),
-                BaseRoomType.Barrack => (3 * tier, 3 * tier, 0),
-                BaseRoomType.Archive => (0, 0, 6 * tier),
+                BaseRoomType.Storage => (4 * tier, 3 * tier, 3 * tier),
+                BaseRoomType.Workshop => (4 * tier, 2 * tier, 4 * tier),
+                BaseRoomType.Infirmary => (6 * tier, 0, 3 * tier),
+                BaseRoomType.Kitchen => (5 * tier, 3 * tier, 0),
+                BaseRoomType.Barrack => (7 * tier, 3 * tier, 0),
+                BaseRoomType.Archive => (5 * tier, 0, 6 * tier),
                 _ => (0, 0, 0)
             };
         }
@@ -450,7 +452,7 @@ namespace DuskAndDawn
             BaseRoomType.Storage => "Caps how much you can keep. Overflow is lost at dawn.",
             BaseRoomType.Workshop => "Crafts weapons. Higher levels unlock stronger ones.",
             BaseRoomType.Infirmary => "Brews remedies you carry into the night.",
-            BaseRoomType.Kitchen => "Cooks free Food every morning.",
+            BaseRoomType.Kitchen => "Cooks Food every morning to help feed the house.",
             BaseRoomType.Barrack => "Trains your dice: rerolls, better faces, more dice.",
             BaseRoomType.Archive => "Maps the ruins. Opens new districts to scavenge.",
             _ => ""
@@ -470,9 +472,9 @@ namespace DuskAndDawn
             (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
             (BaseRoomType.Infirmary, _) => "Elixirs and Dawn Tinctures",
 
-            (BaseRoomType.Kitchen, 1) => "+2 Food each morning",
-            (BaseRoomType.Kitchen, 2) => "+4 Food each morning, Rations",
-            (BaseRoomType.Kitchen, _) => "+6 Food each morning, Feast",
+            (BaseRoomType.Kitchen, 1) => "+3 Food each morning",
+            (BaseRoomType.Kitchen, 2) => "+6 Food each morning, Rations",
+            (BaseRoomType.Kitchen, _) => "+9 Food each morning, Feast",
 
             (BaseRoomType.Barrack, 1) => "1 auto-reroll per fight",
             (BaseRoomType.Barrack, 2) => "2 rerolls per fight, dice never roll a 1",
@@ -634,6 +636,12 @@ namespace DuskAndDawn
                 _upgradeButton.Label = $"Upgrade to Lv {level + 1}";
                 Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
                 DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(110, 70, 45), new Color(78, 48, 30), FormatCost(food, planks, scraps), costColor, enabled: true);
+
+                // Every level is another mouth to feed - say so before the player commits.
+                int upkeep = _playerState.DailyUpkeep;
+                float noteX = _upgradeButton.Bounds.X + _upgradeButton.Bounds.Width + 24;
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"Upkeep {upkeep} -> {upkeep + 1} Food each morning", new Vector2(noteX, _upgradeButton.Bounds.Y + 4), new Color(235, 200, 160), 0.8f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, "A bigger house has more mouths to feed.", new Vector2(noteX, _upgradeButton.Bounds.Y + 30), new Color(170, 165, 160), 0.7f);
             }
 
             // Recipes
@@ -815,6 +823,16 @@ namespace DuskAndDawn
             string capText = $"Storage: max {_playerState.StorageCap} each";
             var capSize = font.MeasureString(capText) * 0.8f;
             UITheme.DrawTextWithShadow(spriteBatch, font, capText, new Vector2(1010 - capSize.X / 2f, 116), new Color(200, 190, 195), 0.8f);
+
+            // Tomorrow's food bill, next to the Kitchen's contribution - red when the Kitchen
+            // plus the larder won't cover it and hunger will eat into Hope.
+            int upkeep = _playerState.DailyUpkeep;
+            int cooked = _playerState.KitchenDailyFood;
+            bool shortTomorrow = _playerState.Food + cooked < upkeep;
+            string upkeepText = $"Upkeep: {upkeep} Food/morning  (Kitchen +{cooked})";
+            var upkeepSize = font.MeasureString(upkeepText) * 0.75f;
+            Color upkeepColor = shortTomorrow ? new Color(255, 140, 120) : new Color(235, 200, 160);
+            UITheme.DrawTextWithShadow(spriteBatch, font, upkeepText, new Vector2(1010 - upkeepSize.X / 2f, 140), upkeepColor, 0.75f);
         }
 
         private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float centerX, string label, int value, Action<SpriteBatch, float> drawIcon, float popTimer, Color slotTint)

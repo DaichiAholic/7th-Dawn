@@ -31,6 +31,9 @@ namespace DuskAndDawn
         // Kitchen Lv 3 Feast can only be held once per day. Reset each morning.
         public bool FeastUsedToday;
 
+        // Title of yesterday's morning event, so the same one doesn't come up twice in a row.
+        public string LastMorningEventTitle;
+
         public PlayerState()
         {
             foreach (BaseRoomType room in Enum.GetValues(typeof(BaseRoomType)))
@@ -66,6 +69,24 @@ namespace DuskAndDawn
         public bool CanAfford(int food = 0, int planks = 0, int scraps = 0)
         {
             return Food >= food && Planks >= planks && Scraps >= scraps;
+        }
+
+        /// <summary>Applies a signed change to every resource and Hope. Losses stop at zero
+        /// (and Hope at its max), so this returns what actually changed - use that for any
+        /// "+8 Food" readout rather than the requested delta.</summary>
+        public ResourceDelta Apply(ResourceDelta delta)
+        {
+            int food = Math.Max(-Food, delta.Food);
+            int planks = Math.Max(-Planks, delta.Planks);
+            int scraps = Math.Max(-Scraps, delta.Scraps);
+            Food += food;
+            Planks += planks;
+            Scraps += scraps;
+
+            int hopeBefore = Hope;
+            ChangeHope(delta.Hope);
+
+            return new ResourceDelta(food, planks, scraps, Hope - hopeBefore);
         }
 
         // Deliberately NOT capped - the night haul can go over the Storage cap, and the
@@ -110,7 +131,32 @@ namespace DuskAndDawn
         }
 
         // ---- Kitchen: free Food each morning ----
-        public int KitchenDailyFood => Level(BaseRoomType.Kitchen) * 2;
+        public int KitchenDailyFood => Level(BaseRoomType.Kitchen) * 3;
+
+        // ---- Upkeep: the household eats every morning ----
+        // A bare base eats BaseUpkeep Food, and every room level bought on top of Lv 1 is
+        // another mouth to feed, so growing the base always costs Food on top of its price.
+        // Whatever can't be paid is taken out of Hope instead.
+        public const int BaseUpkeep = 3;
+        public const int HungerHopePerFood = 3;
+
+        public int UpgradesBought => RoomLevels.Values.Sum(level => level - 1);
+
+        public int DailyUpkeep => BaseUpkeep + UpgradesBought;
+
+        /// <summary>Feeds the household for the day. Returns how much was eaten, how much
+        /// was missing, and the Hope that hunger cost.</summary>
+        public (int eaten, int shortfall, int hopeLost) EatUpkeep()
+        {
+            int needed = DailyUpkeep;
+            int eaten = Math.Min(Food, needed);
+            Food -= eaten;
+
+            int shortfall = needed - eaten;
+            int hopeBefore = Hope;
+            ChangeHope(-shortfall * HungerHopePerFood);
+            return (eaten, shortfall, hopeBefore - Hope);
+        }
 
         // ---- Barracks: dice training ----
         public int BarracksRerolls => Level(BaseRoomType.Barrack) >= 2 ? 2 : 1;
