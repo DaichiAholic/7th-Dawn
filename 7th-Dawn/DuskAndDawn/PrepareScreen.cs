@@ -166,7 +166,7 @@ namespace DuskAndDawn
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
             float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
-            spriteBatch.Begin();
+            UITheme.BeginCanvas(spriteBatch);
 
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(22, 20, 34), new Color(10, 9, 16), 10);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Prepare for the Night", new Vector2(40, 22), Color.White);
@@ -313,7 +313,7 @@ namespace DuskAndDawn
 
             // Dark plate behind the name so the road never cuts through the text.
             string name = DistrictInfo.Name(district);
-            var nameSize = font.MeasureString(name) * 0.8f;
+            var nameSize = UITheme.MeasureString(font, name) * 0.8f;
             var namePos = new Vector2(center.X, center.Y + radius + 8);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(namePos.X - nameSize.X / 2f - 6, namePos.Y - 2, nameSize.X + 12, nameSize.Y + 4), Color.Black * 0.35f, 6f);
 
@@ -420,7 +420,7 @@ namespace DuskAndDawn
             // ---- Header ----
             Text(DistrictInfo.Name(district), left, Color.White, 1f);
             string corruption = $"Corruption {DistrictInfo.Corruption(district)}";
-            float corruptionWidth = font.MeasureString(corruption).X * 0.7f;
+            float corruptionWidth = UITheme.MeasureString(font, corruption).X * 0.7f;
             Text(corruption, left + innerWidth - corruptionWidth, new Color(255, 180, 120), 0.7f);
             y += 28f;
 
@@ -456,7 +456,7 @@ namespace DuskAndDawn
                 Text(name, left + 34, color, 0.8f);
                 if (rich) Text("RICH", left + 120, new Color(255, 190, 90), 0.6f);
                 string amount = range.ToString();
-                float amountWidth = font.MeasureString(amount).X * 0.85f;
+                float amountWidth = UITheme.MeasureString(font, amount).X * 0.85f;
                 Text(amount, left + innerWidth - amountWidth, color, 0.85f);
                 y = textY + rowHeight;
             }
@@ -600,7 +600,7 @@ namespace DuskAndDawn
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.7f);
-            var textSize = font.MeasureString(_startButton.Label);
+            var textSize = UITheme.MeasureString(font, _startButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White);
         }
@@ -656,7 +656,7 @@ namespace DuskAndDawn
 
         private static void DrawCenteredText(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 topCenter, Color color, float scale)
         {
-            float width = font.MeasureString(text).X * scale;
+            float width = UITheme.MeasureString(font, text).X * scale;
             UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(topCenter.X - width / 2f, topCenter.Y), color, scale);
         }
     }

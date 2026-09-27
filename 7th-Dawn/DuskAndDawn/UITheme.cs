@@ -30,6 +30,49 @@ namespace DuskAndDawn
         private static Texture2D _glow;
         public static bool IsLoaded => _circle != null;
 
+        // ---------- Resolution ----------
+        // Screens lay everything out in 1280x720 units, but the game renders to a real
+        // 1920x1080 canvas. Every SpriteBatch.Begin() uses CanvasTransform to scale those
+        // units up, so shapes are rasterized at full resolution instead of being drawn small
+        // and stretched. Text goes one step further: see RegisterHiResFont.
+        public static float RenderScale { get; private set; } = 1f;
+        public static Matrix CanvasTransform { get; private set; } = Matrix.Identity;
+
+        public static void SetRenderScale(float scale)
+        {
+            RenderScale = scale;
+            CanvasTransform = Matrix.CreateScale(scale, scale, 1f);
+        }
+
+        /// <summary>The standard Begin() every screen uses: default states, canvas transform.</summary>
+        public static void BeginCanvas(SpriteBatch spriteBatch, SamplerState samplerState = null) =>
+            spriteBatch.Begin(samplerState: samplerState, transformMatrix: CanvasTransform);
+
+        // A SpriteFont is a fixed-size bitmap, so scaling it up blurs it. Screens pass the
+        // normal font around; when it has a hi-res twin (the same TTF rasterized RenderScale
+        // times bigger), text is drawn and measured with the twin at 1/RenderScale - glyphs
+        // then land 1:1 on real screen pixels.
+        private static SpriteFont _baseFont;
+        private static SpriteFont _hiResFont;
+
+        public static void RegisterHiResFont(SpriteFont baseFont, SpriteFont hiResFont)
+        {
+            _baseFont = baseFont;
+            _hiResFont = hiResFont;
+        }
+
+        private static bool HasHiRes(SpriteFont font) => _hiResFont != null && font == _baseFont && RenderScale != 1f;
+
+        /// <summary>Text size in layout (1280x720) units. Use this instead of
+        /// font.MeasureString so layout matches what DrawTextWithShadow actually draws.</summary>
+        public static Vector2 MeasureString(SpriteFont font, string text) =>
+            HasHiRes(font) ? _hiResFont.MeasureString(text) / RenderScale : font.MeasureString(text);
+
+        /// <summary>Rounds a layout-space point so it lands on a whole real screen pixel.</summary>
+        private static Vector2 SnapToDevice(Vector2 point) => new Vector2(
+            MathF.Round(point.X * RenderScale) / RenderScale,
+            MathF.Round(point.Y * RenderScale) / RenderScale);
+
         public static void LoadContent(GraphicsDevice graphicsDevice)
         {
             _circle = BuildSoftCircle(graphicsDevice, CircleTextureSize);
@@ -268,12 +311,12 @@ namespace DuskAndDawn
             if (texture == null) return;
 
             spriteBatch.End();
-            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            // Snapped to whole pixels - a fractional position smears pixel art even with point sampling.
-            var snapped = new Vector2(MathF.Round(topLeft.X), MathF.Round(topLeft.Y));
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            // Snapped to whole screen pixels - a fractional position smears pixel art even with point sampling.
+            var snapped = SnapToDevice(topLeft);
             spriteBatch.Draw(texture, snapped, null, tint ?? Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
             spriteBatch.End();
-            spriteBatch.Begin();
+            BeginCanvas(spriteBatch);
         }
 
         /// <summary>One frame of a pixel-art spritesheet, centered on a point, at a whole-number
@@ -282,15 +325,15 @@ namespace DuskAndDawn
         {
             if (texture == null) return;
 
-            var topLeft = new Vector2(
-                MathF.Round(center.X - source.Width * scale / 2f),
-                MathF.Round(center.Y - source.Height * scale / 2f));
+            var topLeft = SnapToDevice(new Vector2(
+                center.X - source.Width * scale / 2f,
+                center.Y - source.Height * scale / 2f));
 
             spriteBatch.End();
-            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
             spriteBatch.Draw(texture, topLeft, source, Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
             spriteBatch.End();
-            spriteBatch.Begin();
+            BeginCanvas(spriteBatch);
         }
 
         /// <summary>Icon with a dark rounded backing slot. The slot is drawn even when there's
@@ -309,7 +352,17 @@ namespace DuskAndDawn
         /// shadow reads as a smudge rather than depth.</param>
         public static void DrawTextWithShadow(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 position, Color color, float scale = 1f, float shadowAlpha = 0.45f)
         {
-            spriteBatch.DrawString(font, text, position + new Vector2(2f, 2f) * scale, Color.Black * shadowAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            // The shadow sits 2 layout units down-right per unit of text scale, whichever font draws it.
+            var shadowOffset = new Vector2(2f, 2f) * scale;
+            if (HasHiRes(font))
+            {
+                // Drawn with the hi-res twin, shrunk back to layout size, from a whole screen
+                // pixel - so the canvas transform brings it back to exactly 1:1 glyph pixels.
+                font = _hiResFont;
+                scale /= RenderScale;
+                position = SnapToDevice(position);
+            }
+            spriteBatch.DrawString(font, text, position + shadowOffset, Color.Black * shadowAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             spriteBatch.DrawString(font, text, position, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
     }

@@ -73,7 +73,7 @@ namespace DuskAndDawn
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
-            spriteBatch.Begin();
+            UITheme.BeginCanvas(spriteBatch);
 
             // Warm gradient sky standing in for the returning dawn light, instead of one
             // flat color swatch.
@@ -99,7 +99,7 @@ namespace DuskAndDawn
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.7f);
-            var textSize = font.MeasureString(_continueButton.Label);
+            var textSize = UITheme.MeasureString(font, _continueButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _continueButton.Label, textPos, Color.White);
 

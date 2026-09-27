@@ -641,7 +641,7 @@ namespace DuskAndDawn
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
-            spriteBatch.Begin();
+            UITheme.BeginCanvas(spriteBatch);
 
             DrawBackground(spriteBatch);
             DrawRooms(spriteBatch, font);
@@ -822,7 +822,7 @@ namespace DuskAndDawn
 
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: 0.5f);
 
-            var labelSize = font.MeasureString(button.Label);
+            var labelSize = UITheme.MeasureString(font, button.Label);
             float textY = drawBounds.Y + (drawBounds.Height - labelSize.Y) / 2f;
 
             if (rightText == null)
@@ -832,7 +832,7 @@ namespace DuskAndDawn
             else
             {
                 UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, textY), Color.White);
-                var rightSize = font.MeasureString(rightText);
+                var rightSize = UITheme.MeasureString(font, rightText);
                 UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, textY), rightColor);
             }
         }
@@ -866,7 +866,7 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 8), nameColor);
             UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Detail, new Vector2(textX, drawBounds.Y + 34), detailColor, 0.75f);
 
-            var rightSize = font.MeasureString(rightText) * 0.85f;
+            var rightSize = UITheme.MeasureString(font, rightText) * 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 9), rightColor, 0.85f);
 
             // How many you already have, so repeat crafts are visibly adding up.
@@ -874,7 +874,7 @@ namespace DuskAndDawn
             if (owned > 0)
             {
                 string ownedText = $"Owned: {owned}";
-                var ownedSize = font.MeasureString(ownedText) * 0.7f;
+                var ownedSize = UITheme.MeasureString(font, ownedText) * 0.7f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 36), new Color(170, 220, 175), 0.7f);
             }
 
@@ -978,7 +978,7 @@ namespace DuskAndDawn
             if (string.IsNullOrEmpty(_statusLog)) return;
 
             var position = new Vector2(HouseWall.X + 40, GroundRowY + PanelHeight + 40);
-            var textSize = font.MeasureString(_statusLog);
+            var textSize = UITheme.MeasureString(font, _statusLog);
             var chip = new RectangleF(position.X - 14, position.Y - 8, textSize.X + 28, textSize.Y + 16);
 
             UITheme.DrawPanel(spriteBatch, chip, new Color(70, 32, 32), new Color(46, 20, 20), new Color(130, 45, 45), 2f, 10f, shadowStrength: 0.5f);
@@ -1003,7 +1003,7 @@ namespace DuskAndDawn
 
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 12f, shadowStrength: 0.8f);
 
-            var textSize = font.MeasureString(button.Label);
+            var textSize = UITheme.MeasureString(font, button.Label);
             var textPos = new Vector2(
                 drawBounds.X + (drawBounds.Width - textSize.X) / 2f,
                 drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
@@ -1038,7 +1038,7 @@ namespace DuskAndDawn
             UITheme.DrawRoundedRectBorder(spriteBatch, barMax, Color.Black * 0.7f, 2f, 13f);
 
             var label = $"{_playerState.Hope}/{PlayerState.MaxHope}";
-            var labelSize = font.MeasureString(label);
+            var labelSize = UITheme.MeasureString(font, label);
             var labelPos = new Vector2(barMax.X + (barMax.Width - labelSize.X) / 2f, barMax.Y + (barMax.Height - labelSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, label, labelPos, Color.White);
         }
@@ -1051,7 +1051,7 @@ namespace DuskAndDawn
 
             // Storage cap under the resource row, so the limit is always in view.
             string capText = $"Storage: max {_playerState.StorageCap} each";
-            var capSize = font.MeasureString(capText) * 0.8f;
+            var capSize = UITheme.MeasureString(font, capText) * 0.8f;
             UITheme.DrawTextWithShadow(spriteBatch, font, capText, new Vector2(1010 - capSize.X / 2f, 116), new Color(200, 190, 195), 0.8f);
 
             // Tomorrow's food bill, next to the Kitchen's contribution - red when the Kitchen
@@ -1060,7 +1060,7 @@ namespace DuskAndDawn
             int cooked = _playerState.KitchenDailyFood;
             bool shortTomorrow = _playerState.Food + cooked < upkeep;
             string upkeepText = $"Upkeep: {upkeep} Food/morning  (Kitchen +{cooked})";
-            var upkeepSize = font.MeasureString(upkeepText) * 0.75f;
+            var upkeepSize = UITheme.MeasureString(font, upkeepText) * 0.75f;
             Color upkeepColor = shortTomorrow ? new Color(255, 140, 120) : new Color(235, 200, 160);
             UITheme.DrawTextWithShadow(spriteBatch, font, upkeepText, new Vector2(1010 - upkeepSize.X / 2f, 140), upkeepColor, 0.75f);
 
@@ -1068,7 +1068,7 @@ namespace DuskAndDawn
             {
                 // Spell out the price - hunger is steep enough that it should never be a surprise.
                 string warning = $"Bring back food tonight or hunger costs {_playerState.ProjectedHungerCost()} Hope";
-                var warningSize = font.MeasureString(warning) * 0.7f;
+                var warningSize = UITheme.MeasureString(font, warning) * 0.7f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, warning, new Vector2(1010 - warningSize.X / 2f, 162), new Color(255, 120, 100), 0.7f);
             }
         }
@@ -1092,10 +1092,10 @@ namespace DuskAndDawn
 
             var countText = value.ToString();
             float scale = 1.3f * popScale;
-            var countSize = font.MeasureString(countText) * scale;
+            var countSize = UITheme.MeasureString(font, countText) * scale;
             UITheme.DrawTextWithShadow(spriteBatch, font, countText, new Vector2(centerX - countSize.X / 2f, 60), countColor, scale);
 
-            var labelSize = font.MeasureString(label);
+            var labelSize = UITheme.MeasureString(font, label);
             UITheme.DrawTextWithShadow(spriteBatch, font, label, new Vector2(centerX - labelSize.X / 2f, 92), new Color(225, 225, 225));
         }
 

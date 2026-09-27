@@ -193,7 +193,7 @@ namespace DuskAndDawn
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
-            spriteBatch.Begin();
+            UITheme.BeginCanvas(spriteBatch);
 
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(245, 218, 178), new Color(215, 180, 140), 10);
 
@@ -230,7 +230,7 @@ namespace DuskAndDawn
             DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap) * 3, "Hope", _playerState.Hope, null, _shownDelta.Hope, false);
 
             string caption = $"Storage holds {cap} of each   -   Upkeep {_playerState.DailyUpkeep} Food every morning";
-            var captionSize = font.MeasureString(caption) * 0.7f;
+            var captionSize = UITheme.MeasureString(font, caption) * 0.7f;
             LightText(spriteBatch, font, caption, new Vector2(640f - captionSize.X / 2f, SlotY + SlotHeight + 8), Ink, 0.7f);
         }
 
@@ -267,7 +267,7 @@ namespace DuskAndDawn
                 float rise = (1f - t) * 10f;
                 string text = delta > 0 ? $"+{delta}" : delta.ToString();
                 Color color = delta > 0 ? new Color(140, 235, 150) : new Color(255, 140, 120);
-                var size = font.MeasureString(text) * 0.85f;
+                var size = UITheme.MeasureString(font, text) * 0.85f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(x + SlotWidth - size.X - 10, SlotY + 12 - rise), color * alpha, 0.85f);
             }
         }
@@ -352,7 +352,7 @@ namespace DuskAndDawn
             if (!enabled)
             {
                 string reason = option.Cost.Hope > 0 && _playerState.Hope <= option.Cost.Hope ? "Not enough Hope" : "Can't afford";
-                var size = font.MeasureString(reason) * 0.8f;
+                var size = UITheme.MeasureString(font, reason) * 0.8f;
                 LightText(spriteBatch, font, reason, new Vector2(drawBounds.X + drawBounds.Width - size.X - 20, drawBounds.Y + 14), LossColor, 0.8f);
             }
         }
@@ -391,7 +391,7 @@ namespace DuskAndDawn
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.6f);
-            var textSize = font.MeasureString(button.Label);
+            var textSize = UITheme.MeasureString(font, button.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
         }
@@ -406,7 +406,7 @@ namespace DuskAndDawn
         private static float DrawRun(SpriteBatch spriteBatch, SpriteFont font, string text, float x, float y, Color color, float scale)
         {
             LightText(spriteBatch, font, text, new Vector2(x, y), color, scale);
-            return x + font.MeasureString(text + " ").X * scale;
+            return x + UITheme.MeasureString(font, text + " ").X * scale;
         }
 
         /// <summary>A delta as colored runs: gains green, losses red, "Nothing" if empty.</summary>

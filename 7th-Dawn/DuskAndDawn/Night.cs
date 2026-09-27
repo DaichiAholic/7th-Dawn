@@ -146,7 +146,7 @@ namespace DuskAndDawn
             foreach (var word in words)
             {
                 string candidate = line.Length == 0 ? word : line.ToString() + " " + word;
-                if (line.Length > 0 && font.MeasureString(candidate).X > maxWidth)
+                if (line.Length > 0 && UITheme.MeasureString(font, candidate).X > maxWidth)
                 {
                     lines.Add(line.ToString());
                     line.Clear();
@@ -283,7 +283,7 @@ namespace DuskAndDawn
             // Number stamped centered on the die face rather than off to the side.
             string text = _value.ToString();
             const float textScale = 1.2f;
-            var textSize = font.MeasureString(text) * textScale;
+            var textSize = UITheme.MeasureString(font, text) * textScale;
             var textPos = drawPos - textSize / 2f;
             UITheme.DrawTextWithShadow(spriteBatch, font, text, textPos, color, textScale);
         }
@@ -1373,7 +1373,7 @@ namespace DuskAndDawn
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
             float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
-            spriteBatch.Begin();
+            UITheme.BeginCanvas(spriteBatch);
 
             // Subtle gradient instead of a flat fill - just enough depth to read as a night
             // sky rather than a solid color swatch, while staying dark and calm by design.
@@ -1421,7 +1421,7 @@ namespace DuskAndDawn
             var lines = TextLog.WrapText(font, _collapseText, 760f);
             for (int i = 0; i < lines.Count; i++)
             {
-                var size = font.MeasureString(lines[i]);
+                var size = UITheme.MeasureString(font, lines[i]);
                 UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(640 - size.X / 2f, 330 + i * 30), new Color(255, 200, 190) * fade);
             }
         }
@@ -1449,14 +1449,14 @@ namespace DuskAndDawn
             string weaponLine = $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})";
             UITheme.DrawTextWithShadow(spriteBatch, font, weaponLine, new Vector2(40, 100), Color.LightGray);
             // 1x icon just after the weapon line - small, but crisp at native size.
-            float weaponLineWidth = font.MeasureString(weaponLine).X;
+            float weaponLineWidth = UITheme.MeasureString(font, weaponLine).X;
             UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(_playerState.EquippedWeapon), new Vector2(40 + weaponLineWidth + 8, 94), 1);
             DrawPlayerHealthBar(spriteBatch, font);
 
             // District + corruption, with a pip per corruption tier that glows like embers.
             var infoX = InfoCard.X + 18;
             UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(infoX, InfoCard.Y + 12), new Color(255, 180, 120));
-            float pipX = infoX + font.MeasureString(DistrictInfo.Name(_district)).X + 20;
+            float pipX = infoX + UITheme.MeasureString(font, DistrictInfo.Name(_district)).X + 20;
             int corruption = DistrictInfo.Corruption(_district);
             for (int i = 0; i < 3; i++)
             {
@@ -1498,7 +1498,7 @@ namespace DuskAndDawn
             }
             string text = $"{amount} {name}";
             UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(x + iconSize + 6, y + 2), Color.White, 0.9f);
-            return x + iconSize + 6 + font.MeasureString(text).X * 0.9f + 26f;
+            return x + iconSize + 6 + UITheme.MeasureString(font, text).X * 0.9f + 26f;
         }
 
         // Analog clock face in the status card: the night's arc runs from dusk at 8 o'clock,
@@ -1821,7 +1821,7 @@ namespace DuskAndDawn
             if (!node.Scouted)
             {
                 const string unknown = "?";
-                var size = font.MeasureString(unknown) * 1.3f;
+                var size = UITheme.MeasureString(font, unknown) * 1.3f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, unknown, center - size / 2f, new Color(150, 150, 175) * alpha, 1.3f);
             }
             else
@@ -2186,7 +2186,7 @@ namespace DuskAndDawn
                 right = $"{DawnTimer.FormatDuration(minutes)}  ->  {_dawnTimer.ClockLabelAfter(minutes)}";
                 rightColor = new Color(255, 205, 140);
             }
-            var rightSize = font.MeasureString(right) * 0.8f;
+            var rightSize = UITheme.MeasureString(font, right) * 0.8f;
             UITheme.DrawTextWithShadow(spriteBatch, font, right, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, drawBounds.Y + 10), rightColor, 0.8f);
 
             const float descScale = 0.72f;
@@ -2220,7 +2220,7 @@ namespace DuskAndDawn
 
             if (string.IsNullOrEmpty(description))
             {
-                var textPos = new Vector2(drawBounds.X + 12, drawBounds.Y + (drawBounds.Height - font.MeasureString(button.Label).Y) / 2f);
+                var textPos = new Vector2(drawBounds.X + 12, drawBounds.Y + (drawBounds.Height - UITheme.MeasureString(font, button.Label).Y) / 2f);
                 UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
             }
             else

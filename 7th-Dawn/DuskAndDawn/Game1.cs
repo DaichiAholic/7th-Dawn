@@ -11,11 +11,16 @@ namespace DuskAndDawn
         private readonly GraphicsDeviceManager _graphics;
         private readonly ScreenManager _screenManager;
 
-        // Every screen is laid out for a fixed 1280x720 canvas. The game draws into this
-        // render target, then scales it to fill the real window/monitor (letterboxed to keep
-        // the 16:9 shape), so the layouts never have to know the actual resolution.
+        // Every screen is laid out in 1280x720 units, but renders into a true 1920x1080
+        // canvas: each SpriteBatch scales the layout up by RenderScale (see UITheme), so
+        // shapes and text are drawn at full resolution rather than stretched. The canvas is
+        // then fit to the real window/monitor - 1:1 on a 1080p screen, letterboxed to keep
+        // 16:9 elsewhere - so the layouts never have to know the actual resolution.
         public const int CanvasWidth = 1280;
         public const int CanvasHeight = 720;
+        public const int RenderWidth = 1920;
+        public const int RenderHeight = 1080;
+        public const float RenderScale = RenderWidth / (float)CanvasWidth;
         private RenderTarget2D _canvas;
         private Rectangle _canvasDestination;
         private KeyboardState _previousKeyboard;
@@ -66,7 +71,8 @@ namespace DuskAndDawn
             base.Initialize();
 
             SpriteBatch = new SpriteBatch(GraphicsDevice);
-            _canvas = new RenderTarget2D(GraphicsDevice, CanvasWidth, CanvasHeight, false,
+            UITheme.SetRenderScale(RenderScale);
+            _canvas = new RenderTarget2D(GraphicsDevice, RenderWidth, RenderHeight, false,
                 SurfaceFormat.Color, DepthFormat.None, GraphicsDevice.PresentationParameters.MultiSampleCount,
                 RenderTargetUsage.DiscardContents);
 
@@ -77,6 +83,11 @@ namespace DuskAndDawn
 
             Font = Content.Load<SpriteFont>("DefaultFont");
             Font.Spacing = 2f;
+
+            // Same face at 1.5x size, so text is sharp on the 1920x1080 canvas (see UITheme).
+            var hiResFont = Content.Load<SpriteFont>("DefaultFontHD");
+            hiResFont.Spacing = Font.Spacing * RenderScale;
+            UITheme.RegisterHiResFont(Font, hiResFont);
 
             HpBarTexture = Content.Load<Texture2D>("Hpbar");
             AttackedTexture = Content.Load<Texture2D>("Attacked");
@@ -151,14 +162,16 @@ namespace DuskAndDawn
 
         protected override void Draw(GameTime gameTime)
         {
-            // Screens (and their fade transitions) draw at 1280x720 into the canvas...
+            // Screens (and their fade transitions) draw into the 1920x1080 canvas...
             GraphicsDevice.SetRenderTarget(_canvas);
             base.Draw(gameTime);
 
-            // ...which is then scaled onto the real screen, with black bars if the aspect differs.
+            // ...which is then fit onto the real screen, with black bars if the aspect differs.
+            // At exactly 1920x1080 this is a pixel-for-pixel copy.
             GraphicsDevice.SetRenderTarget(null);
             GraphicsDevice.Clear(Color.Black);
-            SpriteBatch.Begin(samplerState: SamplerState.LinearClamp);
+            bool exactFit = _canvasDestination.Width == RenderWidth && _canvasDestination.Height == RenderHeight;
+            SpriteBatch.Begin(samplerState: exactFit ? SamplerState.PointClamp : SamplerState.LinearClamp);
             SpriteBatch.Draw(_canvas, _canvasDestination, Color.White);
             SpriteBatch.End();
         }

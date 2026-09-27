@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The same DefaultFont.ttf rasterized at 1.5x its normal size (12 -> 18), for the 1920x1080
+  canvas. Screens lay out in 1280x720 units and the canvas is drawn at 1.5x, so UITheme draws
+  text with this font at 1/1.5 scale: every glyph lands 1:1 on real screen pixels instead of
+  being a 12pt bitmap stretched up (which is what made text blurry).
+-->
+<XnaContent xmlns:Graphics="Microsoft.Xna.Framework.Content.Pipeline.Graphics">
+  <Asset Type="Graphics:FontDescription">
+    <FontName>DefaultFont.ttf</FontName>
+    <Size>18</Size>
+    <Spacing>0</Spacing>
+    <UseKerning>false</UseKerning>
+    <Style>Regular</Style>
+    <CharacterRegions>
+      <CharacterRegion>
+        <Start>&#32;</Start>
+        <End>&#126;</End>
+      </CharacterRegion>
+    </CharacterRegions>
+  </Asset>
+</XnaContent>
