@@ -25,9 +25,12 @@ namespace DuskAndDawn
 
         public bool Visited { get; set; }
 
-        // A creature you fled from stays in its room, wounds and all, until you come back
-        // and finish it. null = none waiting (a fresh one is rolled on entry).
-        public Enemy Enemy { get; set; }
+        // Enemies you fled from stay in their room, wounds and all, until you come back and
+        // finish them. Also holds the Knight on the final night's Hoard. null = none waiting
+        // (a fresh encounter is rolled on entry).
+        public List<Enemy> Enemies { get; set; }
+
+        public bool HasKnight => Enemies != null && Enemies.Exists(e => e.IsBoss && !e.IsDefeated);
         public bool Discovered { get; set; } // seen at all - drawn as a silhouette
         public bool Scouted { get; set; }    // type known
 

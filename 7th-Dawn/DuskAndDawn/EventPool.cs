@@ -61,20 +61,20 @@ namespace DuskAndDawn
             // ---- People at the gate (Food for Hope) ----
             new MorningEvent("A stranger asks for shelter", "A thin figure at the gate begs for a place by the fire.", new[]
             {
-                Option("Take them in", "A new face at the table. Spirits lift.", cost: R(food: 4), outcome: R(hope: 10)),
+                Option("Take them in", "A new face at the table. Spirits lift.", cost: R(food: 4), outcome: R(hope: 7)),
                 Option("Turn them away", "You watch them walk back into the dark.", outcome: R(hope: -4))
             }),
 
             new MorningEvent("Survivors at the gate", "A family arrives with what they could carry. They're starving.", new[]
             {
-                Option("Feed them", "They share what they brought, grateful to eat.", cost: R(food: 8), outcome: R(planks: 5, scraps: 5, hope: 8)),
+                Option("Feed them", "They share what they brought, grateful to eat.", cost: R(food: 8), outcome: R(planks: 5, scraps: 5, hope: 6)),
                 Option("Give them a little", "It isn't much, but they thank you.", cost: R(food: 3), outcome: R(hope: 3)),
                 Option("Turn them away", "The children's faces stay with everyone all day.", outcome: R(hope: -6))
             }),
 
             new MorningEvent("A wandering preacher", "An old man in torn robes offers words of comfort for a meal.", new[]
             {
-                Option("Share a meal", "He speaks of a dawn that doesn't burn. People listen.", cost: R(food: 3), outcome: R(hope: 8)),
+                Option("Share a meal", "He speaks of a dawn that doesn't burn. People listen.", cost: R(food: 3), outcome: R(hope: 6)),
                 Option("Pay for a blessing", "He blesses every doorway. It helps, a little.", cost: R(scraps: 4), outcome: R(hope: 5)),
                 Option("Close the door", "His muttered prayers fade down the road.")
             }),
@@ -82,7 +82,7 @@ namespace DuskAndDawn
             // ---- The household (Food and Hope) ----
             new MorningEvent("Festival of the Seventh Dawn", "The children want to mark another sunrise survived.", new[]
             {
-                Option("Hold a feast", "Singing, full plates, and for once, laughter.", cost: R(food: 8), outcome: R(hope: 15)),
+                Option("Hold a feast", "Singing, full plates, and for once, laughter.", cost: R(food: 8), outcome: R(hope: 10)),
                 Option("A small celebration", "A few sweet cakes and a song.", cost: R(food: 3), outcome: R(hope: 6)),
                 Option("Not today", "The children go quiet and drift back inside.", outcome: R(hope: -3))
             }),
@@ -95,7 +95,7 @@ namespace DuskAndDawn
 
             new MorningEvent("Despair creeps in", "Nobody speaks at breakfast. Some stare at the door.", new[]
             {
-                Option("Stories by the fire", "Old tales and a warm meal pull everyone back together.", cost: R(food: 3), outcome: R(hope: 10)),
+                Option("Stories by the fire", "Old tales and a warm meal pull everyone back together.", cost: R(food: 3), outcome: R(hope: 7)),
                 Option("Let them be", "The silence settles in like damp.", outcome: R(hope: -4))
             }, state => state.Hope < 45),
 

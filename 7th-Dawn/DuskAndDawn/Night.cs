@@ -90,13 +90,11 @@ namespace DuskAndDawn
 
         // Animated health bars - see LerpBar.cs
         private LerpBar _playerHealthBar;
-        private LerpBar _enemyHealthBar;
 
 
         // ---- Knocked out ----
         // Losing a fight no longer just burns clock time, so it ends the night instead: a short
         // beat to read what happened, then home, carrying half of what you found.
-        private const int KnockoutHopeLoss = 5;
         private const float CollapseDuration = 2.6f;
         private float _collapseTimer = -1f;
         private string _collapseText = "";
@@ -124,9 +122,17 @@ namespace DuskAndDawn
             _startFood = _playerState.Food;
             _startPlanks = _playerState.Planks;
             _startScraps = _playerState.Scraps;
-            var roomGenerator = new RoomGenerator(_district, _random);
+            var roomGenerator = new RoomGenerator(_district, _random, _playerState.Day);
             _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
+
+            // The last night: the Knight sits on the Hoard. It's optional - survive until dawn
+            // and the house lives - but slaying it is the victory worth telling.
+            bool finalNight = DayInfo.IsFinalNight(_playerState.Day);
+            if (finalNight)
+            {
+                _map.Hoard.Enemies = new List<Enemy> { EnemyRoster.Knight(_district, _random) };
+            }
 
             _current = _map.Entrance;
             _current.Visited = true;
@@ -136,7 +142,9 @@ namespace DuskAndDawn
             // should drift out of the fog.
             foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
 
-            _textLog.Push($"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
+            _textLog.Push(finalNight
+                ? $"{_dawnTimer.ClockLabel}. The last night. Somewhere deep in the {DistrictInfo.Name(_district)}, a Knight guards the Hoard."
+                : $"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
 
             for (int i = 0; i < EmberCount; i++)
             {
@@ -202,7 +210,10 @@ namespace DuskAndDawn
             }
             if (_activeCombat != null)
             {
-                _enemyHealthBar?.Update(gameTime, _activeCombat.Enemy.Health);
+                foreach (var enemy in _activeCombat.Enemies)
+                {
+                    if (_enemyBars.TryGetValue(enemy, out var bar)) bar.Update(gameTime, enemy.Health);
+                }
             }
 
             bool onMap = _state == ExplorationState.Map && !_leaving;
@@ -339,7 +350,8 @@ namespace DuskAndDawn
                     ResolveSpecial();
                     break;
                 case RoomType.Hoard:
-                    ResolveHoard();
+                    if (node.Enemies != null) StartEncounter(node); // the Knight, on the last night
+                    else ResolveHoard();
                     break;
                 default:
                     ResolveEmpty();
@@ -419,8 +431,8 @@ namespace DuskAndDawn
                 var destination = destinations[_random.Next(destinations.Count)];
                 prowler.Type = RoomType.Empty;
                 destination.Type = RoomType.Encounter;
-                destination.Enemy = prowler.Enemy;
-                prowler.Enemy = null;
+                destination.Enemies = prowler.Enemies;
+                prowler.Enemies = null;
                 prowler.StirAmount = 1f;
                 destination.StirAmount = 1f;
 
@@ -561,10 +573,12 @@ namespace DuskAndDawn
                 line += $" {brief}";
             }
 
+            _playerState.ChangeHope(PlayerState.HoardHope);
+            line += $" Hope +{PlayerState.HoardHope}.";
+
             _textLog.Push(line);
             _roomsCleared++;
             _state = ExplorationState.Map;
         }
-
     }
 }

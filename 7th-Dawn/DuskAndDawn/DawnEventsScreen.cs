@@ -56,6 +56,12 @@ namespace DuskAndDawn
             // is available again.
             int foodBefore = _playerState.Food, hopeBefore = _playerState.Hope;
 
+            // Another day begins - and another night survived weighs on everyone a little more.
+            _playerState.Day++;
+            int dread = DayInfo.DawnDread(_playerState.Day);
+            _playerState.ChangeHope(-dread);
+            _morningReport.Add(($"{DayInfo.Label(_playerState.Day)}. The dread builds: Hope -{dread}.", true));
+
             int cooked = _playerState.KitchenDailyFood;
             _playerState.AddResources(food: cooked);
             _morningReport.Add(($"The Kitchen cooked {cooked} Food.", false));
@@ -276,7 +282,8 @@ namespace DuskAndDawn
 
         private float DrawMorningReport(SpriteBatch spriteBatch, SpriteFont font, float top)
         {
-            const float lineHeight = 26f, padding = 12f;
+            // Tight enough for four lines (dread, cooking, eating, spoilage) above the event card.
+            const float lineHeight = 22f, padding = 10f;
             var panel = new RectangleF(ContentX, top, ContentWidth, padding * 2 + _morningReport.Count * lineHeight);
             UITheme.DrawPanel(spriteBatch, panel, new Color(255, 244, 222), new Color(236, 214, 180), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.4f);
 

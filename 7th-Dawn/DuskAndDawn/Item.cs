@@ -38,5 +38,11 @@ namespace DuskAndDawn
 
         // Kitchen
         public static Item Rations() => new Item("Rations", "Restores 30 health.", ItemEffect.Heal, 30);
+
+        private static readonly Func<Item>[] AllFactories = { Bandage, Tonic, SmokeFlask, Elixir, DawnTincture, Rations };
+
+        /// <summary>Rebuilds a saved item by name, or null if it no longer exists.</summary>
+        public static Item Create(string name) =>
+            AllFactories.Select(make => make()).FirstOrDefault(item => item.Name == name);
     }
 }

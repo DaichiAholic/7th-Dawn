@@ -292,17 +292,23 @@ namespace DuskAndDawn
 
         protected override void BuildEntries()
         {
+            int? savedDay = SaveGame.SavedDay;
             if (Game1.HasRunInProgress)
             {
                 // The paused run sits right under this menu on the screen stack.
                 AddEntry("Continue", () => ScreenManager.CloseScreen(ScreenTransitions.FadeTransition(GraphicsDevice)));
             }
+            else if (savedDay.HasValue)
+            {
+                AddEntry($"Continue (Day {savedDay.Value})", Game1.ContinueSavedRun);
+            }
 
             AddEntry("New Game", Game1.StartNewRun,
-                needsConfirm: () => Game1.HasRunInProgress, confirmLabel: "Abandon this run?");
+                needsConfirm: () => Game1.HasRunInProgress || SaveGame.Exists, confirmLabel: "Abandon your run?");
             AddEntry("Settings", () => ScreenManager.ShowScreen(new SettingsScreen(Game)));
+            // Runs save at the base each morning, so quitting only loses the current night.
             AddEntry("Exit", Game.Exit,
-                needsConfirm: () => Game1.HasRunInProgress, confirmLabel: "Quit and lose this run?");
+                needsConfirm: () => Game1.HasRunInProgress, confirmLabel: "Quit to desktop?");
         }
 
         protected override void DrawContent(SpriteBatch spriteBatch, SpriteFont font)
@@ -339,7 +345,7 @@ namespace DuskAndDawn
             AddEntry("Settings", () => ScreenManager.ShowScreen(new SettingsScreen(Game)));
             // The run stays on the stack under the main menu, so Continue picks it back up.
             AddEntry("Main Menu", () => ScreenManager.ReplaceScreen(new MainMenuScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice)));
-            AddEntry("Exit Game", Game.Exit, needsConfirm: () => true, confirmLabel: "Quit and lose this run?");
+            AddEntry("Exit Game", Game.Exit, needsConfirm: () => true, confirmLabel: "Quit? (resume at the base)");
         }
 
         protected override void OnBack() => Resume();

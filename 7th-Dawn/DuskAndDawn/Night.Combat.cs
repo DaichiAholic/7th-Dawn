@@ -1,15 +1,14 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended;
-using MonoGame.Extended.Screens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: fights - starting them, the action menu, pacing the exchange, and how they end.
+    // Night screen: fights - starting them, the action menu, targeting, pacing the exchange,
+    // and how they end.
     public partial class NightScavengingScreen
     {
         // Combat sub-state
@@ -20,6 +19,14 @@ namespace DuskAndDawn
         // Items menu groups identical items into one button ("Bandage x2"), so the button
         // label no longer matches an item name - this holds the real name for each button.
         private readonly List<string> _itemButtonNames = new List<string>();
+
+        // One animated health bar per enemy in the fight (summoned ones get theirs on arrival).
+        private readonly Dictionary<Enemy, LerpBar> _enemyBars = new Dictionary<Enemy, LerpBar>();
+
+        // Set when the fight is the Knight guarding the Hoard: winning opens the Hoard.
+        private bool _fightingForHoard;
+
+        private const string ShakeItOffLabel = "Shake it off (stunned)";
 
         // ---- Combat sprite effects ----
         // All three sheets are 7 frames of 64x64. Timings are per whole animation.
@@ -45,57 +52,84 @@ namespace DuskAndDawn
         private readonly SpriteEffect _playerHitFlash = new SpriteEffect(); // Attacked - when the enemy hits us
         private readonly DiceRollPopup _diceRollPopup = new DiceRollPopup();
         private readonly ImpactShake _enemyShake = new ImpactShake();  // punches up our own hit landing
-        private readonly ImpactShake _playerShake = new ImpactShake(); // punches up the enemy's counter-hit landing
+        private readonly ImpactShake _playerShake = new ImpactShake(); // punches up the enemies' counter-hit landing
+        private Enemy _shakenEnemy;                                     // which panel _enemyShake moves
 
-        // The enemy's counter-attack is resolved instantly under the hood (same method call
-        // as our own action), but showing both hit-flashes at once reads as simultaneous
-        // rather than two separate blows. This delays the player-hit-flash, its log line, and
-        // its shake so the enemy's counter visibly lands a beat after ours instead of on top
-        // of it.
+        // The enemies' turn is resolved instantly under the hood (same method call as our own
+        // action), but showing both hit-flashes at once reads as simultaneous rather than two
+        // separate beats. This delays the player-hit-flash, its log line, and its shake so the
+        // counter visibly lands a beat after ours.
         private const float EnemyCounterDelay = 0.45f;
         private float _pendingPlayerHitDelay = -1f;
         private string _pendingEnemyReplyText = "";
 
         private const float PlayerHpBarScale = 0.25f;
-        private const float EnemyHpBarScale = 0.3125f;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
-        private static readonly Vector2 EnemyHpBarPosition = new Vector2(480, 225);
 
         // ---------- Encounter (combat) ----------
 
         private void StartEncounter(MapNode room)
         {
-            var enemy = room.Enemy;
-            if (enemy == null)
+            var enemies = room.Enemies;
+            if (enemies == null || enemies.All(e => e.IsDefeated))
             {
                 // The maze runs deeper than the old 6-layer map; halve the step count so enemy
                 // strength lands in the same range it was tuned for.
-                int depth = room.Depth;
-                int tier = Math.Min(6, depth / 2);
-                enemy = new Enemy(
-                    $"{DistrictInfo.RandomEnemyName(_district, _random)} (Depth {depth})",
-                    maxHealth: DistrictInfo.EnemyHealth(_district, tier),
-                    attackPower: DistrictInfo.EnemyAttack(_district, tier),
-                    corruption: DistrictInfo.Corruption(_district));
+                int tier = Math.Min(6, room.Depth / 2);
+                enemies = EnemyRoster.RollEncounter(_district, tier, _playerState.Day, _random);
+                _textLog.Push(EncounterIntro(enemies));
             }
             else
             {
-                _textLog.Push($"{enemy.Name} is still here, waiting for you. ({enemy.Health}/{enemy.MaxHealth})");
+                enemies = enemies.Where(e => !e.IsDefeated).ToList();
+                _textLog.Push(enemies.Any(e => e.IsBoss)
+                    ? "The Knight lowers its visor. It has been waiting."
+                    : $"{DescribeGroup(enemies)} still here, waiting for you.");
             }
-            room.Enemy = null; // put back by Retreat() if you run again
-            _activeCombat = new CombatEncounter(enemy, _playerState, _dawnTimer, _random);
-            _enemyHealthBar = new LerpBar(enemy.Health, enemy.MaxHealth);
+
+            room.Enemies = null; // put back by Retreat() if you run again
+            _fightingForHoard = room.Type == RoomType.Hoard;
+
+            // Summons are shallow-tier Wretches whatever the room's depth, so the Hoard's
+            // depth doesn't turn every call for aid into a second boss.
+            const int summonTier = 1;
+            _activeCombat = new CombatEncounter(enemies, _playerState, _dawnTimer, _random, _playerState.Day,
+                () => EnemyRoster.Wretch(_district, summonTier, _playerState.Day, _random, summoned: true));
+
+            _enemyBars.Clear();
+            foreach (var enemy in enemies) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
+
             _combatMenu = CombatMenu.TopLevel;
             _combatTurn = 0;
             LayoutCombatButtons();
             _state = ExplorationState.Encounter;
         }
 
+        private static string EncounterIntro(List<Enemy> enemies)
+        {
+            var first = enemies[0];
+            return first.Kind switch
+            {
+                EnemyKind.Penitent => $"{enemies.Count} Penitents turn from their prayers, chanting as one.",
+                EnemyKind.Knight => "The Hollow Knight rises from the Hoard's throne.",
+                _ => $"A {first.Name} lurches out of the dark."
+            };
+        }
+
+        private static string DescribeGroup(List<Enemy> enemies) =>
+            enemies.Count == 1 ? $"{enemies[0].Name} is" : $"{enemies.Count} of them are";
+
         private void LayoutCombatButtons()
         {
             _combatButtons.Clear();
             const float x = 40, width = 240, height = 60, gap = 14;
             float y = 230;
+
+            if (_activeCombat != null && _activeCombat.PlayerStunned)
+            {
+                _combatButtons.Add(new Button(new RectangleF(x, y, width, height), ShakeItOffLabel));
+                return;
+            }
 
             switch (_combatMenu)
             {
@@ -132,8 +166,30 @@ namespace DuskAndDawn
             }
         }
 
+        /// <summary>Where each enemy's panel sits - shared by drawing and click-to-target.
+        /// Up to three side by side, centred in the space right of the action buttons.</summary>
+        private static RectangleF EnemyPanelBounds(int index, int count)
+        {
+            const float areaX = 300f, areaWidth = 940f, gap = 18f, top = 196f, height = 346f;
+            float width = count <= 1 ? 320f : Math.Min(290f, (areaWidth - gap * (count - 1)) / count);
+            float total = width * count + gap * (count - 1);
+            float x = areaX + (areaWidth - total) / 2f + index * (width + gap);
+            return new RectangleF(x, top, width, height);
+        }
+
         private void HandleCombatClick(int x, int y)
         {
+            // Clicking an enemy makes it the target.
+            var enemies = _activeCombat.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                if (!enemies[i].IsDefeated && InputChecker.Contains(EnemyPanelBounds(i, enemies.Count), x, y))
+                {
+                    _activeCombat.SetTarget(enemies[i]);
+                    return;
+                }
+            }
+
             foreach (var button in _combatButtons)
             {
                 if (!button.Contains(x, y)) continue;
@@ -141,7 +197,13 @@ namespace DuskAndDawn
                 button.TriggerPress();
                 var label = button.Label;
 
-                if (_combatMenu == CombatMenu.TopLevel)
+                if (label == ShakeItOffLabel)
+                {
+                    _textLog.Push(_activeCombat.Recover());
+                    _combatTurn++;
+                    TriggerCombatEffects(Game1.AttackTexture);
+                }
+                else if (_combatMenu == CombatMenu.TopLevel)
                 {
                     switch (label)
                     {
@@ -159,7 +221,8 @@ namespace DuskAndDawn
                             LayoutCombatButtons();
                             return;
                         case "Flee":
-                            _textLog.Push(_activeCombat.Flee());
+                            _playerState.ChangeHope(-PlayerState.FleeHopeLoss);
+                            _textLog.Push($"{_activeCombat.Flee()} Hope -{PlayerState.FleeHopeLoss}.");
                             EndCombat(fled: true);
                             return;
                     }
@@ -171,6 +234,7 @@ namespace DuskAndDawn
                     _textLog.Push(_activeCombat.UseSkill(skill));
                     _combatTurn++;
                     TriggerCombatEffects(Game1.SkillTexture);
+                    _combatMenu = CombatMenu.TopLevel;
                 }
                 else if (_combatMenu == CombatMenu.Items)
                 {
@@ -187,6 +251,12 @@ namespace DuskAndDawn
                     _combatMenu = CombatMenu.TopLevel;
                 }
 
+                // A Knight's call for aid can add an enemy mid-fight.
+                foreach (var enemy in _activeCombat.Enemies)
+                {
+                    if (!_enemyBars.ContainsKey(enemy)) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
+                }
+
                 if (_activeCombat.IsOver)
                 {
                     EndCombat(fled: false);
@@ -200,8 +270,8 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Plays the delayed "enemy hits us" beat: Attacked animation, shake, and the
-        /// enemy's log line.</summary>
+        /// <summary>Plays the delayed "enemies hit us" beat: Attacked animation, shake, and the
+        /// enemies' log line.</summary>
         private void FirePendingPlayerHit()
         {
             _pendingPlayerHitDelay = -1f;
@@ -214,28 +284,27 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Fires the dice-roll popup and the enemy/player hit-flashes based on what
-        /// CombatEncounter's last action actually did - castTexture (Attack.png or
-        /// Skill.png) only plays if that action was a damage roll (it's ignored for
-        /// Guard, items, etc. since LastRollWasAttack stays false for those).</summary>
+        /// <summary>Fires the dice-roll popup and the hit flashes based on what the last action
+        /// actually did - castTexture (Attack.png or Skill.png) only plays for a damage roll.</summary>
         private void TriggerCombatEffects(Texture2D castTexture)
         {
-            // If the last enemy hit is still waiting on its delay when a new action comes in
-            // (clicking faster than EnemyCounterDelay), play it now. Before, the new action
-            // simply reset the timer, so with quick clicks the Attacked animation never played.
+            // If the last enemy hit is still waiting on its delay when a new action comes in,
+            // play it now so quick clicks never skip it.
             if (_pendingPlayerHitDelay >= 0f)
             {
                 FirePendingPlayerHit();
             }
 
-            var portraitCenter = new Vector2(630, 440);
-
             if (_activeCombat.LastRollWasAttack)
             {
                 float castDuration = (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration) * AnimScale;
                 _castEffect.Play(castTexture, ScreenCenter, castDuration, EffectScale);
+                _shakenEnemy = _activeCombat.LastTarget;
                 _enemyShake.Play();
-                _diceRollPopup.Play(Game1.DiceTexture, _activeCombat.LastPlayerRoll, portraitCenter + new Vector2(-70, -90));
+
+                int index = Math.Max(0, _activeCombat.Enemies.IndexOf(_activeCombat.LastTarget));
+                var panel = EnemyPanelBounds(index, _activeCombat.Enemies.Count);
+                _diceRollPopup.Play(Game1.DiceTexture, _activeCombat.LastPlayerRoll, new Vector2(panel.X + panel.Width / 2f, panel.Y + 120));
             }
 
             if (_activeCombat.PlayerWasHit)
@@ -246,8 +315,8 @@ namespace DuskAndDawn
             }
             else if (!string.IsNullOrEmpty(_activeCombat.LastEnemyReplyText))
             {
-                // No counter-attack to wait for (the enemy's already defeated) - nothing to
-                // stagger against, so the resolution line shows right away.
+                // Nothing hit us (all blocked, winding up, or they're all down) - no blow to
+                // stagger against, so the enemies' line shows right away.
                 _textLog.Push(_activeCombat.LastEnemyReplyText);
             }
 
@@ -261,9 +330,9 @@ namespace DuskAndDawn
 
         private void EndCombat(bool fled)
         {
-            bool won = !fled && _activeCombat.PlayerWon;
+            var combat = _activeCombat;
+            bool won = !fled && combat.PlayerWon;
             bool knockedOut = !fled && _playerState.Health <= 0;
-            var enemy = _activeCombat.Enemy;
 
             // The fight is over - cut any animation still playing and drop the queued enemy
             // hit (its log line still shows, so the last blow isn't lost from the log).
@@ -288,32 +357,56 @@ namespace DuskAndDawn
             }
             if (won)
             {
-                _roomsCleared++;
-
-                // Fights are the main source of Scraps: the better your weapon, the more of
-                // them you can win before your health (or the night) runs out.
-                var (lootFood, lootPlanks, lootScraps) = DistrictInfo.CombatLoot(_district, enemy.MaxHealth, _random);
-                _playerState.AddResources(lootFood, lootPlanks, lootScraps);
-                _textLog.Push($"You strip the remains: {MaterialYield.Describe(lootFood, lootPlanks, lootScraps)}.");
+                if (!_fightingForHoard) _roomsCleared++; // the Hoard counts itself below
+                CollectCombatLoot(combat);
+                if (_fightingForHoard)
+                {
+                    ResolveHoard();
+                }
             }
             if (fled)
             {
-                Retreat(enemy);
+                Retreat(combat.Living.ToList());
             }
+            _fightingForHoard = false;
+
             if (IsNightOver)
             {
                 GoToDawnReturn();
             }
         }
 
-        /// <summary>Fleeing backs you out into the room you came from. The creature stays
-        /// put - still wounded - and its room counts as unexplored again: the corridor through
-        /// it is blocked, and getting past means going back in (and paying the time again).</summary>
-        private void Retreat(Enemy enemy)
+        /// <summary>Fights are the main source of Scraps: every fallen enemy (except the
+        /// Knight's summons) is stripped, so a weapon that wins without bleeding out pays.</summary>
+        private void CollectCombatLoot(CombatEncounter combat)
+        {
+            int food = 0, planks = 0, scraps = 0;
+            foreach (var enemy in combat.Enemies.Where(e => !e.IsSummoned))
+            {
+                var (f, p, s) = DistrictInfo.CombatLoot(_district, enemy.MaxHealth, _random);
+                food += f;
+                planks += p;
+                scraps += s;
+            }
+            _playerState.AddResources(food, planks, scraps);
+            _textLog.Push($"You strip the remains: {MaterialYield.Describe(food, planks, scraps)}.");
+
+            if (combat.HasBoss)
+            {
+                _playerState.KnightSlain = true;
+                _playerState.ChangeHope(PlayerState.KnightSlainHope);
+                _textLog.Push($"The Hollow Knight falls, and the whole ruin seems to exhale. Hope +{PlayerState.KnightSlainHope}.");
+            }
+        }
+
+        /// <summary>Fleeing backs you out into the room you came from. The enemies stay put -
+        /// still wounded - and the room counts as unexplored again: the corridor through it is
+        /// blocked, and getting past means going back in (and paying the time again).</summary>
+        private void Retreat(List<Enemy> survivors)
         {
             var room = _current;
-            room.Type = RoomType.Encounter;
-            room.Enemy = enemy;
+            if (room.Type != RoomType.Hoard) room.Type = RoomType.Encounter;
+            room.Enemies = survivors;
             room.Visited = false;
             room.StirAmount = 1f;
             _roomsVisited = Math.Max(0, _roomsVisited - 1);
@@ -325,18 +418,18 @@ namespace DuskAndDawn
                 _walkIndex = 0;
             }
 
-            _textLog.Push($"You back out the way you came. {enemy.Name} is still in there ({enemy.Health}/{enemy.MaxHealth}).");
+            _textLog.Push($"You back out the way you came. {DescribeGroup(survivors)} still in there.");
         }
 
         /// <summary>Knocked out: half of tonight's haul is dropped in the dark, the house
-        /// loses a little Hope, and the night ends.</summary>
+        /// loses Hope, and the night ends.</summary>
         private void Collapse()
         {
             var dropped = new ResourceDelta(
                 -Math.Max(0, _playerState.Food - _startFood) / 2,
                 -Math.Max(0, _playerState.Planks - _startPlanks) / 2,
                 -Math.Max(0, _playerState.Scraps - _startScraps) / 2,
-                -KnockoutHopeLoss);
+                -PlayerState.KnockoutHopeLoss);
             var lost = _playerState.Apply(dropped);
             _playerState.Health = 1;
 
@@ -344,6 +437,5 @@ namespace DuskAndDawn
             _collapseTimer = CollapseDuration;
             _state = ExplorationState.Map;
         }
-
     }
 }

@@ -108,5 +108,21 @@ namespace DuskAndDawn
         // ---- Tier 3: Workshop Lv 3 only, never found ----
         public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2);
         public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2);
+
+        // Every weapon by name - how a save file turns names back into weapons.
+        private static readonly Func<Weapon>[] AllFactories =
+        {
+            RustyKnife, WoodenClub, ScrapClub, IronSword, Cleaver, HandAxe, HolyLance, WarMaul
+        };
+
+        /// <summary>Rebuilds a saved weapon, reinforcement included. null for an unknown name
+        /// (e.g. a weapon removed in a later version).</summary>
+        public static Weapon Create(string name, int reinforcement = 0)
+        {
+            var weapon = AllFactories.Select(make => make()).FirstOrDefault(w => w.Name == name);
+            if (weapon == null) return null;
+            for (int i = 0; i < reinforcement; i++) weapon.Reinforce();
+            return weapon;
+        }
     }
 }

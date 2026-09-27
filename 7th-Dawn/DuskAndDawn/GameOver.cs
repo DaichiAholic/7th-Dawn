@@ -1,23 +1,28 @@
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using MonoGame.Extended.Screens;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using MonoGame.Extended;
+using MonoGame.Extended.Screens;
 
 namespace DuskAndDawn
 {
+    /// <summary>
+    /// The end of a run, either way: Hope ran out (the night wins), or the seventh dawn
+    /// broke with the house still standing - better still if the Hollow Knight fell.
+    /// Enter starts a new run, Esc returns to the main menu.
+    /// </summary>
     public class GameOverScreen : GameScreen
     {
         private Game1 Game1 => (Game1)Game;
+        private readonly bool _victory;
+        private readonly PlayerState _finalState;
         private KeyboardState _previousKeyboard;
         private float _elapsed;
 
-        public GameOverScreen(Game game) : base(game) { }
+        public GameOverScreen(Game game, bool victory, PlayerState finalState) : base(game)
+        {
+            _victory = victory;
+            _finalState = finalState;
+        }
 
         public override void Initialize()
         {
@@ -55,26 +60,58 @@ namespace DuskAndDawn
             var font = Game1.Font;
             UITheme.BeginCanvas(spriteBatch);
 
-            // A slow gradient and a gentle fade-in on the text, instead of the words simply
-            // appearing instantly on a flat black screen.
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(30, 6, 10), Color.Black, 10);
+            // A slow gradient and a gentle fade-in on the text: red dusk for a loss, gold
+            // sunrise for a win.
+            if (_victory)
+            {
+                UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(40, 30, 50), new Color(230, 150, 90), 12);
+                float rise = UITheme.EaseOutCubic(MathHelper.Clamp(_elapsed / 3f, 0f, 1f));
+                UITheme.DrawGlow(spriteBatch, new Vector2(640, 760 - rise * 120f), 420f, new Color(255, 220, 150) * 0.55f);
+            }
+            else
+            {
+                UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(30, 6, 10), Color.Black, 10);
+            }
 
             float fadeIn = UITheme.EaseOutCubic(MathHelper.Clamp(_elapsed / 1.4f, 0f, 1f));
             float promptPulse = UITheme.PulseSine(_elapsed, 2.5f);
 
-            const string headline = "Hope is gone. The night wins.";
-            const string prompt = "Enter: start over     Esc: main menu";
+            string headline, subline;
+            if (!_victory)
+            {
+                headline = "Hope is gone. The night wins.";
+                subline = _finalState == null ? "" : $"The house held out until day {_finalState.Day} of {DayInfo.FinalDay}.";
+            }
+            else if (_finalState != null && _finalState.KnightSlain)
+            {
+                headline = "The seventh dawn. The Knight is dead.";
+                subline = "The holy light comes up gold, and for once it doesn't burn.";
+            }
+            else
+            {
+                headline = "The seventh dawn breaks.";
+                subline = "The house endured. Somewhere in the ruins, the Knight still waits.";
+            }
 
-            var headlineSize = UITheme.MeasureString(font, headline);
-            var headlinePos = new Vector2(640 - headlineSize.X / 2f, 320);
-            UITheme.DrawTextWithShadow(spriteBatch, font, headline, headlinePos, Color.White * fadeIn);
+            Centered(headline, 280, Color.White * fadeIn, 1.5f);
+            Centered(subline, 340, new Color(230, 220, 215) * fadeIn, 0.9f);
 
-            var promptSize = UITheme.MeasureString(font, prompt);
-            var promptPos = new Vector2(640 - promptSize.X / 2f, 365);
+            if (_finalState != null)
+            {
+                string stats = $"Hope {_finalState.Hope}    Weapon: {_finalState.EquippedWeapon.DisplayName}    Base upgrades: {_finalState.UpgradesBought}";
+                Centered(stats, 390, new Color(210, 200, 200) * fadeIn, 0.75f);
+            }
+
             Color promptColor = Color.Lerp(new Color(170, 170, 170), Color.White, promptPulse) * fadeIn;
-            UITheme.DrawTextWithShadow(spriteBatch, font, prompt, promptPos, promptColor);
+            Centered("Enter: new run     Esc: main menu", 460, promptColor, 1f);
 
             spriteBatch.End();
+
+            void Centered(string text, float y, Color color, float scale)
+            {
+                var size = UITheme.MeasureString(font, text) * scale;
+                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(640 - size.X / 2f, y), color, scale);
+            }
         }
     }
 }

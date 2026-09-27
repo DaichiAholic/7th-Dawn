@@ -169,7 +169,14 @@ namespace DuskAndDawn
             UITheme.BeginCanvas(spriteBatch);
 
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(22, 20, 34), new Color(10, 9, 16), 10);
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Prepare for the Night", new Vector2(40, 22), Color.White);
+            int day = _playerState.Day;
+            string heading = DayInfo.IsFinalNight(day) ? "Prepare for the Last Night" : "Prepare for the Night";
+            UITheme.DrawTextWithShadow(spriteBatch, font, heading, new Vector2(40, 22), Color.White);
+            float headingWidth = UITheme.MeasureString(font, heading).X;
+            string dayLine = DayInfo.IsFinalNight(day)
+                ? $"{DayInfo.Label(day)}  -  the Hollow Knight guards the Hoard"
+                : $"{DayInfo.Label(day)}  -  the dark grows bolder each night";
+            UITheme.DrawTextWithShadow(spriteBatch, font, dayLine, new Vector2(40 + headingWidth + 24, 27), DayInfo.IsFinalNight(day) ? new Color(255, 190, 110) : new Color(190, 180, 205), 0.75f);
 
             DrawMap(spriteBatch, font, totalSeconds);
 
@@ -466,13 +473,20 @@ namespace DuskAndDawn
             Divider();
 
             // ---- Rooms & enemies ----
-            var (supplies, encounter, special, empty) = RoomGenerator.Odds(district, 0);
+            var (supplies, encounter, special, empty) = RoomGenerator.Odds(district, 0, day: _playerState.Day);
             Wrapped($"Near the entrance: {Percent(supplies)} supplies, {Percent(encounter)} fights, {Percent(special)} strange, {Percent(empty)} quiet", new Color(210, 210, 220), 0.62f);
 
             int weaponChance = DistrictInfo.WeaponFindChance(district);
             Wrapped($"Special rooms: {weaponChance}% weapon, {100 - weaponChance}% material cache", new Color(200, 185, 230), 0.62f);
 
-            Wrapped($"Enemies: {DistrictInfo.EnemyHealth(district, 0)}+ health, hit for {DistrictInfo.EnemyAttack(district, 0)}+. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
+            int day = _playerState.Day;
+            int enemyHealth = (int)MathF.Round(DistrictInfo.EnemyHealth(district, 0) * DayInfo.EnemyHealthMultiplier(day));
+            int enemyAttack = DistrictInfo.EnemyAttack(district, 0) + DayInfo.EnemyAttackBonus(day);
+            Wrapped($"Wretches tonight: {enemyHealth}+ health, hit for {enemyAttack}+ and wind up heavy blows. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
+            if (district == District.ChurchRuins)
+            {
+                Wrapped($"Penitents ({EnemyRoster.PenitentChance}% of fights): groups that cast holy fire and chant stuns.", new Color(235, 200, 140), 0.62f);
+            }
             Divider();
 
             // ---- Footer ----

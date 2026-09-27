@@ -12,8 +12,26 @@ namespace DuskAndDawn
         public int Planks = 10;
         public int Scraps = 10;
 
+        // ---- Hope: lose it all and the run is over ----
+        // Every Hope rule lives here. It starts short of full so gains always count, and it
+        // drains steadily: dread each dawn (DayInfo.DawnDread, 3 rising to 8), hunger (below),
+        // knockouts and running away. Feasts, generous morning choices, reaching the Hoard and
+        // slaying the Knight are how it comes back.
         public const int MaxHope = 100;
-        public int Hope = 100;
+        public const int StartingHope = 80;
+        public int Hope = StartingHope;
+
+        public const int KnockoutHopeLoss = 12;  // dragged home half-dead
+        public const int FleeHopeLoss = 2;       // every retreat shakes the house a little
+        public const int HoardHope = 4;          // a find like the Hoard gives everyone heart
+        public const int KnightSlainHope = 12;
+
+        // ---- The goal: reach the seventh dawn ----
+        // Day 1 is the first day at the base; its night is night 1. Surviving night 7 wins.
+        public int Day = 1;
+
+        // Slain the Hollow Knight on the final night - the better ending.
+        public bool KnightSlain;
 
         public int MaxHealth = 100;
         public int Health = 100;

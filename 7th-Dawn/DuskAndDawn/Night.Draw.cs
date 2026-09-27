@@ -108,6 +108,10 @@ namespace DuskAndDawn
             // District + corruption, with a pip per corruption tier that glows like embers.
             var infoX = InfoCard.X + 18;
             UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(infoX, InfoCard.Y + 12), new Color(255, 180, 120));
+            string night = $"Night {_playerState.Day}/{DayInfo.FinalDay}";
+            var nightSize = UITheme.MeasureString(font, night) * 0.8f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, night, new Vector2(InfoCard.Right - nightSize.X - 16, InfoCard.Y + 14),
+                DayInfo.IsFinalNight(_playerState.Day) ? new Color(255, 200, 110) : new Color(200, 195, 220), 0.8f);
             float pipX = infoX + UITheme.MeasureString(font, DistrictInfo.Name(_district)).X + 20;
             int corruption = DistrictInfo.Corruption(_district);
             for (int i = 0; i < 3; i++)
@@ -537,6 +541,21 @@ namespace DuskAndDawn
                         break;
                     }
 
+                case RoomType.Hoard when node.HasKnight:
+                    {
+                        // The final night's Hoard: the Knight's helm, visor glowing.
+                        float glow = UITheme.PulseSine(totalSeconds + node.Phase, 2f);
+                        var helm = new RectangleF(c.X - 13, c.Y - 14, 26, 28);
+                        UITheme.DrawGlow(spriteBatch, c, 30f, new Color(255, 110, 40) * ((0.5f + glow * 0.4f) * alpha));
+                        UITheme.FillRoundedRect(spriteBatch, helm, new Color(150, 150, 166) * alpha, 7f);
+                        spriteBatch.FillRectangle(new RectangleF(c.X - 9, c.Y - 2, 18, 4), new Color(255, 150, 70) * alpha);
+                        foreach (float offset in new[] { -8f, 0f, 8f })
+                        {
+                            UITheme.FillCircle(spriteBatch, new Vector2(c.X + offset, c.Y - 17), 3f, new Color(240, 200, 90) * alpha);
+                        }
+                        break;
+                    }
+
                 case RoomType.Hoard:
                     {
                         // A treasure chest.
@@ -587,11 +606,20 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, pos + new Vector2(0, -1), flame, new Color(255, 250, 225));
         }
 
+        /// <summary>Tooltip line for enemies you ran from, e.g. "Penitents x2 - wounded".</summary>
+        private static string DescribeWaiting(List<Enemy> enemies)
+        {
+            var living = enemies.Where(e => !e.IsDefeated).ToList();
+            if (living.Count == 1) return $"{living[0].Name} - wounded, {living[0].Health}/{living[0].MaxHealth}";
+            return $"{living.Count} enemies waiting, wounded";
+        }
+
         private void DrawRoomTooltip(SpriteBatch spriteBatch, SpriteFont font, MapNode node)
         {
             string title = node.Scouted ? RoomTypeInfo.Name(node.Type) : "Unknown room";
             string detail = !node.Scouted ? "Too dark to make out from here."
-                : node.Enemy != null ? $"{node.Enemy.Name} - wounded, {node.Enemy.Health}/{node.Enemy.MaxHealth}"
+                : node.HasKnight ? "The Hollow Knight guards it. Optional."
+                : node.Enemies != null ? DescribeWaiting(node.Enemies)
                 : RoomTypeInfo.Description(node.Type);
 
             string action;
@@ -703,47 +731,26 @@ namespace DuskAndDawn
 
         private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, _activeCombat.Enemy.Name, new Vector2(480, 195), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 195), Color.LightGray);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Rerolls: {_activeCombat.RerollsLeft}", new Vector2(1000, 225), new Color(200, 210, 255), 0.85f);
-
-            var shakeOffset = _enemyShake.Offset;
-
-            var enemyBarPosition = EnemyHpBarPosition + shakeOffset;
-            DrawHpBarSprite(spriteBatch, enemyBarPosition, EnemyHpBarScale, _enemyHealthBar.Ratio);
-            var enemyTexture = Game1.HpBarTexture;
-            float enemyDispW = enemyTexture != null ? enemyTexture.Width * EnemyHpBarScale : 0f;
-            float enemyDispH = enemyTexture != null ? enemyTexture.Height * EnemyHpBarScale : 0f;
-            var enemyLabel = $"{_activeCombat.Enemy.Health}/{_activeCombat.Enemy.MaxHealth}";
-            UITheme.DrawTextWithShadow(spriteBatch, font, enemyLabel, new Vector2(enemyBarPosition.X + enemyDispW + 14, enemyBarPosition.Y + enemyDispH / 2f - 10), Color.White);
-
-            // Portrait placeholder - swap for real enemy art once it exists. The slow ember
-            // pulse on its border stands in for the corruption-glow visual language used
-            // elsewhere for enemy readability.
-            var portrait = new RectangleF(480 + shakeOffset.X, 335 + shakeOffset.Y, 300, 210);
-            float glow = UITheme.PulseSine(totalSeconds, 2.5f);
-            Color emberBorder = Color.Lerp(new Color(150, 45, 40), new Color(255, 130, 60), glow * 0.5f);
-            UITheme.DrawPanel(spriteBatch, portrait, new Color(45, 26, 30), new Color(28, 16, 19), emberBorder, 3f, 14f, shadowStrength: 0.6f);
-
-            // Until there's enemy art, the same blinking eyes the map uses for enemy rooms
-            // stare out of the portrait, bigger.
-            var eyesCenter = new Vector2(portrait.X + portrait.Width / 2f, portrait.Y + portrait.Height / 2f - 10);
-            bool blinking = totalSeconds % 3.6f < 0.15f;
-            foreach (float offset in new[] { -34f, 34f })
+            // Round info where the Head Back button sits on the map.
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 24), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Rerolls: {_activeCombat.RerollsLeft}", new Vector2(1000, 54), new Color(200, 210, 255), 0.85f);
+            if (_activeCombat.PlayerStunned)
             {
-                var eye = eyesCenter + new Vector2(offset, 0);
-                UITheme.DrawGlow(spriteBatch, eye, 56f, new Color(255, 60, 40) * (0.6f + glow * 0.3f));
-                if (blinking)
-                    spriteBatch.FillRectangle(new RectangleF(eye.X - 14, eye.Y - 2, 28, 4), new Color(255, 90, 60));
-                else
-                    UITheme.FillCircle(spriteBatch, eye, 12f, new Color(255, 90, 60));
+                float pulse = UITheme.PulseSine(totalSeconds, 5f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, "STUNNED", new Vector2(1000, 82), Color.Lerp(new Color(255, 200, 90), Color.White, pulse * 0.4f), 0.95f);
             }
 
-            // Roll readout over the portrait. The slash / hit animations are drawn last in
+            var enemies = _activeCombat.Enemies;
+            for (int i = 0; i < enemies.Count; i++)
+            {
+                DrawEnemyPanel(spriteBatch, font, enemies[i], EnemyPanelBounds(i, enemies.Count), totalSeconds);
+            }
+
+            // Roll readout over the target. The slash / hit animations are drawn last in
             // Draw(), centered on the screen, so they sit on top of everything.
             _diceRollPopup.Draw(spriteBatch, font);
 
-            _textLog.Draw(spriteBatch, font, new Vector2(480, 575), maxWidth: 760f);
+            _textLog.Draw(spriteBatch, font, new Vector2(300, 575), maxWidth: 940f);
 
             foreach (var button in _combatButtons)
             {
@@ -752,10 +759,183 @@ namespace DuskAndDawn
                 {
                     DrawStyledButton(spriteBatch, font, button, new Color(40, 40, 50), new Color(30, 30, 38));
                 }
+                else if (button.Label == ShakeItOffLabel)
+                {
+                    DrawStyledButton(spriteBatch, font, button, new Color(120, 96, 40), new Color(84, 64, 24));
+                }
                 else
                 {
                     DrawStyledButton(spriteBatch, font, button, new Color(64, 64, 88), new Color(44, 44, 64));
                 }
+            }
+
+            DrawCombatHints(spriteBatch, font);
+        }
+
+        /// <summary>A few small lines under the action buttons explaining how to answer
+        /// what the enemies are showing - the rules the intent chips rely on.</summary>
+        private void DrawCombatHints(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            // The Items list can run long enough to reach the mini-map - no room for hints there.
+            if (_combatButtons.Count == 0 || _combatMenu == CombatMenu.Items) return;
+            float y = _combatButtons[_combatButtons.Count - 1].Bounds.Bottom + 14;
+
+            string[] hints = _activeCombat.PlayerStunned
+                ? new[] { "Bound by a chant - this turn is lost.", "Guard against STUN to stop it." }
+                : _combatMenu == CombatMenu.Skills
+                    ? new[] { "Power Strike: two rolls, but hits", "on you land 50% harder next turn.", "Guard: halves hits, fully blocks", "HEAVY and STUN. Spells ignore it." }
+                    : _activeCombat.Enemies.Count(e => !e.IsDefeated) > 1
+                        ? new[] { "Click an enemy to target it.", "Watch their next moves above them." }
+                        : new[] { "Each enemy shows its next move.", "Guard blocks HEAVY and STUN." };
+
+            foreach (var hint in hints)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, hint, new Vector2(42, y), new Color(175, 170, 195), 0.62f);
+                y += 18;
+            }
+        }
+
+        private static (Color top, Color bottom, Color border) EnemyPalette(EnemyKind kind) => kind switch
+        {
+            EnemyKind.Penitent => (new Color(58, 50, 40), new Color(34, 28, 22), new Color(200, 170, 110)),
+            EnemyKind.Knight => (new Color(48, 48, 60), new Color(24, 24, 32), new Color(230, 190, 90)),
+            _ => (new Color(45, 26, 30), new Color(28, 16, 19), new Color(150, 45, 40))
+        };
+
+        private void DrawEnemyPanel(SpriteBatch spriteBatch, SpriteFont font, Enemy enemy, RectangleF bounds, float totalSeconds)
+        {
+            if (enemy == _shakenEnemy)
+            {
+                var shake = _enemyShake.Offset;
+                bounds = new RectangleF(bounds.X + shake.X, bounds.Y + shake.Y, bounds.Width, bounds.Height);
+            }
+
+            bool fallen = enemy.IsDefeated;
+            bool targeted = !fallen && enemy == _activeCombat.Target;
+            float glow = UITheme.PulseSine(totalSeconds, 2.5f);
+            var (top, bottom, border) = EnemyPalette(enemy.Kind);
+
+            if (targeted)
+            {
+                UITheme.DrawGlow(spriteBatch, new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f), bounds.Width * 0.7f, new Color(255, 130, 60) * (0.14f + glow * 0.08f));
+                border = Color.Lerp(new Color(255, 140, 70), new Color(255, 210, 140), glow * 0.5f);
+            }
+            float alpha = fallen ? 0.35f : 1f;
+            UITheme.DrawPanel(spriteBatch, bounds, top * alpha, bottom * alpha, border * alpha, targeted ? 3.5f : 2f, 14f, shadowStrength: 0.6f * alpha);
+
+            // Name, and a tag for the boss / current target.
+            float scale = UITheme.MeasureString(font, enemy.Name).X * 0.85f > bounds.Width - 24 ? 0.72f : 0.85f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, enemy.Name, new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * alpha, scale);
+            string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : targeted ? "TARGET" : null;
+            if (tag != null)
+            {
+                Color tagColor = fallen ? new Color(160, 150, 150) : enemy.IsBoss ? new Color(255, 215, 110) : new Color(255, 170, 100);
+                var tagSize = UITheme.MeasureString(font, tag) * 0.62f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, tag, new Vector2(bounds.Right - tagSize.X - 12, bounds.Y + 36), tagColor, 0.62f);
+            }
+
+            // Health bar.
+            var track = new RectangleF(bounds.X + 12, bounds.Y + 56, bounds.Width - 24, 16);
+            float ratio = _enemyBars.TryGetValue(enemy, out var bar) ? bar.Ratio : enemy.Health / (float)enemy.MaxHealth;
+            UITheme.FillRoundedRect(spriteBatch, track, Color.Black * (0.55f * alpha), 8f);
+            if (ratio > 0.01f)
+            {
+                UITheme.FillRoundedRectGradient(spriteBatch, new RectangleF(track.X, track.Y, track.Width * ratio, track.Height), new Color(230, 80, 70) * alpha, new Color(150, 30, 30) * alpha, 8f, 4);
+            }
+            string hp = $"{enemy.Health}/{enemy.MaxHealth}";
+            var hpSize = UITheme.MeasureString(font, hp) * 0.62f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, hp, new Vector2(track.X + (track.Width - hpSize.X) / 2f, track.Y - 1), Color.White * alpha, 0.62f);
+
+            // Portrait placeholder until there's enemy art: a glyph per kind.
+            var face = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + 150);
+            DrawEnemyGlyph(spriteBatch, enemy, face, alpha, totalSeconds);
+
+            if (fallen) return;
+
+            // Intent chip: what it will do next, and how to answer it.
+            var chip = new RectangleF(bounds.X + 12, bounds.Bottom - 96, bounds.Width - 24, 84);
+            Color chipTop, chipBottom, chipBorder;
+            if (enemy.Intent == IntentType.Spell)
+            {
+                (chipTop, chipBottom, chipBorder) = (new Color(70, 44, 96), new Color(44, 26, 64), new Color(190, 140, 255));
+            }
+            else if (enemy.IntentIsThreat)
+            {
+                float alarm = UITheme.PulseSine(totalSeconds, 4f);
+                (chipTop, chipBottom) = (new Color(110, 34, 28), new Color(70, 18, 14));
+                chipBorder = Color.Lerp(new Color(255, 120, 60), new Color(255, 220, 140), alarm * 0.6f);
+            }
+            else if (enemy.Intent == IntentType.CallForAid)
+            {
+                (chipTop, chipBottom, chipBorder) = (new Color(90, 72, 30), new Color(60, 46, 16), new Color(240, 200, 100));
+            }
+            else
+            {
+                (chipTop, chipBottom, chipBorder) = (new Color(40, 38, 52), new Color(26, 24, 34), new Color(140, 130, 160));
+            }
+            UITheme.DrawPanel(spriteBatch, chip, chipTop, chipBottom, chipBorder, 2f, 10f, shadowStrength: 0.4f);
+
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Next:", new Vector2(chip.X + 10, chip.Y + 6), new Color(190, 180, 200), 0.6f);
+            var labelSize = UITheme.MeasureString(font, enemy.IntentLabel) * 1.05f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, enemy.IntentLabel, new Vector2(chip.X + (chip.Width - labelSize.X) / 2f, chip.Y + 22), Color.White, 1.05f);
+            var hintSize = UITheme.MeasureString(font, enemy.IntentHint) * 0.66f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, enemy.IntentHint, new Vector2(chip.X + (chip.Width - hintSize.X) / 2f, chip.Y + 56), new Color(225, 215, 205), 0.66f);
+        }
+
+        /// <summary>Primitive-drawn stand-ins for enemy art: a Wretch's red eyes, a hooded
+        /// Penitent under a halo, the Knight's visored helm.</summary>
+        private static void DrawEnemyGlyph(SpriteBatch spriteBatch, Enemy enemy, Vector2 c, float alpha, float totalSeconds)
+        {
+            float glow = UITheme.PulseSine(totalSeconds + enemy.MaxHealth * 0.1f, 2.5f);
+            bool blinking = (totalSeconds + enemy.MaxHealth * 0.37f) % 3.6f < 0.15f;
+
+            switch (enemy.Kind)
+            {
+                case EnemyKind.Penitent:
+                    {
+                        // Halo, hood, and two pale eyes.
+                        spriteBatch.DrawCircle(c + new Vector2(0, -58), 26f, 32, new Color(255, 220, 140) * ((0.5f + glow * 0.4f) * alpha), 3f);
+                        UITheme.DrawGlow(spriteBatch, c + new Vector2(0, -58), 44f, new Color(255, 210, 120) * (0.25f * alpha));
+                        UITheme.FillCircle(spriteBatch, c, 46f, new Color(20, 16, 14) * alpha);
+                        UITheme.FillCircle(spriteBatch, c + new Vector2(0, 8), 34f, new Color(8, 6, 6) * alpha);
+                        foreach (float offset in new[] { -12f, 12f })
+                        {
+                            var eye = c + new Vector2(offset, 6);
+                            UITheme.DrawGlow(spriteBatch, eye, 22f, new Color(255, 230, 170) * ((0.5f + glow * 0.3f) * alpha));
+                            if (!blinking) UITheme.FillCircle(spriteBatch, eye, 5f, new Color(255, 245, 210) * alpha);
+                        }
+                        break;
+                    }
+
+                case EnemyKind.Knight:
+                    {
+                        // Helm with a glowing visor slit, under a three-point crown.
+                        var helm = new RectangleF(c.X - 46, c.Y - 44, 92, 96);
+                        UITheme.FillRoundedRectGradient(spriteBatch, helm, new Color(140, 140, 156) * alpha, new Color(60, 60, 74) * alpha, 20f, 8);
+                        var visor = new RectangleF(c.X - 34, c.Y - 4, 68, 10);
+                        UITheme.DrawGlow(spriteBatch, new Vector2(c.X, c.Y + 1), 64f, new Color(255, 110, 40) * ((0.45f + glow * 0.35f) * alpha));
+                        spriteBatch.FillRectangle(visor, new Color(255, 150, 70) * alpha);
+                        foreach (float offset in new[] { -28f, 0f, 28f })
+                        {
+                            UITheme.FillCircle(spriteBatch, new Vector2(c.X + offset, c.Y - 54), offset == 0f ? 9f : 7f, new Color(240, 200, 90) * alpha);
+                        }
+                        break;
+                    }
+
+                default:
+                    {
+                        // A Wretch: two blinking red eyes in the dark.
+                        foreach (float offset in new[] { -34f, 34f })
+                        {
+                            var eye = c + new Vector2(offset, 0);
+                            UITheme.DrawGlow(spriteBatch, eye, 50f, new Color(255, 60, 40) * ((0.6f + glow * 0.3f) * alpha));
+                            if (blinking)
+                                spriteBatch.FillRectangle(new RectangleF(eye.X - 14, eye.Y - 2, 28, 4), new Color(255, 90, 60) * alpha);
+                            else
+                                UITheme.FillCircle(spriteBatch, eye, 12f, new Color(255, 90, 60) * alpha);
+                        }
+                        break;
+                    }
             }
         }
 

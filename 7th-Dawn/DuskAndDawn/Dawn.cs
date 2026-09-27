@@ -43,7 +43,9 @@ namespace DuskAndDawn
             // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
-            _continueButton = new Button(new RectangleF(490, 500, 300, 70), "Continue to Morning");
+            // After the last night there is no next morning - this dawn is the win.
+            string label = IsFinalDawn ? "Greet the Seventh Dawn" : "Continue to Morning";
+            _continueButton = new Button(new RectangleF(490, 500, 300, 70), label);
         }
 
         public override void Update(GameTime gameTime)
@@ -62,10 +64,19 @@ namespace DuskAndDawn
             if (InputChecker.IsNewLeftClick(mouse, _previousMouse) && isHovered)
             {
                 _continueButton.TriggerPress();
-                ScreenManager.ReplaceScreen(new DawnEventsScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                if (IsFinalDawn)
+                {
+                    Game1.EndRun(victory: true);
+                }
+                else
+                {
+                    ScreenManager.ReplaceScreen(new DawnEventsScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                }
             }
             _previousMouse = mouse;
         }
+
+        private bool IsFinalDawn => DayInfo.IsFinalNight(_playerState.Day);
 
         public override void Draw(GameTime gameTime)
         {
@@ -78,6 +89,15 @@ namespace DuskAndDawn
             // Warm gradient sky standing in for the returning dawn light, instead of one
             // flat color swatch.
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(255, 205, 150), new Color(210, 150, 120), 12);
+
+            string headline = IsFinalDawn ? "The seventh dawn breaks." : $"Dawn. Night {_playerState.Day} of {DayInfo.FinalDay} survived.";
+            string subline = IsFinalDawn
+                ? (_playerState.KnightSlain ? "The Hollow Knight is dead, and the light comes up gold." : "You made it. The house is still standing.")
+                : $"{DayInfo.FinalDay - _playerState.Day} more night{(DayInfo.FinalDay - _playerState.Day == 1 ? "" : "s")} until the seventh dawn.";
+            var headSize = UITheme.MeasureString(font, headline) * 1.4f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, headline, new Vector2(640 - headSize.X / 2f, 120), new Color(80, 40, 20), 1.4f, shadowAlpha: 0.2f);
+            var subSize = UITheme.MeasureString(font, subline);
+            UITheme.DrawTextWithShadow(spriteBatch, font, subline, new Vector2(640 - subSize.X / 2f, 172), new Color(110, 60, 30), 1f, shadowAlpha: 0.15f);
 
             var statsPanel = new RectangleF(260, 230, 760, 170);
             UITheme.DrawPanel(spriteBatch, statsPanel, new Color(70, 45, 35), new Color(48, 30, 24), new Color(150, 105, 70), 3f, 16f, shadowStrength: 0.7f);

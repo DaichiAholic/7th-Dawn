@@ -281,6 +281,9 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
+            // Every morning at the base is a save point (SaveGame skips a run that's over).
+            SaveGame.Save(_playerState);
+
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
@@ -381,6 +384,7 @@ namespace DuskAndDawn
                     if (_endDayButton.Contains(mouse.X, mouse.Y))
                     {
                         _endDayButton.TriggerPress();
+                        SaveGame.Save(_playerState); // keep today's crafting and upgrades
                         ScreenManager.ReplaceScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                     }
                 }
@@ -1078,6 +1082,11 @@ namespace DuskAndDawn
         private void DrawHopeBar(SpriteBatch spriteBatch, SpriteFont font, GameTime gameTime)
         {
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hope", new Vector2(60, 16), Color.White);
+
+            // The goal, always in view: which day this is, out of seven.
+            string day = DayInfo.IsFinalNight(_playerState.Day) ? $"{DayInfo.Label(_playerState.Day)} - the last night" : DayInfo.Label(_playerState.Day);
+            var daySize = UITheme.MeasureString(font, day) * 0.85f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, day, new Vector2(480 - daySize.X, 20), new Color(255, 205, 150), 0.85f);
 
             var barMax = new RectangleF(60, 46, 420, 26);
             float ratio = _playerState.Hope / (float)PlayerState.MaxHope;

@@ -191,16 +191,17 @@ namespace DuskAndDawn
             _ => (0, 0, 0)
         };
 
-        private static readonly Dictionary<District, string[]> EnemyNames = new Dictionary<District, string[]>
+        // Every district's common foe is a Wretch; the name says which sin hollowed it out.
+        private static readonly Dictionary<District, string[]> WretchNames = new Dictionary<District, string[]>
         {
-            { District.VillageOutskirts, new[] { "Gluttonous Wretch", "Envious Husk", "Starved Hound" } },
-            { District.ChurchRuins, new[] { "Zealot Shade", "Proud Acolyte", "Hollow Choirboy" } },
-            { District.CastleKeep, new[] { "Tyrant's Guard", "Gilded Knight", "Crowned Ruin" } }
+            { District.VillageOutskirts, new[] { "Gluttonous Wretch", "Envious Wretch", "Starved Wretch" } },
+            { District.ChurchRuins, new[] { "Zealot Wretch", "Proud Wretch", "Hollow Wretch" } },
+            { District.CastleKeep, new[] { "Gilded Wretch", "Crowned Wretch", "Tyrant's Wretch" } }
         };
 
-        public static string RandomEnemyName(District district, Random random)
+        public static string RandomWretchName(District district, Random random)
         {
-            var names = EnemyNames[district];
+            var names = WretchNames[district];
             return names[random.Next(names.Length)];
         }
     }
