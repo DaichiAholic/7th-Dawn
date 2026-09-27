@@ -33,7 +33,7 @@ namespace DuskAndDawn
     public class EasedFadeTransition : Transition
     {
         private readonly GraphicsDevice _graphicsDevice;
-        private readonly SpriteBatch _spriteBatch;
+        private SpriteBatch _spriteBatch;
         private readonly Color _color;
 
         public EasedFadeTransition(GraphicsDevice graphicsDevice, Color color, float duration = 0.5f)
@@ -41,7 +41,6 @@ namespace DuskAndDawn
         {
             _graphicsDevice = graphicsDevice;
             _color = color;
-            _spriteBatch = new SpriteBatch(graphicsDevice);
 
             Completed += (_, _) =>
             {
@@ -49,7 +48,9 @@ namespace DuskAndDawn
             };
         }
 
-        public override void Dispose() => _spriteBatch.Dispose();
+        // Created on first draw, so a transition the ScreenManager refuses (another fade was
+        // already playing) never allocates anything.
+        public override void Dispose() => _spriteBatch?.Dispose();
 
         private static float EaseOutCubic(float t) => 1f - MathF.Pow(1f - t, 3);
 
@@ -58,6 +59,7 @@ namespace DuskAndDawn
             // Only a transition the ScreenManager actually runs gets drawn, so this is the
             // reliable "a fade is playing" signal (a refused transition never gets here).
             ScreenTransitions.Playing = this;
+            _spriteBatch ??= new SpriteBatch(_graphicsDevice);
             float alpha = EaseOutCubic(Value);
 
             _spriteBatch.Begin(SpriteSortMode.Deferred, null, samplerState: SamplerState.PointClamp, null, null);

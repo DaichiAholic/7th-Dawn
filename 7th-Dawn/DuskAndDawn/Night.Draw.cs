@@ -1,0 +1,885 @@
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended;
+using MonoGame.Extended.Screens;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace DuskAndDawn
+{
+    // Night screen: everything drawn - HUD, clock, maze, tooltips, combat and supply panels.
+    public partial class NightScavengingScreen
+    {
+        // HUD cards
+        private static readonly RectangleF StatusCard = new RectangleF(18, 12, 400, 198);
+        private static readonly RectangleF InfoCard = new RectangleF(434, 12, 548, 112);
+
+        // ---------- Draw ----------
+
+        public override void Draw(GameTime gameTime)
+        {
+            GraphicsDevice.Clear(new Color(8, 8, 14)); // night: dark and safe by design
+
+            var spriteBatch = Game1.SpriteBatch;
+            var font = Game1.Font;
+            float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
+            UITheme.BeginCanvas(spriteBatch);
+
+            // Subtle gradient instead of a flat fill - just enough depth to read as a night
+            // sky rather than a solid color swatch, while staying dark and calm by design.
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(14, 14, 24), new Color(4, 4, 8), 10);
+            DrawEmbers(spriteBatch);
+
+            DrawHud(spriteBatch, font, totalSeconds);
+
+            switch (_state)
+            {
+                case ExplorationState.Map:
+                    DrawMaze(spriteBatch, font, totalSeconds);
+                    break;
+                case ExplorationState.Encounter:
+                    DrawCombat(spriteBatch, font, totalSeconds);
+                    DrawMapFragment(spriteBatch, font);
+                    break;
+                case ExplorationState.Supplies:
+                    DrawSupplies(spriteBatch, font, totalSeconds);
+                    DrawMapFragment(spriteBatch, font);
+                    break;
+            }
+
+            // Combat animations go on top of everything, centered on the screen - only while
+            // a fight is actually on (EndCombat also stops them).
+            if (_state == ExplorationState.Encounter)
+            {
+                _castEffect.Draw(spriteBatch);
+                _playerHitFlash.Draw(spriteBatch);
+            }
+
+            if (_collapseTimer >= 0f)
+            {
+                DrawCollapse(spriteBatch, font);
+            }
+
+            spriteBatch.End();
+        }
+
+        private void DrawCollapse(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            float fade = MathHelper.Clamp((CollapseDuration - _collapseTimer) / 0.6f, 0f, 1f);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(40, 0, 0) * (0.75f * fade), Color.Black * (0.85f * fade), 6);
+
+            var lines = TextLog.WrapText(font, _collapseText, 760f);
+            for (int i = 0; i < lines.Count; i++)
+            {
+                var size = UITheme.MeasureString(font, lines[i]);
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(640 - size.X / 2f, 330 + i * 30), new Color(255, 200, 190) * fade);
+            }
+        }
+
+        private void DrawEmbers(SpriteBatch spriteBatch)
+        {
+            foreach (var ember in _embers)
+            {
+                float alpha = ember.Alpha;
+                UITheme.DrawGlow(spriteBatch, ember.Position, ember.Size * 3f, new Color(255, 120, 50) * (0.25f * alpha));
+                UITheme.FillCircle(spriteBatch, ember.Position, ember.Size * 0.6f, new Color(255, 190, 120) * (0.7f * alpha));
+            }
+        }
+
+        // ---------- HUD ----------
+
+        private void DrawHud(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
+        {
+            // Two frosted cards instead of loose text on the background: your own status on
+            // the left, where you are / what you're carrying in the middle.
+            UITheme.DrawPanel(spriteBatch, StatusCard, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 14f, shadowStrength: 0.6f);
+            UITheme.DrawPanel(spriteBatch, InfoCard, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 14f, shadowStrength: 0.6f);
+
+            DrawClock(spriteBatch, font, totalSeconds);
+            string weaponLine = $"Weapon: {_playerState.EquippedWeapon.DisplayName} ({_playerState.EquippedWeapon.DiceLabel})";
+            UITheme.DrawTextWithShadow(spriteBatch, font, weaponLine, new Vector2(40, 100), Color.LightGray);
+            // 1x icon just after the weapon line - small, but crisp at native size.
+            float weaponLineWidth = UITheme.MeasureString(font, weaponLine).X;
+            UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(_playerState.EquippedWeapon), new Vector2(40 + weaponLineWidth + 8, 94), 1);
+            DrawPlayerHealthBar(spriteBatch, font);
+
+            // District + corruption, with a pip per corruption tier that glows like embers.
+            var infoX = InfoCard.X + 18;
+            UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(infoX, InfoCard.Y + 12), new Color(255, 180, 120));
+            float pipX = infoX + UITheme.MeasureString(font, DistrictInfo.Name(_district)).X + 20;
+            int corruption = DistrictInfo.Corruption(_district);
+            for (int i = 0; i < 3; i++)
+            {
+                var pip = new Vector2(pipX + i * 20, InfoCard.Y + 24);
+                if (i < corruption)
+                {
+                    float glow = UITheme.PulseSine(totalSeconds + i * 0.6f, 2.2f);
+                    UITheme.DrawGlow(spriteBatch, pip, 14f, new Color(255, 110, 40) * (0.35f + glow * 0.3f));
+                    UITheme.FillCircle(spriteBatch, pip, 6f, new Color(255, 150, 70));
+                }
+                else
+                {
+                    UITheme.FillCircle(spriteBatch, pip, 6f, new Color(60, 54, 70));
+                }
+            }
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Corruption", new Vector2(pipX + 64, InfoCard.Y + 14), new Color(200, 170, 150), 0.8f);
+
+            // Tonight's haul so far - icons from the existing resource art.
+            float resourceY = InfoCard.Y + 48;
+            float x = infoX;
+            x = DrawResourceCounter(spriteBatch, font, Game1.BreadTexture, _playerState.Food, "Food", x, resourceY);
+            x = DrawResourceCounter(spriteBatch, font, Game1.PlanksTexture, _playerState.Planks, "Planks", x, resourceY);
+            DrawResourceCounter(spriteBatch, font, Game1.ScrapsTexture, _playerState.Scraps, "Scraps", x, resourceY);
+
+            int explored = _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance);
+            UITheme.DrawTextWithShadow(spriteBatch, font,
+                $"Rooms explored {explored}/{_map.Nodes.Count - 1}     Deepest {DeepestVisited()}/{_map.MaxDepth}",
+                new Vector2(infoX, InfoCard.Y + 84), new Color(190, 185, 210), 0.8f);
+        }
+
+        private int DeepestVisited() => _map.Nodes.Where(n => n.Visited).Select(n => n.Depth).DefaultIfEmpty(0).Max();
+
+        private float DrawResourceCounter(SpriteBatch spriteBatch, SpriteFont font, Texture2D icon, int amount, string name, float x, float y)
+        {
+            const float iconSize = 28f;
+            if (icon != null)
+            {
+                spriteBatch.Draw(icon, new Rectangle((int)x, (int)y, (int)iconSize, (int)iconSize), Color.White);
+            }
+            string text = $"{amount} {name}";
+            UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(x + iconSize + 6, y + 2), Color.White, 0.9f);
+            return x + iconSize + 6 + UITheme.MeasureString(font, text).X * 0.9f + 26f;
+        }
+
+        // Analog clock face in the status card: the night's arc runs from dusk at 8 o'clock,
+        // clockwise over midnight, to dawn at 6 o'clock. The part already spent is dim; the
+        // part left glows like lamplight and pulses once dawn is under an hour away.
+        private static readonly Vector2 ClockCenter = new Vector2(62, 50);
+        private const float ClockRadius = 34f;
+
+        private static Vector2 ClockDirection(float turns) =>
+            new Vector2(MathF.Sin(turns * MathF.PI * 2f), -MathF.Cos(turns * MathF.PI * 2f));
+
+        private void DrawClock(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
+        {
+            var center = ClockCenter;
+            const float r = ClockRadius;
+            int left = _dawnTimer.MinutesLeft;
+            bool nearDawn = left <= 60;
+            float pulse = UITheme.PulseSine(totalSeconds, 4f);
+
+            // Dawn light creeping up behind the clock over the last two hours.
+            float dawnGlow = MathHelper.Clamp(1f - left / 120f, 0f, 1f);
+            if (dawnGlow > 0f)
+            {
+                UITheme.DrawGlow(spriteBatch, center, r + 34f, new Color(255, 150, 90) * (dawnGlow * (0.35f + pulse * 0.15f)));
+            }
+
+            UITheme.FillCircle(spriteBatch, center + new Vector2(2, 4), r + 3f, Color.Black * 0.4f);
+            UITheme.FillCircle(spriteBatch, center, r + 3f, new Color(150, 120, 90));
+            UITheme.FillCircle(spriteBatch, center, r, new Color(22, 22, 36));
+
+            // The night's arc, 8 o'clock round to 6 o'clock (10 of the face's 12 hours).
+            float duskTurn = (DawnTimer.DuskHour % 12) / 12f;
+            float nightTurns = _dawnTimer.MaxMinutes / 720f;
+            float progress = MathHelper.Clamp(_displayedElapsed / _dawnTimer.MaxMinutes, 0f, 1f);
+            const int segments = 60;
+            float arcRadius = r - 6f;
+            Color remaining = nearDawn
+                ? Color.Lerp(new Color(255, 170, 90), new Color(255, 235, 190), pulse * 0.6f)
+                : new Color(255, 200, 120);
+            for (int i = 0; i < segments; i++)
+            {
+                float t0 = i / (float)segments, t1 = (i + 1) / (float)segments;
+                var a = center + ClockDirection(duskTurn + t0 * nightTurns) * arcRadius;
+                var b = center + ClockDirection(duskTurn + t1 * nightTurns) * arcRadius;
+                Color color = t1 <= progress ? new Color(70, 70, 96) : remaining;
+                spriteBatch.DrawLine(a, b, color, 4f);
+            }
+
+            // Hour marks - longer at 12, 3, 6 and 9.
+            for (int h = 0; h < 12; h++)
+            {
+                var dir = ClockDirection(h / 12f);
+                float inner = h % 3 == 0 ? r - 14f : r - 11f;
+                spriteBatch.DrawLine(center + dir * inner, center + dir * (r - 9f), Color.White * (h % 3 == 0 ? 0.7f : 0.35f), h % 3 == 0 ? 2f : 1f);
+            }
+
+            // Dawn marker: a little sun where the arc ends.
+            var sun = center + ClockDirection(duskTurn + nightTurns) * arcRadius;
+            UITheme.DrawGlow(spriteBatch, sun, 14f, new Color(255, 200, 120) * 0.8f);
+            UITheme.FillCircle(spriteBatch, sun, 4f, new Color(255, 230, 170));
+
+            // Hands, from the animated time so they sweep rather than jump.
+            int clockMinutes = DawnTimer.ClockMinutesAt(_displayedElapsed);
+            float minuteTurn = (clockMinutes % 60) / 60f;
+            float hourTurn = (clockMinutes / 60f % 12f) / 12f;
+            spriteBatch.DrawLine(center, center + ClockDirection(hourTurn) * (r * 0.48f), new Color(235, 225, 210), 3f);
+            spriteBatch.DrawLine(center, center + ClockDirection(minuteTurn) * (r * 0.72f), new Color(235, 225, 210), 2f);
+            UITheme.FillCircle(spriteBatch, center, 3.5f, new Color(255, 200, 120));
+
+            // Readout beside the face.
+            float textX = center.X + r + 18f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, _dawnTimer.ClockLabel, new Vector2(textX, 14), Color.White, 1.25f);
+            string untilDawn = left > 0 ? $"{DawnTimer.FormatDuration(left)} until dawn" : "Dawn is breaking";
+            Color untilColor = nearDawn ? Color.Lerp(new Color(255, 170, 110), Color.White, pulse * 0.3f) : new Color(255, 205, 150);
+            UITheme.DrawTextWithShadow(spriteBatch, font, untilDawn, new Vector2(textX, 46), untilColor, 0.85f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"New room {DawnTimer.FormatDuration(RoomEntryMinutes)}.  Fights take no time.", new Vector2(textX, 70), new Color(170, 165, 190), 0.62f);
+        }
+
+        // Hp_bar.png is a single "full" bar sprite (heart + red track), not a separate
+        // empty/full pair. To show partial health without a second asset, this draws a dim
+        // full-width copy as the track, then the same sprite - cropped from its left edge to
+        // just the current-health fraction - at full brightness on top. Both draws share the
+        // same position/scale, so the crop lines up exactly with the track underneath, and the
+        // bar visually drains from the right while the heart and left cap stay put.
+        private void DrawHpBarSprite(SpriteBatch spriteBatch, Vector2 position, float scale, float ratio)
+        {
+            var texture = Game1.HpBarTexture;
+            if (texture == null) return;
+
+            var fullSource = new Rectangle(0, 0, texture.Width, texture.Height);
+            spriteBatch.Draw(texture, position, fullSource, Color.White * 0.35f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+            if (ratio > 0.01f)
+            {
+                int fillWidth = Math.Max(1, (int)(texture.Width * MathHelper.Clamp(ratio, 0f, 1f)));
+                var fillSource = new Rectangle(0, 0, fillWidth, texture.Height);
+                spriteBatch.Draw(texture, position, fillSource, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void DrawPlayerHealthBar(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            var shakenPosition = PlayerHpBarPosition + _playerShake.Offset;
+            DrawHpBarSprite(spriteBatch, shakenPosition, PlayerHpBarScale, _playerHealthBar.Ratio);
+
+            var texture = Game1.HpBarTexture;
+            float dispW = texture != null ? texture.Width * PlayerHpBarScale : 0f;
+            float dispH = texture != null ? texture.Height * PlayerHpBarScale : 0f;
+
+            var label = $"{_playerState.Health}/{_playerState.MaxHealth}";
+            var labelPos = new Vector2(shakenPosition.X + dispW + 14, shakenPosition.Y + dispH / 2f - 10);
+            UITheme.DrawTextWithShadow(spriteBatch, font, label, labelPos, Color.White);
+        }
+
+        // ---------- Maze ----------
+
+        private static Color RoomTop(RoomType type) => type switch
+        {
+            RoomType.Supplies => new Color(52, 116, 78),
+            RoomType.Encounter => new Color(138, 40, 40),
+            RoomType.Special => new Color(104, 56, 140),
+            RoomType.Hoard => new Color(170, 128, 40),
+            RoomType.Entrance => new Color(70, 84, 110),
+            _ => new Color(58, 58, 70)
+        };
+
+        private static Color RoomBottom(RoomType type) => type switch
+        {
+            RoomType.Supplies => new Color(28, 70, 46),
+            RoomType.Encounter => new Color(88, 22, 22),
+            RoomType.Special => new Color(64, 30, 92),
+            RoomType.Hoard => new Color(110, 78, 20),
+            RoomType.Entrance => new Color(40, 50, 70),
+            _ => new Color(36, 36, 46)
+        };
+
+        private void DrawMaze(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
+        {
+            // The ruins' footprint: a dark slab the corridors are cut into.
+            var slab = new RectangleF(MapArea.X - 12, MapArea.Y - 10, MapArea.Width + 24, MapArea.Height + 20);
+            UITheme.DrawPanel(spriteBatch, slab, new Color(18, 17, 27), new Color(9, 9, 14), new Color(52, 48, 66), 1.5f, 18f, shadowStrength: 0.8f);
+
+            // A far-off glimmer where the Hoard lies, even through the fog - something to aim for.
+            if (!_map.Hoard.Visited)
+            {
+                float glimmer = UITheme.PulseSine(totalSeconds, 1.4f);
+                UITheme.DrawGlow(spriteBatch, _map.Hoard.Center, 70f + glimmer * 12f, new Color(255, 200, 90) * (0.16f + glimmer * 0.10f));
+            }
+
+            // Faint marks where the fog still hides the grid - hints at how much is left
+            // out there without giving away the layout (rubble cells get a mark too).
+            float pitchX = MapArea.Width / _map.Columns;
+            float pitchY = MapArea.Height / _map.Rows;
+            for (int col = 0; col < _map.Columns; col++)
+            {
+                for (int row = 0; row < _map.Rows; row++)
+                {
+                    var cell = _map.At(col, row);
+                    if (cell != null && cell.RevealAmount > 0.5f) continue;
+                    var mark = new Vector2(MapArea.X + pitchX * (col + 0.5f), MapArea.Y + pitchY * (row + 0.5f));
+                    UITheme.FillCircle(spriteBatch, mark, 2.5f, new Color(90, 86, 110) * 0.35f);
+                }
+            }
+
+            // Lantern light: a warm, gently flickering pool around you, drawn under the
+            // corridors so the stone near you reads as lit.
+            float flicker = 1f + 0.04f * MathF.Sin(totalSeconds * 7.3f) + 0.03f * MathF.Sin(totalSeconds * 13.1f);
+            UITheme.DrawGlow(spriteBatch, _tokenPosition, 260f * flicker, new Color(255, 160, 80) * 0.18f);
+            UITheme.DrawGlow(spriteBatch, _tokenPosition, 120f * flicker, new Color(255, 180, 100) * 0.16f);
+
+            DrawCorridors(spriteBatch, totalSeconds);
+
+            foreach (var node in _map.Nodes)
+            {
+                if (node.RevealAmount <= 0.01f) continue;
+                DrawRoom(spriteBatch, font, node, totalSeconds);
+            }
+
+            DrawToken(spriteBatch, totalSeconds);
+
+            DrawBottomBar(spriteBatch, font);
+            DrawStyledButton(spriteBatch, font, _headBackButton, new Color(120, 78, 64), new Color(84, 52, 44));
+
+            // Last, so it's never covered by the bottom bar.
+            if (_hoveredNode != null)
+            {
+                DrawRoomTooltip(spriteBatch, font, _hoveredNode);
+            }
+        }
+
+        private void DrawCorridors(SpriteBatch spriteBatch, float totalSeconds)
+        {
+            // Which corridors the hovered route would walk, so they can be lit up.
+            var routeEdges = new HashSet<(MapNode, MapNode)>();
+            if (_hoverPath != null)
+            {
+                var previous = _current;
+                foreach (var step in _hoverPath)
+                {
+                    routeEdges.Add((previous, step));
+                    routeEdges.Add((step, previous));
+                    previous = step;
+                }
+            }
+
+            foreach (var a in _map.Nodes)
+            {
+                foreach (var b in a.Links)
+                {
+                    // Each corridor once.
+                    if (a.Column * 100 + a.Row > b.Column * 100 + b.Row) continue;
+                    if (!a.Discovered && !b.Discovered) continue;
+
+                    var from = a.Center;
+                    var to = b.Center;
+                    float alpha;
+
+                    if (a.Discovered && b.Discovered)
+                    {
+                        alpha = Math.Min(a.RevealAmount, b.RevealAmount);
+                    }
+                    else
+                    {
+                        // Only one end is known: draw a stub trailing off into the fog, so
+                        // unexplored exits read as "this way goes somewhere".
+                        if (!a.Discovered) (from, to) = (to, from);
+                        to = Vector2.Lerp(from, to, 0.62f);
+                        alpha = (a.Discovered ? a.RevealAmount : b.RevealAmount) * 0.55f;
+                    }
+
+                    if (alpha <= 0.01f) continue;
+
+                    bool walked = a.Visited && b.Visited;
+                    bool onRoute = routeEdges.Contains((a, b));
+
+                    spriteBatch.DrawLine(from, to, new Color(4, 4, 8) * alpha, 20f);
+                    Color floor = walked ? new Color(112, 84, 56) : new Color(46, 44, 58);
+                    spriteBatch.DrawLine(from, to, floor * alpha, 11f);
+
+                    if (onRoute)
+                    {
+                        float pulse = UITheme.PulseSine(totalSeconds, 6f);
+                        spriteBatch.DrawLine(from, to, new Color(255, 150, 70) * (0.55f + pulse * 0.35f), 5f);
+                    }
+                    else if (walked)
+                    {
+                        spriteBatch.DrawLine(from, to, new Color(190, 140, 90) * 0.35f, 3f);
+                    }
+                }
+            }
+        }
+
+        private void DrawRoom(SpriteBatch spriteBatch, SpriteFont font, MapNode node, float totalSeconds)
+        {
+            float alpha = node.RevealAmount;
+            float hover = node.HoverAmount;
+            bool reachable = _reachable.Contains(node);
+            bool frontier = reachable && !node.Visited;
+
+            // Hovered rooms lift slightly.
+            float grow = hover * 5f;
+            var bounds = new RectangleF(node.ScreenBounds.X - grow, node.ScreenBounds.Y - grow - hover * 2f, node.ScreenBounds.Width + grow * 2f, node.ScreenBounds.Height + grow * 2f);
+            var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
+
+            Color top, bottom;
+            if (!node.Scouted)
+            {
+                top = new Color(30, 30, 42);
+                bottom = new Color(20, 20, 30);
+            }
+            else
+            {
+                top = RoomTop(node.Type);
+                bottom = RoomBottom(node.Type);
+                if (node.Visited && node != _current)
+                {
+                    // Explored: drained of color, so the map shows at a glance what's left.
+                    top = Color.Lerp(top, new Color(52, 52, 58), 0.7f);
+                    bottom = Color.Lerp(bottom, new Color(34, 34, 40), 0.7f);
+                }
+            }
+
+            if (hover > 0f)
+            {
+                top = UITheme.Brighten(top, hover * 0.22f);
+                bottom = UITheme.Brighten(bottom, hover * 0.22f);
+            }
+
+            // Frontier rooms breathe with a faint ember edge so the next choices stand out.
+            Color border = new Color(120, 116, 140) * 0.6f;
+            float borderThickness = 1.5f;
+            if (frontier)
+            {
+                float breathe = UITheme.PulseSine(totalSeconds + node.Phase, 2.4f);
+                border = Color.Lerp(new Color(200, 140, 90) * 0.6f, new Color(255, 170, 90), breathe * 0.5f);
+                borderThickness = 2f;
+            }
+            if (node == _current)
+            {
+                border = new Color(255, 225, 170);
+                borderThickness = 2.5f;
+            }
+            border = Color.Lerp(border, new Color(255, 130, 60), hover);
+            borderThickness = MathHelper.Lerp(borderThickness, 3.5f, hover);
+
+            if (node.Scouted && node.Type == RoomType.Hoard && !node.Visited)
+            {
+                float glint = UITheme.PulseSine(totalSeconds + node.Phase, 2f);
+                UITheme.DrawGlow(spriteBatch, center, 70f, new Color(255, 200, 90) * (0.25f + glint * 0.2f) * alpha);
+            }
+            if (node.Scouted && node.Type == RoomType.Encounter && !node.Visited)
+            {
+                float menace = UITheme.PulseSine(totalSeconds + node.Phase, 1.8f);
+                UITheme.DrawGlow(spriteBatch, center, 58f, new Color(220, 40, 30) * (0.22f + menace * 0.2f) * alpha);
+            }
+
+            UITheme.DrawPanel(spriteBatch, bounds, top * alpha, bottom * alpha, border * alpha, borderThickness, 12f, shadowStrength: 0.5f * alpha);
+
+            float iconAlpha = alpha * (node.Visited && node != _current ? 0.45f : 1f);
+            if (!node.Scouted)
+            {
+                const string unknown = "?";
+                var size = UITheme.MeasureString(font, unknown) * 1.3f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, unknown, center - size / 2f, new Color(150, 150, 175) * alpha, 1.3f);
+            }
+            else
+            {
+                DrawRoomIcon(spriteBatch, node, center, iconAlpha, totalSeconds);
+            }
+
+            // Ripple when a creature moves in or out.
+            if (node.StirAmount > 0.01f)
+            {
+                float t = 1f - node.StirAmount;
+                float radius = RoomSize * 0.55f + t * 46f;
+                spriteBatch.DrawCircle(center, radius, 28, new Color(255, 90, 60) * (node.StirAmount * alpha), 2.5f);
+                spriteBatch.DrawCircle(center, radius * 0.75f, 28, new Color(255, 90, 60) * (node.StirAmount * 0.5f * alpha), 1.5f);
+            }
+        }
+
+        /// <summary>A tiny primitive-drawn glyph per room type - no extra art needed.</summary>
+        private void DrawRoomIcon(SpriteBatch spriteBatch, MapNode node, Vector2 c, float alpha, float totalSeconds)
+        {
+            switch (node.Type)
+            {
+                case RoomType.Supplies:
+                    {
+                        // A crate: planked box with a cross brace.
+                        var box = new RectangleF(c.X - 15, c.Y - 12, 30, 24);
+                        UITheme.FillRoundedRect(spriteBatch, box, new Color(170, 124, 70) * alpha, 3f);
+                        spriteBatch.DrawRectangle(box, new Color(90, 60, 30) * alpha, 2f);
+                        spriteBatch.DrawLine(new Vector2(box.Left + 2, box.Top + 2), new Vector2(box.Right - 2, box.Bottom - 2), new Color(110, 76, 40) * alpha, 2f);
+                        spriteBatch.DrawLine(new Vector2(box.Right - 2, box.Top + 2), new Vector2(box.Left + 2, box.Bottom - 2), new Color(110, 76, 40) * alpha, 2f);
+                        break;
+                    }
+
+                case RoomType.Encounter:
+                    {
+                        // Two eyes in the dark that blink now and then.
+                        float cycle = (totalSeconds + node.Phase * 1.7f) % 4.2f;
+                        bool blinking = cycle < 0.14f;
+                        var eyeColor = new Color(255, 80, 60) * alpha;
+                        foreach (float offset in new[] { -9f, 9f })
+                        {
+                            var eye = c + new Vector2(offset, 0f);
+                            UITheme.DrawGlow(spriteBatch, eye, 16f, new Color(255, 60, 40) * (0.9f * alpha));
+                            if (blinking)
+                                spriteBatch.FillRectangle(new RectangleF(eye.X - 5, eye.Y - 1, 10, 2), eyeColor);
+                            else
+                                UITheme.FillCircle(spriteBatch, eye, 4.5f, eyeColor);
+                        }
+                        break;
+                    }
+
+                case RoomType.Special:
+                    {
+                        // A four-point sparkle that slowly breathes.
+                        float s = 12f + UITheme.PulseSine(totalSeconds + node.Phase, 2.5f) * 4f;
+                        var sparkle = new Color(230, 200, 255) * alpha;
+                        UITheme.DrawGlow(spriteBatch, c, 28f, new Color(170, 110, 255) * (0.8f * alpha));
+                        spriteBatch.DrawLine(c - new Vector2(0, s), c + new Vector2(0, s), sparkle, 2.5f);
+                        spriteBatch.DrawLine(c - new Vector2(s, 0), c + new Vector2(s, 0), sparkle, 2.5f);
+                        UITheme.FillCircle(spriteBatch, c, 4f, Color.White * alpha);
+                        break;
+                    }
+
+                case RoomType.Hoard:
+                    {
+                        // A treasure chest.
+                        var chest = new RectangleF(c.X - 16, c.Y - 8, 32, 20);
+                        var lid = new RectangleF(c.X - 16, c.Y - 16, 32, 10);
+                        UITheme.FillRoundedRect(spriteBatch, lid, new Color(150, 96, 40) * alpha, 5f);
+                        UITheme.FillRoundedRect(spriteBatch, chest, new Color(128, 80, 32) * alpha, 3f);
+                        spriteBatch.FillRectangle(new RectangleF(c.X - 16, c.Y - 8, 32, 3), new Color(240, 200, 90) * alpha);
+                        spriteBatch.FillRectangle(new RectangleF(c.X - 3, c.Y - 6, 6, 8), new Color(255, 220, 110) * alpha);
+                        break;
+                    }
+
+                case RoomType.Entrance:
+                    {
+                        // An arched doorway.
+                        var door = new RectangleF(c.X - 10, c.Y - 6, 20, 20);
+                        UITheme.FillCircle(spriteBatch, c + new Vector2(0, -6), 10f, new Color(12, 12, 18) * alpha);
+                        spriteBatch.FillRectangle(door, new Color(12, 12, 18) * alpha);
+                        spriteBatch.DrawLine(new Vector2(door.Left - 2, door.Bottom), new Vector2(door.Right + 2, door.Bottom), new Color(160, 170, 200) * alpha, 2f);
+                        break;
+                    }
+
+                default:
+                    {
+                        // Quiet hall: a few scattered stones.
+                        var stone = new Color(120, 120, 135) * alpha;
+                        UITheme.FillCircle(spriteBatch, c + new Vector2(-9, 5), 3.5f, stone);
+                        UITheme.FillCircle(spriteBatch, c + new Vector2(4, 8), 2.5f, stone);
+                        UITheme.FillCircle(spriteBatch, c + new Vector2(8, -6), 3f, stone);
+                        break;
+                    }
+            }
+        }
+
+        private void DrawToken(SpriteBatch spriteBatch, float totalSeconds)
+        {
+            // You: a small lantern-bearer bobbing as it walks (or idles).
+            float bob = MathF.Sin(totalSeconds * (IsWalking ? 12f : 3f)) * (IsWalking ? 3f : 1.5f);
+            // Stands in the room's lower-right corner so the room's icon stays readable.
+            var pos = _tokenPosition + new Vector2(RoomSize * 0.38f, RoomSize * 0.38f + bob);
+
+            UITheme.FillCircle(spriteBatch, pos + new Vector2(0, 10), 10f, Color.Black * 0.35f);
+            UITheme.DrawGlow(spriteBatch, pos, 38f, new Color(255, 190, 110) * 0.85f);
+            UITheme.FillCircle(spriteBatch, pos, 10f, new Color(255, 236, 200));
+            UITheme.FillCircle(spriteBatch, pos, 7f, new Color(255, 190, 110));
+
+            float flame = 3.5f + MathF.Sin(totalSeconds * 17f) * 0.8f;
+            UITheme.FillCircle(spriteBatch, pos + new Vector2(0, -1), flame, new Color(255, 250, 225));
+        }
+
+        private void DrawRoomTooltip(SpriteBatch spriteBatch, SpriteFont font, MapNode node)
+        {
+            string title = node.Scouted ? RoomTypeInfo.Name(node.Type) : "Unknown room";
+            string detail = !node.Scouted ? "Too dark to make out from here."
+                : node.Enemy != null ? $"{node.Enemy.Name} - wounded, {node.Enemy.Health}/{node.Enemy.MaxHealth}"
+                : RoomTypeInfo.Description(node.Type);
+
+            string action;
+            Color actionColor;
+            if (node == _current)
+            {
+                action = "You are here.";
+                actionColor = new Color(255, 225, 170);
+            }
+            else if (!_reachable.Contains(node))
+            {
+                action = "No known way there yet.";
+                actionColor = new Color(160, 160, 180);
+            }
+            else if (node.Visited)
+            {
+                int steps = _hoverPath?.Count ?? 0;
+                action = $"Walk back ({steps} step{(steps == 1 ? "" : "s")}) - free";
+                actionColor = new Color(170, 220, 170);
+            }
+            else
+            {
+                action = _dawnTimer.MinutesLeft <= RoomEntryMinutes
+                    ? "Enter - the last room before dawn"
+                    : $"Enter - {DawnTimer.FormatDuration(RoomEntryMinutes)}, until {_dawnTimer.ClockLabelAfter(RoomEntryMinutes)}";
+                actionColor = new Color(255, 180, 110);
+            }
+
+            string footer = $"Depth {node.Depth}";
+            if (node.Scouted) footer += $"   {node.Links.Count} way{(node.Links.Count == 1 ? "" : "s")} out";
+            if (node.Scouted && node.IsDeadEnd && node != _map.Entrance) footer += "  (dead end)";
+
+            const float width = 320f, height = 112f;
+            var anchor = node.ScreenBounds;
+            float x = anchor.X + anchor.Width + 14;
+            if (x + width > 1260) x = anchor.X - width - 14;
+            float y = MathHelper.Clamp(anchor.Y - 20, MapArea.Y - 4, 700 - height);
+            var box = new RectangleF(x, y, width, height);
+
+            UITheme.DrawPanel(spriteBatch, box, new Color(34, 30, 46), new Color(20, 18, 28), new Color(150, 120, 90), 1.5f, 10f, shadowStrength: 0.8f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, title, new Vector2(box.X + 12, box.Y + 10), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, detail, new Vector2(box.X + 12, box.Y + 38), new Color(200, 196, 214), 0.72f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, action, new Vector2(box.X + 12, box.Y + 60), actionColor, 0.85f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, footer, new Vector2(box.X + 12, box.Y + 86), new Color(150, 146, 168), 0.72f);
+        }
+
+        private void DrawBottomBar(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            // Journal: what just happened.
+            var journal = new RectangleF(40, 616, 836, 88);
+            UITheme.DrawPanel(spriteBatch, journal, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 12f, shadowStrength: 0.5f);
+            _textLog.Draw(spriteBatch, font, new Vector2(journal.X + 16, journal.Y + 56), maxWidth: journal.Width - 32f);
+
+            // Legend.
+            var legend = new RectangleF(892, 616, 348, 88);
+            UITheme.DrawPanel(spriteBatch, legend, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 12f, shadowStrength: 0.5f);
+            var entries = new (RoomType type, string label)[]
+            {
+                (RoomType.Supplies, "Supplies"), (RoomType.Encounter, "Enemy"), (RoomType.Special, "Strange"),
+                (RoomType.Hoard, "Hoard"), (RoomType.Empty, "Quiet"), (RoomType.Entrance, "Entrance")
+            };
+            for (int i = 0; i < entries.Length; i++)
+            {
+                float ex = legend.X + 16 + (i % 3) * 112;
+                float ey = legend.Y + 16 + (i / 3) * 32;
+                var swatch = new RectangleF(ex, ey + 2, 18, 18);
+                UITheme.FillRoundedRectGradient(spriteBatch, swatch, RoomTop(entries[i].type), RoomBottom(entries[i].type), 4f, 4);
+                UITheme.DrawTextWithShadow(spriteBatch, font, entries[i].label, new Vector2(ex + 26, ey), new Color(210, 206, 225), 0.8f);
+            }
+        }
+
+        /// <summary>A shrunk-down copy of tonight's maze, shown while you're busy in a room
+        /// (combat or a supply cache) so you never lose track of where you are.</summary>
+        private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            var box = new RectangleF(40, 604, 232, 100);
+            UITheme.DrawPanel(spriteBatch, box, new Color(62, 50, 32), new Color(42, 34, 20), new Color(150, 120, 70), 2f, 12f, shadowStrength: 0.5f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Tonight's map  -  Depth {_current.Depth}", new Vector2(box.X + 10, box.Y + 6), new Color(225, 205, 165), 0.75f);
+
+            var area = new RectangleF(box.X + 10, box.Y + 30, box.Width - 20, box.Height - 38);
+            float cellW = area.Width / _map.Columns;
+            float cellH = area.Height / _map.Rows;
+            Vector2 MiniCenter(MapNode n) => new Vector2(area.X + cellW * (n.Column + 0.5f), area.Y + cellH * (n.Row + 0.5f));
+
+            foreach (var a in _map.Nodes)
+            {
+                if (!a.Discovered) continue;
+                foreach (var b in a.Links)
+                {
+                    if (!b.Discovered) continue;
+                    spriteBatch.DrawLine(MiniCenter(a), MiniCenter(b), new Color(120, 96, 60), 2f);
+                }
+            }
+
+            foreach (var node in _map.Nodes)
+            {
+                if (!node.Discovered) continue;
+                var c = MiniCenter(node);
+                Color color = !node.Scouted ? new Color(90, 80, 70)
+                    : node.Visited ? new Color(150, 130, 100)
+                    : RoomTop(node.Type);
+                spriteBatch.FillRectangle(new RectangleF(c.X - 3.5f, c.Y - 3.5f, 7, 7), color);
+            }
+
+            var here = MiniCenter(_current);
+            UITheme.DrawGlow(spriteBatch, here, 10f, new Color(255, 220, 150) * 0.9f);
+            UITheme.FillCircle(spriteBatch, here, 3.5f, Color.White);
+        }
+
+        private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
+        {
+            UITheme.DrawTextWithShadow(spriteBatch, font, _activeCombat.Enemy.Name, new Vector2(480, 195), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 195), Color.LightGray);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Rerolls: {_activeCombat.RerollsLeft}", new Vector2(1000, 225), new Color(200, 210, 255), 0.85f);
+
+            var shakeOffset = _enemyShake.Offset;
+
+            var enemyBarPosition = EnemyHpBarPosition + shakeOffset;
+            DrawHpBarSprite(spriteBatch, enemyBarPosition, EnemyHpBarScale, _enemyHealthBar.Ratio);
+            var enemyTexture = Game1.HpBarTexture;
+            float enemyDispW = enemyTexture != null ? enemyTexture.Width * EnemyHpBarScale : 0f;
+            float enemyDispH = enemyTexture != null ? enemyTexture.Height * EnemyHpBarScale : 0f;
+            var enemyLabel = $"{_activeCombat.Enemy.Health}/{_activeCombat.Enemy.MaxHealth}";
+            UITheme.DrawTextWithShadow(spriteBatch, font, enemyLabel, new Vector2(enemyBarPosition.X + enemyDispW + 14, enemyBarPosition.Y + enemyDispH / 2f - 10), Color.White);
+
+            // Portrait placeholder - swap for real enemy art once it exists. The slow ember
+            // pulse on its border stands in for the corruption-glow visual language used
+            // elsewhere for enemy readability.
+            var portrait = new RectangleF(480 + shakeOffset.X, 335 + shakeOffset.Y, 300, 210);
+            float glow = UITheme.PulseSine(totalSeconds, 2.5f);
+            Color emberBorder = Color.Lerp(new Color(150, 45, 40), new Color(255, 130, 60), glow * 0.5f);
+            UITheme.DrawPanel(spriteBatch, portrait, new Color(45, 26, 30), new Color(28, 16, 19), emberBorder, 3f, 14f, shadowStrength: 0.6f);
+
+            // Until there's enemy art, the same blinking eyes the map uses for enemy rooms
+            // stare out of the portrait, bigger.
+            var eyesCenter = new Vector2(portrait.X + portrait.Width / 2f, portrait.Y + portrait.Height / 2f - 10);
+            bool blinking = totalSeconds % 3.6f < 0.15f;
+            foreach (float offset in new[] { -34f, 34f })
+            {
+                var eye = eyesCenter + new Vector2(offset, 0);
+                UITheme.DrawGlow(spriteBatch, eye, 56f, new Color(255, 60, 40) * (0.6f + glow * 0.3f));
+                if (blinking)
+                    spriteBatch.FillRectangle(new RectangleF(eye.X - 14, eye.Y - 2, 28, 4), new Color(255, 90, 60));
+                else
+                    UITheme.FillCircle(spriteBatch, eye, 12f, new Color(255, 90, 60));
+            }
+
+            // Roll readout over the portrait. The slash / hit animations are drawn last in
+            // Draw(), centered on the screen, so they sit on top of everything.
+            _diceRollPopup.Draw(spriteBatch, font);
+
+            _textLog.Draw(spriteBatch, font, new Vector2(480, 575), maxWidth: 760f);
+
+            foreach (var button in _combatButtons)
+            {
+                // Dimmed while locked, so it's clear the next action isn't ready yet.
+                if (IsActionLocked)
+                {
+                    DrawStyledButton(spriteBatch, font, button, new Color(40, 40, 50), new Color(30, 30, 38));
+                }
+                else
+                {
+                    DrawStyledButton(spriteBatch, font, button, new Color(64, 64, 88), new Color(44, 44, 64));
+                }
+            }
+        }
+
+        private void DrawSupplies(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
+        {
+            UITheme.DrawTextWithShadow(spriteBatch, font, "You find a supply cache.", new Vector2(60, 212), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Every choice here costs time.", new Vector2(60, 242), Color.LightGray, 0.8f);
+
+            // What's actually inside - the same numbers every option below is working from.
+            var lootBox = new RectangleF(60, 280, 320, 240);
+            UITheme.DrawPanel(spriteBatch, lootBox, new Color(58, 50, 30), new Color(38, 32, 18), new Color(150, 118, 64), 3f, 14f, shadowStrength: 0.6f);
+            UITheme.DrawGlow(spriteBatch, new Vector2(lootBox.X + lootBox.Width / 2f, lootBox.Y + lootBox.Height / 2f), 150f, new Color(255, 190, 110) * 0.12f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Inside", new Vector2(lootBox.X + 18, lootBox.Y + 14), new Color(235, 210, 160));
+
+            var rows = new (Texture2D icon, int amount, string name)[]
+            {
+                (Game1.BreadTexture, _cache.Food, "Food"),
+                (Game1.PlanksTexture, _cache.Planks, "Planks"),
+                (Game1.ScrapsTexture, _cache.Scraps, "Scraps")
+            };
+            for (int i = 0; i < rows.Length; i++)
+            {
+                float rowY = lootBox.Y + 52 + i * 60;
+                float bob = MathF.Sin(totalSeconds * 2f + i * 2.1f) * 2f;
+                if (rows[i].icon != null)
+                {
+                    spriteBatch.Draw(rows[i].icon, new Rectangle((int)lootBox.X + 20, (int)(rowY + bob), 52, 52), Color.White);
+                }
+                UITheme.DrawTextWithShadow(spriteBatch, font, $"{rows[i].amount} {rows[i].name}", new Vector2(lootBox.X + 90, rowY + 12), Color.White, 1.1f);
+            }
+
+            for (int i = 0; i < _suppliesButtons.Count; i++)
+            {
+                DrawSupplyButton(spriteBatch, font, _suppliesButtons[i], _supplyActions[i]);
+            }
+
+            _textLog.Draw(spriteBatch, font, new Vector2(420, 636), maxWidth: 820f);
+        }
+
+        private void DrawSupplyButton(SpriteBatch spriteBatch, SpriteFont font, Button button, SupplyAction action)
+        {
+            bool enabled = button.Enabled;
+            float hover = button.HoverAmount;
+            Color baseTop = enabled ? new Color(66, 78, 66) : new Color(44, 46, 50);
+            Color baseBottom = enabled ? new Color(46, 56, 46) : new Color(32, 34, 38);
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = enabled ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
+
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: enabled ? 0.5f : 0.2f);
+
+            Color titleColor = enabled ? Color.White : new Color(140, 140, 150);
+            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, drawBounds.Y + 8), titleColor, 0.95f);
+
+            // Time cost (and what the clock will read after), or why it's unavailable.
+            int minutes = SupplyMinutes(action);
+            string right;
+            Color rightColor;
+            string blocked = SupplyBlockedReason(action);
+            if (blocked != null)
+            {
+                right = blocked;
+                rightColor = new Color(230, 120, 105);
+            }
+            else if (minutes == 0)
+            {
+                right = "No time";
+                rightColor = new Color(170, 220, 170);
+            }
+            else if (!_dawnTimer.CanAfford(minutes))
+            {
+                right = $"{DawnTimer.FormatDuration(minutes)} - dawn breaks";
+                rightColor = new Color(255, 160, 100);
+            }
+            else
+            {
+                right = $"{DawnTimer.FormatDuration(minutes)}  ->  {_dawnTimer.ClockLabelAfter(minutes)}";
+                rightColor = new Color(255, 205, 140);
+            }
+            var rightSize = UITheme.MeasureString(font, right) * 0.8f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, right, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, drawBounds.Y + 10), rightColor, 0.8f);
+
+            const float descScale = 0.72f;
+            Color descColor = enabled ? new Color(215, 215, 215) : new Color(120, 120, 130);
+            var lines = TextLog.WrapText(font, SupplyDescription(action), (drawBounds.Width - 28) / descScale);
+            for (int i = 0; i < Math.Min(lines.Count, 2); i++)
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(drawBounds.X + 14, drawBounds.Y + 38 + i * 18), descColor, descScale);
+            }
+        }
+
+        /// <summary>Shared look for every clickable menu button on this screen: rounded
+        /// gradient panel, hover-eased tint and border, and a small press-squash on click.
+        /// Pass description to render a two-line button (title + a smaller detail line)
+        /// like the supplies options use; omit it for a simple centered label.</summary>
+        private void DrawStyledButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom, string description = null)
+        {
+            float hover = button.HoverAmount;
+            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
+            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
+            Color border = Color.Lerp(Color.White * 0.7f, Color.White, hover);
+            float borderThickness = MathHelper.Lerp(2f, 3f, hover);
+
+            // A brief inward squash while the press pulse decays, so a click reads as a
+            // physical push rather than an instant color swap.
+            float squash = button.PressAmount * 3f;
+            var bounds = button.Bounds;
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+
+            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 10f, shadowStrength: 0.5f);
+
+            if (string.IsNullOrEmpty(description))
+            {
+                var textPos = new Vector2(drawBounds.X + 12, drawBounds.Y + (drawBounds.Height - UITheme.MeasureString(font, button.Label).Y) / 2f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
+            }
+            else
+            {
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 12, drawBounds.Y + 10), Color.White);
+                UITheme.DrawTextWithShadow(spriteBatch, font, description, new Vector2(drawBounds.X + 12, drawBounds.Y + 45), new Color(215, 215, 215), 0.85f);
+            }
+        }
+    }
+}

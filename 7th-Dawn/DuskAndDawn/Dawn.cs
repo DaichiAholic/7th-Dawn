@@ -50,7 +50,7 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice));
+                Game1.EndRun(victory: false);
                 return;
             }
 

@@ -313,7 +313,7 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game));
+                Game1.EndRun(victory: false);
                 return;
             }
 

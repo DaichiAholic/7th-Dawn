@@ -139,6 +139,15 @@ namespace DuskAndDawn
             _screenManager.ShowScreen(new BaseBuilding(this, PlayerState), fade);
         }
 
+        /// <summary>The run is over - Hope ran out, or the seventh dawn broke. Every screen
+        /// checks this every frame, so it's guarded: the end screen is requested once, not
+        /// once per frame while the fade plays.</summary>
+        public void EndRun(bool victory)
+        {
+            if (ScreenTransitions.IsTransitioning || _screenManager.ActiveScreen is GameOverScreen) return;
+            _screenManager.ReplaceScreen(new GameOverScreen(this), ScreenTransitions.FadeTransition(GraphicsDevice));
+        }
+
         /// <summary>Ends the run and returns to the title screen (used after a game over).</summary>
         public void EndRunToMainMenu()
         {
