@@ -14,7 +14,7 @@
 
 #---------------------------------- Content ---------------------------------#
 
-#begin ../../../../../../Download(D)/7th-Dawn-Prinyakorn/7th-Dawn-Prinyakorn/Art asset/64x64/Attacked.png
+#begin Hpbar.png
 /importer:TextureImporter
 /processor:TextureProcessor
 /processorParam:ColorKeyColor=255,0,255,255
@@ -25,20 +25,7 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
-/build:../../../../../../Download(D)/7th-Dawn-Prinyakorn/7th-Dawn-Prinyakorn/Art asset/64x64/Attacked.png;Attacked.png
-
-#begin ../../../../../../Download(D)/Hpbar.png
-/importer:TextureImporter
-/processor:TextureProcessor
-/processorParam:ColorKeyColor=255,0,255,255
-/processorParam:ColorKeyEnabled=True
-/processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
-/processorParam:ResizeToPowerOfTwo=False
-/processorParam:MakeSquare=False
-/processorParam:TextureFormat=Color
-/processorParam:Version=3.8.5.1
-/build:../../../../../../Download(D)/Hpbar.png;Hpbar.png
+/build:Hpbar.png
 
 #begin Attack.png
 /importer:TextureImporter
@@ -52,19 +39,6 @@
 /processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
 /build:Attack.png
-
-#begin Attacked.png
-/importer:TextureImporter
-/processor:TextureProcessor
-/processorParam:ColorKeyColor=255,0,255,255
-/processorParam:ColorKeyEnabled=True
-/processorParam:GenerateMipmaps=False
-/processorParam:PremultiplyAlpha=True
-/processorParam:ResizeToPowerOfTwo=False
-/processorParam:MakeSquare=False
-/processorParam:TextureFormat=Color
-/processorParam:Version=3.8.5.1
-/build:Attacked.png
 
 #begin Attacked.png
 /importer:TextureImporter
