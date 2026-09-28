@@ -121,7 +121,7 @@ namespace DuskAndDawn
             InitializeBelt();
 
             _backButton = new Button(new RectangleF(LoadoutPanel.X + 20, 620, 170, 60), "Back to Base");
-            _startButton = new Button(new RectangleF(LoadoutPanel.X + 204, 620, LoadoutPanel.Width - 224, 60), "Head Into the Night");
+            _startButton = new Button(new RectangleF(LoadoutPanel.X + 204, 620, LoadoutPanel.Width - 224, 60), DayInfo.IsFinalNight(_playerState.Day) ? "Face the Sun Herald" : "Head Into the Night");
         }
 
         private void LayoutWeapons()
@@ -532,6 +532,25 @@ namespace DuskAndDawn
             Wrapped(DistrictInfo.Tagline(district), new Color(210, 205, 215), 0.7f);
             Divider();
 
+            if (district == District.Castle)
+            {
+                // No scavenging here: one hall, one throne, one fight.
+                Wrapped("No rooms to search tonight - one hall, and the throne at the end of it.", new Color(225, 205, 165), 0.66f);
+                y += 4f;
+                Wrapped($"The Sun Herald: {EnemyRoster.SunHeraldHealth} health.", new Color(255, 225, 150), 0.66f);
+                Wrapped("- Gathers light, then a SOLAR FLARE: Guard won't help. Smoke, or heal through it.", new Color(235, 200, 160), 0.62f);
+                Wrapped("- BRAND: burns for 3 turns. Guard blocks it; a healing remedy puts it out.", new Color(235, 200, 160), 0.62f);
+                Wrapped("- Calls his choir to fight beside him.", new Color(235, 200, 160), 0.62f);
+                Wrapped("- At half health he ascends and hits harder.", new Color(235, 200, 160), 0.62f);
+                Wrapped("Holy steel gets no bonus against him. The Dawnbreaker does.", new Color(200, 190, 210), 0.62f);
+                Divider();
+                Wrapped("Win, and the seventh dawn is yours. Fall, and the run ends. There is no running.", new Color(255, 170, 150), 0.66f);
+                Divider();
+                if (!unlocked) Wrapped(LockReason(district), new Color(235, 130, 115), 0.7f);
+                else Wrapped("Tonight's destination", new Color(255, 215, 150), 0.7f);
+                return y + TooltipPadding - topLeft.Y;
+            }
+
             // ---- Materials ----
             Text("Materials per find", left, new Color(225, 205, 165), 0.75f);
             y += 24f;
@@ -589,11 +608,6 @@ namespace DuskAndDawn
             if (knights > 0)
             {
                 Wrapped($"Castle Knights ({knights}%): elites that hit hard and wind up often.", new Color(255, 200, 120), 0.62f);
-            }
-            if (district == District.Castle)
-            {
-                Wrapped("The Sun Herald holds the Hoard: solar flares, a burning brand, a choir that answers his call. Optional - but once the doors seal there's no fleeing, and falling to him ends the run.",
-                    new Color(255, 225, 150), 0.62f);
             }
             Divider();
 

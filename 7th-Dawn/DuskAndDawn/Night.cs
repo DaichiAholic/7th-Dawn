@@ -146,14 +146,11 @@ namespace DuskAndDawn
             _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
 
-            // The last night is The Castle's, and the Sun Herald sits on its Hoard. He's
-            // optional - survive until dawn and the house lives - but slaying him is the
-            // victory worth telling, and falling to him ends everything.
+            // The last night is The Castle's, and it's a single hall with the Sun Herald at the
+            // end of it (see Night.Throne.cs). Beat him and the seventh dawn breaks; fall and
+            // the run is over.
             bool finalNight = DayInfo.IsFinalNight(_playerState.Day);
-            if (finalNight && _district == District.Castle)
-            {
-                _map.Hoard.Enemies = new List<Enemy> { EnemyRoster.SunHerald(_random) };
-            }
+            _throneRoom = finalNight && _district == District.Castle;
 
             _current = _map.Entrance;
             _current.Visited = true;
@@ -163,9 +160,8 @@ namespace DuskAndDawn
             // should drift out of the fog.
             foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
 
-            _textLog.Push(finalNight
-                ? $"{_dawnTimer.ClockLabel}. The last night. The Sun Herald waits at the heart of the Castle."
-                : $"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
+            if (_throneRoom) InitializeThrone();
+            else _textLog.Push($"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
 
             for (int i = 0; i < EmberCount; i++)
             {
@@ -253,6 +249,14 @@ namespace DuskAndDawn
                 {
                     if (_enemyBars.TryGetValue(enemy, out var bar)) bar.Update(gameTime, enemy.Health);
                 }
+            }
+
+            // The last night has no map - just the walk up to the throne.
+            if (_throneRoom && _state == ExplorationState.Map)
+            {
+                UpdateThrone(dt, mouse, clicked, KeyPressed);
+                _previousMouse = mouse;
+                return;
             }
 
             bool onMap = _state == ExplorationState.Map && !_leaving;
@@ -545,7 +549,7 @@ namespace DuskAndDawn
                 Planks = Math.Max(0, _playerState.Planks - _startPlanks),
                 Scraps = Math.Max(0, _playerState.Scraps - _startScraps),
                 EnemiesDefeated = _enemiesDefeatedTonight,
-                RoomsExplored = _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance),
+                RoomsExplored = _throneRoom ? 1 : _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance),
                 KnockedOut = _knockedOutTonight
             });
         }

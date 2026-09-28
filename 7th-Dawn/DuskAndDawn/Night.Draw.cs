@@ -35,26 +35,37 @@ namespace DuskAndDawn
 
             // Subtle gradient instead of a flat fill - just enough depth to read as a night
             // sky rather than a solid color swatch, while staying dark and calm by design.
-            Backdrop.Sky(spriteBatch, new Color(16, 15, 28), new Color(4, 4, 8));
-            if (_district == District.Castle)
+            if (_throneRoom)
             {
-                // The Castle never quite goes dark: the Herald's light seeps in from above.
-                float seep = UITheme.PulseSine(totalSeconds, 0.5f);
-                UITheme.DrawGlow(spriteBatch, new Vector2(640, -120), 760f, new Color(255, 200, 110) * (0.10f + seep * 0.04f));
+                // The throne hall; dimmed once the fight is on so the panels read over it.
+                bool fighting = _state == ExplorationState.Encounter;
+                DrawThroneHall(spriteBatch, totalSeconds, herald: !fighting && _collapseTimer < 0f);
+                if (fighting) spriteBatch.FillRectangle(new RectangleF(0, 0, 1280, 720), Color.Black * 0.55f);
             }
-            DrawEmbers(spriteBatch);
+            else
+            {
+                Backdrop.Sky(spriteBatch, new Color(16, 15, 28), new Color(4, 4, 8));
+                DrawEmbers(spriteBatch);
+            }
 
-            DrawHud(spriteBatch, font, totalSeconds);
+            if (!(_throneRoom && _state == ExplorationState.Map)) DrawHud(spriteBatch, font, totalSeconds);
 
             switch (_state)
             {
                 case ExplorationState.Map:
-                    DrawMaze(spriteBatch, font, totalSeconds);
+                    if (_throneRoom)
+                    {
+                        if (_collapseTimer < 0f) DrawThroneIntro(spriteBatch, font, totalSeconds);
+                    }
+                    else
+                    {
+                        DrawMaze(spriteBatch, font, totalSeconds);
+                    }
                     break;
                 case ExplorationState.Encounter:
                     DrawCombat(spriteBatch, font, totalSeconds);
-                    // A long Items list needs the space the mini-map uses.
-                    if (_combatMenu != CombatMenu.Items) DrawMapFragment(spriteBatch, font);
+                    // A long Items list needs the space the mini-map uses; the throne hall has no map.
+                    if (_combatMenu != CombatMenu.Items && !_throneRoom) DrawMapFragment(spriteBatch, font);
                     break;
                 case ExplorationState.Supplies:
                     DrawSupplies(spriteBatch, font, totalSeconds);
@@ -91,14 +102,25 @@ namespace DuskAndDawn
 
         private void DrawCollapse(SpriteBatch spriteBatch, SpriteFont font)
         {
-            float fade = MathHelper.Clamp((CollapseDuration - _collapseTimer) / 0.6f, 0f, 1f);
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(40, 0, 0) * (0.75f * fade), Color.Black * (0.85f * fade), 6);
+            float total = _collapseIsVictory ? CollapseDuration + 1f : CollapseDuration;
+            float fade = MathHelper.Clamp((total - _collapseTimer) / 0.6f, 0f, 1f);
+            if (_collapseIsVictory)
+            {
+                // The Herald's light going out: a warm fade rather than a red one.
+                UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(60, 40, 20) * (0.7f * fade), Color.Black * (0.85f * fade), 40);
+                UITheme.DrawGlow(spriteBatch, new Vector2(640, 360), 500f, new Color(255, 210, 140) * (0.12f * fade));
+            }
+            else
+            {
+                UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(40, 0, 0) * (0.75f * fade), Color.Black * (0.85f * fade), 40);
+            }
 
             var lines = TextLog.WrapText(font, _collapseText, 760f);
+            Color textColor = _collapseIsVictory ? new Color(255, 230, 190) : new Color(255, 200, 190);
             for (int i = 0; i < lines.Count; i++)
             {
                 var size = UITheme.MeasureString(font, lines[i]);
-                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(640 - size.X / 2f, 330 + i * 30), new Color(255, 200, 190) * fade);
+                UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(640 - size.X / 2f, 330 + i * 30), textColor * fade);
             }
         }
 
@@ -170,9 +192,9 @@ namespace DuskAndDawn
             DrawResourceCounter(spriteBatch, font, Game1.ScrapsTexture, _playerState.Scraps, "Scraps", x, resourceY);
 
             int explored = _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance);
-            UITheme.DrawTextWithShadow(spriteBatch, font,
-                $"Rooms explored {explored}/{_map.Nodes.Count - 1}     Deepest {DeepestVisited()}/{_map.MaxDepth}",
-                new Vector2(infoX, InfoCard.Y + 84), new Color(190, 185, 210), 0.8f);
+            string progress = _throneRoom ? "The throne hall. There is no way back."
+                : $"Rooms explored {explored}/{_map.Nodes.Count - 1}     Deepest {DeepestVisited()}/{_map.MaxDepth}";
+            UITheme.DrawTextWithShadow(spriteBatch, font, progress, new Vector2(infoX, InfoCard.Y + 84), new Color(190, 185, 210), 0.8f);
         }
 
         private int DeepestVisited() => _map.Nodes.Where(n => n.Visited).Select(n => n.Depth).DefaultIfEmpty(0).Max();
@@ -998,10 +1020,17 @@ namespace DuskAndDawn
             var hpSize = UITheme.MeasureString(font, hp) * 0.62f;
             UITheme.DrawTextWithShadow(spriteBatch, font, hp, new Vector2(track.X + (track.Width - hpSize.X) / 2f, track.Y - 1), Color.White * alpha, 0.62f);
 
-            // Portrait placeholder until there's enemy art: a glyph per kind, breathing gently.
+            // Portrait: the kind's art where there is some, a glyph otherwise - breathing gently.
             float breathe = fallen ? 0f : MathF.Sin(totalSeconds * 1.6f + enemy.MaxHealth) * 3f;
-            var face = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + 160 + breathe);
-            DrawEnemyGlyph(spriteBatch, enemy, face, alpha, totalSeconds);
+            var sprite = Game1.GetEnemySprite(enemy.Kind);
+            if (sprite != null)
+            {
+                DrawEnemySprite(spriteBatch, enemy, sprite, new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + 153 + breathe), alpha, totalSeconds);
+            }
+            else
+            {
+                DrawEnemyGlyph(spriteBatch, enemy, new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + 160 + breathe), alpha, totalSeconds);
+            }
 
             if (fallen) return;
 
@@ -1037,6 +1066,32 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.IntentLabel, new Vector2(chip.X + (chip.Width - labelSize.X) / 2f, chip.Y + 22), Color.White * intro, 1.05f);
             var hintSize = UITheme.MeasureString(font, enemy.IntentHint) * 0.66f;
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.IntentHint, new Vector2(chip.X + (chip.Width - hintSize.X) / 2f, chip.Y + 56), new Color(225, 215, 205) * intro, 0.66f);
+        }
+
+        /// <summary>An enemy's portrait art, with a little light behind it: the Herald burns
+        /// (redder once he ascends), Knights catch a cold gleam, Penitents a candle glow.</summary>
+        private static void DrawEnemySprite(SpriteBatch spriteBatch, Enemy enemy, Texture2D sprite, Vector2 center, float alpha, float totalSeconds)
+        {
+            float glow = UITheme.PulseSine(totalSeconds + enemy.MaxHealth * 0.1f, 2f);
+            switch (enemy.Kind)
+            {
+                case EnemyKind.Herald:
+                    {
+                        bool ascended = enemy.Ascended;
+                        var head = center + new Vector2(0, -40);
+                        UITheme.DrawGlow(spriteBatch, head, ascended ? 150f : 120f, (ascended ? new Color(255, 110, 40) : new Color(255, 210, 120)) * ((0.35f + glow * 0.25f) * alpha));
+                        // Short rays from his head, kept below the health bar.
+                        Backdrop.DrawRays(spriteBatch, head + new Vector2(0, 30), ascended ? 95f : 80f, (ascended ? new Color(255, 140, 70) : new Color(255, 225, 150)) * (0.8f * alpha), totalSeconds * (ascended ? 3f : 1.5f), 9);
+                        break;
+                    }
+                case EnemyKind.Knight:
+                    UITheme.DrawGlow(spriteBatch, center, 90f, new Color(170, 185, 220) * ((0.12f + glow * 0.08f) * alpha));
+                    break;
+                case EnemyKind.Penitent:
+                    UITheme.DrawGlow(spriteBatch, center + new Vector2(0, 20), 90f, new Color(255, 190, 110) * ((0.14f + glow * 0.1f) * alpha));
+                    break;
+            }
+            UITheme.DrawPixelIconFit(spriteBatch, sprite, center, 150f, Color.White * alpha);
         }
 
         /// <summary>Primitive-drawn stand-ins for enemy art: a Wretch's red eyes, a hooded

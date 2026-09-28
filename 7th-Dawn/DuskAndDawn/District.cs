@@ -93,7 +93,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => "Gluttony and Envy. Low corruption, full larders.",
             District.ChurchRuins => "Pride and Zealotry. Stranger rooms, old relics.",
             District.CastleKeep => "Pride and Tyranny. Brutal fights, iron by the cartload.",
-            District.Castle => "The Sun Herald's court. His knights and choir hold every hall, and he waits for his dawn at the heart of it.",
+            District.Castle => "The Sun Herald's court. On the last night its doors open, and he waits on his throne for his dawn.",
             _ => ""
         };
 

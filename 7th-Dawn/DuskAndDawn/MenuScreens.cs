@@ -322,7 +322,7 @@ namespace DuskAndDawn
                 AddEntry($"Continue (Day {savedDay.Value})", Game1.ContinueSavedRun);
             }
 
-            AddEntry("New Game", Game1.StartNewRun,
+            AddEntry("New Game", () => Game1.StartNewRun(withIntro: true),
                 needsConfirm: () => Game1.HasRunInProgress || SaveGame.Exists, confirmLabel: "Abandon your run?");
             AddEntry("Settings", () => ScreenManager.ShowScreen(new SettingsScreen(Game)));
             // Runs save at the base each morning, so quitting only loses the current night.

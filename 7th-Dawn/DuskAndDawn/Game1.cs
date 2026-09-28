@@ -50,13 +50,21 @@ namespace DuskAndDawn
         // 32x32 pixel-art weapon icons, keyed by asset name (Weapon.IconName).
         private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance", "Dawnbreaker", "WarMaul" };
 
-        // 32x32 pixel-art landmarks for the districts that have one (the Outskirts don't yet -
-        // screens fall back to the district's material there).
+        // 32x32 pixel-art landmarks for the districts (screens fall back to the district's
+        // material for any that has no art).
         private readonly Dictionary<District, Texture2D> _districtIcons = new Dictionary<District, Texture2D>();
 
         /// <summary>A district's landmark icon, or null if it has no art yet.</summary>
         public Texture2D GetDistrictIcon(District district) =>
             _districtIcons.TryGetValue(district, out var icon) ? icon : null;
+
+        // 128x128 portraits for the enemy kinds that have art (the Wretch doesn't yet - its
+        // panel draws a glyph instead).
+        private readonly Dictionary<EnemyKind, Texture2D> _enemySprites = new Dictionary<EnemyKind, Texture2D>();
+
+        /// <summary>An enemy kind's portrait, or null if it has no art yet.</summary>
+        public Texture2D GetEnemySprite(EnemyKind kind) =>
+            _enemySprites.TryGetValue(kind, out var sprite) ? sprite : null;
         private readonly Dictionary<string, Texture2D> _weaponIcons = new Dictionary<string, Texture2D>();
 
         /// <summary>The icon for a weapon, or null if it has no art yet.</summary>
@@ -118,9 +126,13 @@ namespace DuskAndDawn
             {
                 _weaponIcons[iconName] = Content.Load<Texture2D>(iconName);
             }
+            _districtIcons[District.VillageOutskirts] = Content.Load<Texture2D>("Village");
             _districtIcons[District.ChurchRuins] = Content.Load<Texture2D>("Church");
             _districtIcons[District.CastleKeep] = Content.Load<Texture2D>("Keep");
             _districtIcons[District.Castle] = Content.Load<Texture2D>("TheCastle");
+            _enemySprites[EnemyKind.Herald] = Content.Load<Texture2D>("SunHerald");
+            _enemySprites[EnemyKind.Penitent] = Content.Load<Texture2D>("Penitent");
+            _enemySprites[EnemyKind.Knight] = Content.Load<Texture2D>("Knight");
 
             _screenManager.ShowScreen(new MainMenuScreen(this));
         }
@@ -139,15 +151,23 @@ namespace DuskAndDawn
 
         private bool IsGameplayActive => _screenManager.ActiveScreen is IGameplayScreen && !ScreenTransitions.IsTransitioning;
 
-        /// <summary>Throws away any run in progress and starts a fresh one at the base.</summary>
-        public void StartNewRun()
+        /// <summary>Throws away any run in progress and starts a fresh one at the base -
+        /// after the story intro when `withIntro` (a New Game from the title screen).</summary>
+        public void StartNewRun(bool withIntro = false)
         {
             PlayerState = new PlayerState();
             var fade = ScreenTransitions.FadeTransition(GraphicsDevice);
             // Cleared at the fade's midpoint (just before the new screen is pushed), so the
             // old screens stay visible while the fade darkens.
             fade.StateChanged += (_, _) => _screenManager.ClearScreens();
-            _screenManager.ShowScreen(new BaseBuilding(this, PlayerState), fade);
+            _screenManager.ShowScreen(withIntro ? new IntroScreen(this) : new BaseBuilding(this, PlayerState), fade);
+        }
+
+        /// <summary>The intro has ended (or was skipped): on to the first day at the base.</summary>
+        public void BeginRunAfterIntro()
+        {
+            PlayerState ??= new PlayerState();
+            _screenManager.ReplaceScreen(new BaseBuilding(this, PlayerState), ScreenTransitions.FadeTransition(GraphicsDevice));
         }
 
         /// <summary>Resumes the saved run at the base on its saved day.</summary>

@@ -98,7 +98,7 @@ namespace DuskAndDawn
             return knight;
         }
 
-        public const int SunHeraldHealth = 210;
+        public const int SunHeraldHealth = 195;
         public const int SunHeraldAttack = 10;
 
         /// <summary>The last night's boss, on the Castle's Hoard. Fixed stats: his fight is

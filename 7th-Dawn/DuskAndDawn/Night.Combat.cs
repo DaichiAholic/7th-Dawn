@@ -421,6 +421,14 @@ namespace DuskAndDawn
                 else Collapse();
                 return;
             }
+            if (won && _throneRoom)
+            {
+                _roomsCleared++;
+                CollectCombatLoot(combat);
+                _fightingForHoard = false;
+                WinThrone();
+                return;
+            }
             if (won)
             {
                 if (!_fightingForHoard) _roomsCleared++; // the Hoard counts itself below
