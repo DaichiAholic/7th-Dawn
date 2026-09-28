@@ -30,6 +30,11 @@ namespace DuskAndDawn
         private bool _leaving;
         private MouseState _previousMouse;
 
+        // Entrance timing: the road is walked out from the shelter, landmarks pop up along
+        // it, and the loadout cards deal in on the right.
+        private float _elapsed;
+        private const float RoadAt = 0.15f, RoadStep = 0.28f;
+
         // ---- Layout ----
         private static readonly RectangleF MapPanel = new RectangleF(40, 64, 660, 632);
         private static readonly RectangleF LoadoutPanel = new RectangleF(720, 64, 520, 632);
@@ -139,6 +144,7 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            _elapsed += dt;
             var mouse = InputChecker.GetMouse();
 
             bool hitStart = _startButton.Contains(mouse.X, mouse.Y);
@@ -217,19 +223,23 @@ namespace DuskAndDawn
             float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
             UITheme.BeginCanvas(spriteBatch);
 
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(22, 20, 34), new Color(10, 9, 16), 10);
+            // Dusk falling: the sky behind the panels, with the last light low on the horizon.
+            Backdrop.Sky(spriteBatch, new Color(22, 20, 36), new Color(40, 24, 30));
+            UITheme.DrawGlow(spriteBatch, new Vector2(640, 760), 700f, new Color(255, 120, 60) * (0.12f + 0.03f * UITheme.PulseSine(totalSeconds, 0.6f)));
             int day = _playerState.Day;
             string heading = DayInfo.IsFinalNight(day) ? "Prepare for the Last Night" : "Prepare for the Night";
-            UITheme.DrawTextWithShadow(spriteBatch, font, heading, new Vector2(40, 22), Color.White);
+            float headIn = Anim.Intro(_elapsed, 0f, 0.4f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, heading, new Vector2(40, 22 - (1f - headIn) * 14f), Color.White * headIn);
             float headingWidth = UITheme.MeasureString(font, heading).X;
             string dayLine = DayInfo.IsFinalNight(day)
                 ? $"{DayInfo.Label(day)}  -  the Hollow Knight guards the Hoard"
                 : $"{DayInfo.Label(day)}  -  the dark grows bolder each night";
-            UITheme.DrawTextWithShadow(spriteBatch, font, dayLine, new Vector2(40 + headingWidth + 24, 27), DayInfo.IsFinalNight(day) ? new Color(255, 190, 110) : new Color(190, 180, 205), 0.75f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, dayLine, new Vector2(40 + headingWidth + 24, 27), (DayInfo.IsFinalNight(day) ? new Color(255, 190, 110) : new Color(190, 180, 205)) * Anim.Intro(_elapsed, 0.15f, 0.4f), 0.75f);
 
             DrawMap(spriteBatch, font, totalSeconds);
 
-            UITheme.DrawPanel(spriteBatch, LoadoutPanel, new Color(30, 28, 42), new Color(18, 17, 26), Color.White * 0.15f, 2f, 16f, shadowStrength: 0.6f);
+            float loadoutIn = Anim.Intro(_elapsed, 0.05f, 0.4f);
+            UITheme.DrawPanel(spriteBatch, Anim.Slide(LoadoutPanel, loadoutIn, new Vector2(30, 0)), new Color(30, 28, 42) * loadoutIn, new Color(18, 17, 26) * loadoutIn, Color.White * (0.15f * loadoutIn), 2f, 16f, shadowStrength: 0.6f * loadoutIn);
             DrawWeapons(spriteBatch, font);
             DrawBelt(spriteBatch, font);
             DrawDestination(spriteBatch, font);
@@ -248,16 +258,24 @@ namespace DuskAndDawn
         private void DrawMap(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
             UITheme.DrawPanel(spriteBatch, MapPanel, new Color(30, 38, 44), new Color(16, 20, 26), new Color(150, 120, 70) * 0.7f, 2f, 16f, shadowStrength: 0.6f);
-            DrawScenery(spriteBatch);
+            DrawScenery(spriteBatch, totalSeconds);
 
-            // Road from the shelter through every district in order. Stretches leading to a
-            // locked district stay dim, so how far you can reach tonight is readable at a glance.
+            // Road from the shelter through every district in order, drawn out stretch by
+            // stretch as the screen opens. Stretches leading to a locked district stay dim, so
+            // how far you can reach tonight is readable at a glance; the road to tonight's
+            // target marches toward it.
             var previous = ShelterPoint;
+            int selectedIndex = Array.IndexOf(DistrictInfo.All, _playerState.SelectedDistrict);
             for (int i = 0; i < LandmarkPoints.Length; i++)
             {
+                float t = MathHelper.Clamp((_elapsed - RoadAt - i * RoadStep) / RoadStep, 0f, 1f);
+                if (t <= 0f) break;
                 bool reachable = _playerState.IsDistrictUnlocked(DistrictInfo.All[i]);
-                Color roadColor = reachable ? new Color(225, 195, 140) * 0.75f : Color.White * 0.15f;
-                DrawDashedLine(spriteBatch, previous, LandmarkPoints[i], roadColor, 3f);
+                bool onRoute = i <= selectedIndex;
+                Color roadColor = !reachable ? Color.White * 0.15f
+                    : onRoute ? new Color(255, 205, 140) * 0.9f
+                    : new Color(225, 195, 140) * 0.55f;
+                DrawDashedLine(spriteBatch, previous, Vector2.Lerp(previous, LandmarkPoints[i], t), roadColor, 3f, onRoute && reachable ? totalSeconds * 14f : 0f);
                 previous = LandmarkPoints[i];
             }
 
@@ -278,7 +296,7 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, "N", compass + new Vector2(-6, -44), new Color(225, 205, 165), 0.75f);
         }
 
-        private void DrawScenery(SpriteBatch spriteBatch)
+        private void DrawScenery(SpriteBatch spriteBatch, float totalSeconds)
         {
             // Faint survey grid.
             for (float x = MapPanel.X + 60; x < MapPanel.X + MapPanel.Width; x += 60)
@@ -303,6 +321,14 @@ namespace DuskAndDawn
             for (int i = 0; i < RiverPoints.Length - 1; i++)
             {
                 spriteBatch.DrawLine(RiverPoints[i], RiverPoints[i + 1], new Color(70, 110, 150) * 0.35f, 4f);
+            }
+            // Glints drifting down the current.
+            for (int g = 0; g < 6; g++)
+            {
+                float along = ((totalSeconds * 0.05f + g / 6f) % 1f) * (RiverPoints.Length - 1);
+                int segment = (int)along;
+                var glint = Vector2.Lerp(RiverPoints[segment], RiverPoints[segment + 1], along - segment);
+                UITheme.DrawGlow(spriteBatch, glint, 10f, new Color(150, 200, 255) * 0.35f);
             }
 
             foreach (var tree in TreePoints)
@@ -332,8 +358,11 @@ namespace DuskAndDawn
             bool selected = unlocked && district == _playerState.SelectedDistrict;
             float hover = button.HoverAmount;
 
-            // Press squash, then a slight grow on hover.
-            float radius = LandmarkRadius * (1f + hover * 0.12f - button.PressAmount * 0.1f);
+            // Pops up as the road reaches it; press squash, then a slight grow on hover.
+            float arrive = Anim.Pop(_elapsed, RoadAt + (index + 0.7f) * RoadStep, 0.4f);
+            if (arrive <= 0.001f) return;
+            float radius = LandmarkRadius * arrive * (1f + hover * 0.12f - button.PressAmount * 0.1f);
+            if (radius < 1f) return;
 
             // Selected: a slow ember halo, the same "corruption glow" tell used on the night map.
             if (selected)
@@ -374,7 +403,7 @@ namespace DuskAndDawn
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(namePos.X - nameSize.X / 2f - 6, namePos.Y - 2, nameSize.X + 12, nameSize.Y + 4), Color.Black * 0.35f, 6f);
 
             Color nameColor = unlocked ? Color.White : new Color(140, 135, 145);
-            DrawCenteredText(spriteBatch, font, name, namePos, nameColor, 0.8f);
+            DrawCenteredText(spriteBatch, font, name, namePos, nameColor * MathHelper.Clamp(arrive, 0f, 1f), 0.8f);
 
             if (unlocked)
             {
@@ -567,7 +596,7 @@ namespace DuskAndDawn
 
         private void DrawWeapons(SpriteBatch spriteBatch, SpriteFont font)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Choose your weapon", new Vector2(LoadoutPanel.X + 20, 78), Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Choose your weapon", new Vector2(LoadoutPanel.X + 20, 78), Color.White * Anim.Intro(_elapsed, 0.1f, 0.4f));
 
             for (int i = 0; i < _weaponButtons.Count; i++)
             {
@@ -575,6 +604,9 @@ namespace DuskAndDawn
                 var button = _weaponButtons[i];
                 bool equipped = weapon == _playerState.EquippedWeapon;
                 float hover = button.HoverAmount;
+                // Cards deal in one after another.
+                float intro = Anim.Stagger(_elapsed, i, step: 0.06f, baseDelay: 0.15f, duration: 0.35f);
+                if (intro <= 0.001f) continue;
 
                 Color top = equipped ? new Color(150, 112, 44) : new Color(66, 66, 78);
                 Color bottom = equipped ? new Color(110, 80, 28) : new Color(46, 46, 56);
@@ -588,10 +620,16 @@ namespace DuskAndDawn
                 }
 
                 float squash = button.PressAmount * 3f;
-                var bounds = button.Bounds;
-                var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+                var bounds = Anim.Slide(button.Bounds, intro, new Vector2(24, 0));
+                var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-                UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 12f, shadowStrength: 0.6f);
+                if (equipped)
+                {
+                    // The equipped weapon glows like it's catching the lamplight.
+                    float shine = UITheme.PulseSine(_elapsed, 1.5f);
+                    UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 200, 90) * ((0.12f + shine * 0.08f) * intro));
+                }
+                UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 12f, shadowStrength: 0.6f * intro);
 
                 // Icon on the left (empty slot if the weapon has no art yet), text beside it.
                 float iconSize = 32 * IconScale;
@@ -599,14 +637,14 @@ namespace DuskAndDawn
                 UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(weapon), iconPos, IconScale);
 
                 float textX = drawBounds.X + 10 + iconSize + 12;
-                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.DisplayName, new Vector2(textX, drawBounds.Y + 8), Color.White, 0.85f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, weapon.DisplayName, new Vector2(textX, drawBounds.Y + 8), Color.White * intro, 0.85f);
 
                 string stats = weapon.IsHoly ? $"{weapon.DiceLabel}  +{weapon.CorruptionBonus}/corr" : $"{weapon.DiceLabel}  avg {weapon.AverageDamage:0.#}";
-                UITheme.DrawTextWithShadow(spriteBatch, font, stats, new Vector2(textX, drawBounds.Y + 32), new Color(215, 215, 215), 0.75f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, stats, new Vector2(textX, drawBounds.Y + 32), new Color(215, 215, 215) * intro, 0.75f);
 
                 if (equipped)
                 {
-                    UITheme.DrawTextWithShadow(spriteBatch, font, "Equipped", new Vector2(textX, drawBounds.Y + drawBounds.Height - 22), new Color(255, 235, 190), 0.7f);
+                    UITheme.DrawTextWithShadow(spriteBatch, font, "Equipped", new Vector2(textX, drawBounds.Y + drawBounds.Height - 22), new Color(255, 235, 190) * intro, 0.7f);
                 }
             }
 
@@ -623,8 +661,11 @@ namespace DuskAndDawn
         private void DrawDestination(SpriteBatch spriteBatch, SpriteFont font)
         {
             var district = _playerState.SelectedDistrict;
-            var box = new RectangleF(LoadoutPanel.X + 20, 556, LoadoutPanel.Width - 40, 50);
-            UITheme.DrawPanel(spriteBatch, box, UITheme.Darken(LandmarkColor(district), 0.45f), UITheme.Darken(LandmarkColor(district), 0.7f), new Color(255, 170, 90) * 0.6f, 2f, 10f, shadowStrength: 0.4f);
+            float intro = Anim.Intro(_elapsed, 0.45f, 0.4f);
+            if (intro <= 0.001f) return;
+            var box = Anim.Slide(new RectangleF(LoadoutPanel.X + 20, 556, LoadoutPanel.Width - 40, 50), intro, new Vector2(0, 16));
+            float pulse = UITheme.PulseSine(_elapsed, 1.2f);
+            UITheme.DrawPanel(spriteBatch, box, UITheme.Darken(LandmarkColor(district), 0.45f) * intro, UITheme.Darken(LandmarkColor(district), 0.7f) * intro, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), 2f, 10f, shadowStrength: 0.4f * intro);
 
             string specialty = DistrictInfo.SpecialtyMaterial(district);
             DrawMaterialIcon(spriteBatch, MaterialIcon(specialty), new Vector2(box.X + 26, box.Y + box.Height / 2f), 32f, Color.White);
@@ -636,6 +677,8 @@ namespace DuskAndDawn
         {
             DrawBackButton(spriteBatch, font);
 
+            float intro = Anim.Intro(_elapsed, 0.55f, 0.4f);
+            if (intro <= 0.001f) return;
             float hover = _startButton.HoverAmount;
             Color top = Color.Lerp(new Color(85, 145, 95), new Color(105, 170, 115), hover);
             Color bottom = Color.Lerp(new Color(60, 110, 68), new Color(78, 132, 86), hover);
@@ -643,30 +686,35 @@ namespace DuskAndDawn
             float borderThickness = MathHelper.Lerp(2f, 3f, hover);
 
             float squash = _startButton.PressAmount * 4f;
-            var bounds = _startButton.Bounds;
-            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+            var bounds = Anim.Slide(_startButton.Bounds, intro, new Vector2(0, 20));
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.7f);
+            // Breathes gently: this is the way forward once you're ready.
+            float breathe = UITheme.PulseSine(_elapsed, 1.6f);
+            UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(120, 230, 140) * ((0.1f + breathe * 0.08f + hover * 0.1f) * intro));
+            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 14f, shadowStrength: 0.7f * intro);
             var textSize = UITheme.MeasureString(font, _startButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White * intro);
         }
 
         private void DrawBackButton(SpriteBatch spriteBatch, SpriteFont font)
         {
+            float intro = Anim.Intro(_elapsed, 0.5f, 0.4f);
+            if (intro <= 0.001f) return;
             float hover = _backButton.HoverAmount;
             Color top = Color.Lerp(new Color(70, 62, 78), new Color(92, 82, 102), hover);
             Color bottom = Color.Lerp(new Color(48, 42, 56), new Color(64, 56, 76), hover);
             Color border = Color.Lerp(Color.White * 0.6f, Color.White, hover);
 
             float squash = _backButton.PressAmount * 4f;
-            var bounds = _backButton.Bounds;
-            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+            var bounds = Anim.Slide(_backButton.Bounds, intro, new Vector2(0, 20));
+            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 14f, shadowStrength: 0.6f);
+            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, MathHelper.Lerp(2f, 3f, hover), 14f, shadowStrength: 0.6f * intro);
             var textSize = UITheme.MeasureString(font, _backButton.Label) * 0.9f;
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White, 0.9f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White * intro, 0.9f);
         }
 
         // =====================================================================
@@ -705,16 +753,18 @@ namespace DuskAndDawn
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - radius, center.Y - radius, radius * 2f, radius * 2f), color, radius);
         }
 
-        private static void DrawDashedLine(SpriteBatch spriteBatch, Vector2 from, Vector2 to, Color color, float thickness)
+        /// <param name="phase">How far the dashes have marched along the line, in pixels.</param>
+        private static void DrawDashedLine(SpriteBatch spriteBatch, Vector2 from, Vector2 to, Color color, float thickness, float phase = 0f)
         {
             const float dash = 10f, gap = 8f;
             float length = Vector2.Distance(from, to);
             if (length < 1f) return;
             var direction = (to - from) / length;
-            for (float d = 0f; d < length; d += dash + gap)
+            for (float d = phase % (dash + gap) - (dash + gap); d < length; d += dash + gap)
             {
+                float start = Math.Max(d, 0f);
                 float end = Math.Min(d + dash, length);
-                spriteBatch.DrawLine(from + direction * d, from + direction * end, color, thickness);
+                if (end > start) spriteBatch.DrawLine(from + direction * start, from + direction * end, color, thickness);
             }
         }
 

@@ -242,6 +242,16 @@ namespace DuskAndDawn
         private float _craftFlashTimer;
         private readonly Random _fxRandom = new Random();
 
+        // ---- Ambient animation (rendering only) ----
+        // Seconds since this screen appeared: drives the room tiles popping in one by one, the
+        // detail panel fading up, and every idle loop (flickering windows, chimney smoke).
+        private float _elapsed;
+        private float _panelOpenedAt = -1f;
+        private readonly ParticleField _dust = new ParticleField(34, new RectangleF(150, 236, 980, 380),
+            new Vector2(-6, -4), new Vector2(6, 4), 0.8f, 1.8f, 6f, 12f, new Color(230, 210, 170), new Color(255, 200, 130), wobble: 4f);
+        private readonly ParticleField _smoke = new ParticleField(14, new RectangleF(330, 60, 60, 110),
+            new Vector2(-4, -22), new Vector2(8, -12), 6f, 11f, 3f, 5f, new Color(120, 110, 120), Color.Transparent, wobble: 8f, spawnAtBottom: true);
+
         private class Spark
         {
             public Vector2 Position, Velocity;
@@ -328,6 +338,9 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            _elapsed += dt;
+            _dust.Update(dt);
+            _smoke.Update(dt);
             UpdateCraftEffects(dt);
             _foodPopTimer = MathF.Max(0f, _foodPopTimer - dt);
             _planksPopTimer = MathF.Max(0f, _planksPopTimer - dt);
@@ -424,6 +437,7 @@ namespace DuskAndDawn
         private void OpenRoom(BaseRoomType room)
         {
             _openRoom = room;
+            _panelOpenedAt = _elapsed;
             _statusLog = "";
 
             // Two columns of recipe buttons under the upgrade button - every recipe for the
@@ -761,13 +775,57 @@ namespace DuskAndDawn
             spriteBatch.End();
         }
 
-        // House art is intentionally left out for now - the real sprite goes here later.
-        // Just a bleak, muted gradient stands in for it: dark enough to match the lore (this
-        // "safe" indoor scene sits under a holy light that's lethal the moment you step
-        // outside) while staying lighter than Night, so the two phases stay visually distinct.
+        // Until there's painted house art, the house is drawn from shapes: a bleak daytime
+        // sky (the holy light outside is a threat, not a comfort), the ruined town beyond,
+        // and a timber house cut away to show its two floors. Drop a real sprite in here
+        // later in place of DrawHouse.
         private void DrawBackground(SpriteBatch spriteBatch)
         {
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(52, 46, 56), new Color(28, 24, 30), 10);
+            // Pale, washed-out sky with a harsh white glare high up - the light that burns.
+            Backdrop.Sky(spriteBatch, new Color(92, 84, 96), new Color(40, 34, 40));
+            float glare = UITheme.PulseSine(_elapsed, 0.5f);
+            UITheme.DrawGlow(spriteBatch, new Vector2(1010, -40), 420f, new Color(255, 250, 230) * (0.18f + glare * 0.05f));
+
+            Backdrop.DrawSkyline(spriteBatch, 600, 150, new Color(70, 62, 72), seed: 11, drift: MathF.Sin(_elapsed * 0.05f) * 6f);
+            Backdrop.DrawSkyline(spriteBatch, 640, 90, new Color(48, 42, 50), seed: 29, drift: MathF.Sin(_elapsed * 0.05f) * 12f);
+
+            DrawHouse(spriteBatch);
+        }
+
+        private void DrawHouse(SpriteBatch spriteBatch)
+        {
+            var wall = new RectangleF(150, 232, 980, 386);
+            Color timber = new Color(58, 42, 36);
+            Color timberDark = new Color(34, 24, 22);
+
+            // Chimney (behind the roof) with smoke curling out of it.
+            spriteBatch.FillRectangle(new RectangleF(334, 140, 40, 70), timberDark);
+            spriteBatch.FillRectangle(new RectangleF(328, 134, 52, 10), new Color(46, 34, 30));
+            _smoke.Draw(spriteBatch, 0.55f);
+
+            // Roof: a dark pitched roof with a lighter ridge line and eaves overhang.
+            Backdrop.FillTriangle(spriteBatch, new Vector2(640, 118), 238, 560, new Color(44, 30, 30));
+            Backdrop.FillTriangle(spriteBatch, new Vector2(640, 132), 238, 520, new Color(60, 40, 38));
+            spriteBatch.DrawLine(new Vector2(80, 238), new Vector2(640, 118), new Color(90, 62, 50), 5f);
+            spriteBatch.DrawLine(new Vector2(640, 118), new Vector2(1200, 238), new Color(90, 62, 50), 5f);
+            // Attic window, lit when the Archive has been worked.
+            float attic = 0.35f + 0.1f * _playerState.Level(BaseRoomType.Archive) + UITheme.PulseSine(_elapsed, 1.3f) * 0.08f;
+            UITheme.DrawGlow(spriteBatch, new Vector2(640, 190), 60f, new Color(255, 190, 110) * (attic * 0.5f));
+            UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 18f, timberDark);
+            UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 13f, new Color(255, 190, 110) * attic);
+
+            // Walls: dark timber with beams, and a floor beam between the storeys.
+            UITheme.FillGradientRect(spriteBatch, wall, new Color(52, 40, 38), new Color(34, 26, 26), 8);
+            for (float x = wall.X; x <= wall.Right; x += 245f)
+            {
+                spriteBatch.FillRectangle(new RectangleF(x - 5, wall.Y, 10, wall.Height), timber);
+            }
+            spriteBatch.FillRectangle(new RectangleF(wall.X, GroundRowY - 10, wall.Width, 8), timber);
+            spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Y - 6, wall.Width + 20, 8), timber);
+            spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Bottom - 6, wall.Width + 20, 14), timberDark);
+
+            // Motes of dust drifting in whatever light gets in.
+            _dust.Draw(spriteBatch, 0.8f);
         }
 
         private void DrawRooms(SpriteBatch spriteBatch, SpriteFont font)
@@ -784,10 +842,23 @@ namespace DuskAndDawn
         private void DrawRoomPanel(SpriteBatch spriteBatch, SpriteFont font, BaseRoomType room)
         {
             var button = _roomButtons[room];
-            var bounds = button.Bounds;
             int level = _playerState.RoomLevels[room];
             bool maxed = level >= MaxRoomLevel;
             float hover = button.HoverAmount;
+
+            // Rooms pop into place one after another when the screen opens, and lift toward
+            // you on hover.
+            int index = Array.IndexOf(UpperFloorRooms, room) >= 0 ? Array.IndexOf(UpperFloorRooms, room) : 3 + Array.IndexOf(GroundFloorRooms, room);
+            float intro = Anim.Stagger(_elapsed, index, step: 0.07f, baseDelay: 0.05f, duration: 0.4f);
+            if (intro <= 0.001f) return;
+            float pop = MathHelper.Lerp(0.88f, 1f, UITheme.EaseOutBack(intro));
+            var bounds = Anim.Scale(button.Bounds, pop);
+            bounds = new RectangleF(bounds.X, bounds.Y - hover * 4f, bounds.Width, bounds.Height);
+
+            // Lamplight behind the pane: the better the room, the warmer and brighter it burns.
+            float flicker = 1f + 0.06f * MathF.Sin(_elapsed * 6.1f + index) + 0.04f * MathF.Sin(_elapsed * 11.3f + index * 2f);
+            var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
+            UITheme.DrawGlow(spriteBatch, center, bounds.Width * (0.55f + level * 0.05f), new Color(255, 170, 90) * ((0.06f + level * 0.035f) * flicker * intro));
 
             // Window-style panel: a colored "pane" behind a dark frame, so it reads as part
             // of the house instead of a floating UI square. Hover eases the tint and border
@@ -810,11 +881,27 @@ namespace DuskAndDawn
             // doesn't poke past the corners.
             var midX = bounds.X + bounds.Width / 2f;
             var midY = bounds.Y + bounds.Height / 2f;
-            spriteBatch.DrawLine(new Vector2(midX, bounds.Y + 10), new Vector2(midX, bounds.Y + bounds.Height - 10), Color.White * 0.3f, 2f);
-            spriteBatch.DrawLine(new Vector2(bounds.X + 10, midY), new Vector2(bounds.X + bounds.Width - 10, midY), Color.White * 0.3f, 2f);
+            // Kept faint so it never fights the text for attention.
+            spriteBatch.DrawLine(new Vector2(midX, bounds.Y + 10), new Vector2(midX, bounds.Y + bounds.Height - 10), Color.White * 0.08f, 2f);
+            spriteBatch.DrawLine(new Vector2(bounds.X + 10, midY), new Vector2(bounds.X + bounds.Width - 10, midY), Color.White * 0.22f, 2f);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, room.ToString(), new Vector2(bounds.X + 12, bounds.Y + 10), Color.White);
             UITheme.DrawTextWithShadow(spriteBatch, font, TileSummary(room), new Vector2(bounds.X + 12, bounds.Y + 38), new Color(235, 200, 160), 0.8f);
+
+            // Level pips in the top-right corner: one lit per level reached.
+            for (int pip = 0; pip < MaxRoomLevel; pip++)
+            {
+                var pipCenter = new Vector2(bounds.Right - 18 - (MaxRoomLevel - 1 - pip) * 14, bounds.Y + 20);
+                if (pip < level)
+                {
+                    UITheme.DrawGlow(spriteBatch, pipCenter, 10f, new Color(255, 190, 90) * 0.6f);
+                    UITheme.FillCircle(spriteBatch, pipCenter, 4.5f, new Color(255, 205, 120));
+                }
+                else
+                {
+                    UITheme.FillCircle(spriteBatch, pipCenter, 4.5f, Color.Black * 0.45f);
+                }
+            }
 
             if (maxed)
             {
@@ -840,7 +927,8 @@ namespace DuskAndDawn
             var panel = DetailPanel;
 
             // Dim the house behind so the panel reads as the focus.
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * 0.55f, Color.Black * 0.55f, 1);
+            float dim = 0.55f * Anim.Intro(_elapsed, _panelOpenedAt, 0.2f);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * dim, Color.Black * dim, 1);
             UITheme.DrawPanel(spriteBatch, panel, new Color(62, 54, 58), new Color(34, 30, 34), new Color(200, 100, 55), 3f, 18f, shadowStrength: 0.9f);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, $"{room}   Lv {level}/{MaxRoomLevel}", new Vector2(panel.X + 30, panel.Y + 24), Color.White, 1.2f);
@@ -1116,6 +1204,9 @@ namespace DuskAndDawn
             var bounds = button.Bounds;
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
+            // A slow ember breath around the button - the way out of the day is always calling.
+            float breathe = UITheme.PulseSine(_elapsed, 1.6f);
+            UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 120, 50) * (0.1f + breathe * 0.08f + hover * 0.12f));
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 12f, shadowStrength: 0.8f);
 
             var textSize = UITheme.MeasureString(font, button.Label);

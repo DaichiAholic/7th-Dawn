@@ -82,6 +82,11 @@ namespace DuskAndDawn
         private readonly List<Ember> _embers = new List<Ember>();
 
         private ExplorationState _state = ExplorationState.Map;
+
+        // Seconds since the current state (map, fight, cache, event) began - drives each
+        // panel's entrance. Reset in Draw, the first frame the new state is shown.
+        private ExplorationState _shownState = ExplorationState.Map;
+        private float _stateTime;
         private readonly TextLog _textLog = new TextLog();
         private int _roomsCleared;
         private int _combatTurn;
@@ -193,6 +198,7 @@ namespace DuskAndDawn
             _enemyShake.Update(gameTime);
             _playerShake.Update(gameTime);
             UpdateEmbers(dt);
+            _stateTime += dt;
             // ~2 real seconds to sweep a full hour, so a room's 30 minutes reads as a quick tick forward.
             _displayedElapsed = UITheme.MoveTowards(_displayedElapsed, _dawnTimer.MinutesElapsed, 180f * dt);
 

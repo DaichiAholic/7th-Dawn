@@ -16,6 +16,9 @@ namespace DuskAndDawn
         private readonly List<Button> _beltSlotButtons = new List<Button>();
         private readonly List<(Button button, string itemName)> _stashChips = new List<(Button, string)>();
         private string _beltMessage = "";
+        // When each belt slot last had something packed into it, for a little pop.
+        private readonly float[] _slotPackedAt = { -1f, -1f, -1f, -1f, -1f, -1f };
+        private float _beltMessageAt = -1f;
 
         private const float BeltTop = 388f;
         private const float SlotTop = BeltTop + 26f, SlotHeight = 52f, SlotGap = 8f;
@@ -78,6 +81,7 @@ namespace DuskAndDawn
                 _playerState.Belt.RemoveAt(i);
                 _playerState.Items.Add(item);
                 _beltMessage = $"{item.Name} back in the stash.";
+                _beltMessageAt = _elapsed;
                 LayoutStash();
                 return;
             }
@@ -90,12 +94,15 @@ namespace DuskAndDawn
                 if (_playerState.BeltFull)
                 {
                     _beltMessage = "Belt is full - unpack something first.";
+                    _beltMessageAt = _elapsed;
                     return;
                 }
                 var item = _playerState.Items.Find(it => it.Name == itemName);
                 _playerState.Items.Remove(item);
                 _playerState.Belt.Add(item);
                 _beltMessage = $"Packed a {item.Name}.";
+                _beltMessageAt = _elapsed;
+                if (_playerState.Belt.Count - 1 < _slotPackedAt.Length) _slotPackedAt[_playerState.Belt.Count - 1] = _elapsed;
                 LayoutStash();
                 return;
             }
@@ -104,8 +111,10 @@ namespace DuskAndDawn
 
         private void DrawBelt(SpriteBatch spriteBatch, SpriteFont font)
         {
+            float sectionIn = Anim.Intro(_elapsed, 0.3f, 0.4f);
+            if (sectionIn <= 0.001f) return;
             float x = LoadoutPanel.X + 20;
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Belt  {_playerState.Belt.Count}/{_playerState.BeltSlots}", new Vector2(x, BeltTop), Color.White, 0.9f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Belt  {_playerState.Belt.Count}/{_playerState.BeltSlots}", new Vector2(x, BeltTop), Color.White * sectionIn, 0.9f);
 
             // Where more slots come from.
             string slotHint = _playerState.BeltSlots < PlayerState.MaxBeltSlots
@@ -117,9 +126,15 @@ namespace DuskAndDawn
             for (int i = 0; i < _beltSlotButtons.Count; i++)
             {
                 var button = _beltSlotButtons[i];
-                var b = button.Bounds;
                 bool unlocked = i < _playerState.BeltSlots;
                 bool filled = i < _playerState.Belt.Count;
+                // Slots pop in left to right, and again when something is packed into one.
+                float intro = Anim.Stagger(_elapsed, i, step: 0.05f, baseDelay: 0.35f, duration: 0.3f);
+                if (intro <= 0.001f) continue;
+                float pop = MathHelper.Lerp(0.8f, 1f, UITheme.EaseOutBack(intro));
+                if (filled && _slotPackedAt[i] >= 0f) pop *= MathHelper.Lerp(0.85f, 1f, Anim.Pop(_elapsed, _slotPackedAt[i], 0.3f));
+                var b = Anim.Scale(button.Bounds, pop);
+                b = new RectangleF(b.X, b.Y - button.HoverAmount * 2f, b.Width, b.Height);
 
                 if (!unlocked)
                 {
@@ -132,7 +147,12 @@ namespace DuskAndDawn
                 Color top = filled ? UITheme.Brighten(new Color(60, 76, 64), hover * 0.2f) : new Color(28, 26, 36);
                 Color bottom = filled ? UITheme.Brighten(new Color(40, 52, 44), hover * 0.2f) : new Color(20, 18, 26);
                 Color border = filled ? Color.Lerp(new Color(150, 200, 160), Color.White, hover) : Color.White * 0.3f;
-                UITheme.DrawPanel(spriteBatch, b, top, bottom, border, filled ? 2f : 1.5f, 8f, shadowStrength: 0.3f);
+                float flash = filled && _slotPackedAt[i] >= 0f ? Anim.Flash(_elapsed, _slotPackedAt[i], 0.5f) : 0f;
+                if (flash > 0f)
+                {
+                    UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.9f, new Color(150, 230, 160) * (0.35f * flash));
+                }
+                UITheme.DrawPanel(spriteBatch, b, top * intro, bottom * intro, border * intro, filled ? 2f : 1.5f, 8f, shadowStrength: 0.3f * intro);
 
                 if (!filled)
                 {
@@ -157,22 +177,28 @@ namespace DuskAndDawn
             string stashTitle = _playerState.Items.Count == 0
                 ? "Stash: empty"
                 : "Stash - click to pack";
-            UITheme.DrawTextWithShadow(spriteBatch, font, stashTitle, new Vector2(x, StashTop), new Color(190, 185, 200), 0.64f);
-            foreach (var (button, _) in _stashChips)
+            UITheme.DrawTextWithShadow(spriteBatch, font, stashTitle, new Vector2(x, StashTop), new Color(190, 185, 200) * sectionIn, 0.64f);
+            for (int c = 0; c < _stashChips.Count; c++)
             {
+                var button = _stashChips[c].button;
                 bool canPack = !_playerState.BeltFull;
                 float hover = button.HoverAmount;
-                var b = button.Bounds;
-                UITheme.DrawPanel(spriteBatch, b, canPack ? UITheme.Brighten(new Color(62, 58, 76), hover * 0.25f) : new Color(40, 38, 48),
-                    canPack ? UITheme.Brighten(new Color(44, 40, 56), hover * 0.25f) : new Color(30, 28, 36),
-                    Color.Lerp(Color.White * 0.35f, Color.White, hover), 1.5f, 8f, shadowStrength: 0.2f);
-                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + 10, b.Y + 4), canPack ? Color.White : new Color(150, 145, 155), 0.68f);
+                float chipIn = Anim.Stagger(_elapsed, c, step: 0.04f, baseDelay: 0.45f, duration: 0.3f);
+                if (chipIn <= 0.001f) continue;
+                var b = Anim.Slide(button.Bounds, chipIn, new Vector2(0, 10));
+                b = new RectangleF(b.X, b.Y - hover * 2f, b.Width, b.Height);
+                UITheme.DrawPanel(spriteBatch, b, (canPack ? UITheme.Brighten(new Color(62, 58, 76), hover * 0.25f) : new Color(40, 38, 48)) * chipIn,
+                    (canPack ? UITheme.Brighten(new Color(44, 40, 56), hover * 0.25f) : new Color(30, 28, 36)) * chipIn,
+                    Color.Lerp(Color.White * 0.35f, Color.White, hover) * chipIn, 1.5f, 8f, shadowStrength: 0.2f * chipIn);
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + 10, b.Y + 4), (canPack ? Color.White : new Color(150, 145, 155)) * chipIn, 0.68f);
             }
 
             if (!string.IsNullOrEmpty(_beltMessage))
             {
+                // Each new message slides in and settles.
+                float t = Anim.Intro(_elapsed, _beltMessageAt, 0.25f);
                 var size = UITheme.MeasureString(font, _beltMessage) * 0.62f;
-                UITheme.DrawTextWithShadow(spriteBatch, font, _beltMessage, new Vector2(LoadoutPanel.Right - 20 - size.X, StashTop), new Color(255, 205, 150), 0.62f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _beltMessage, new Vector2(LoadoutPanel.Right - 20 - size.X + (1f - t) * 12f, StashTop), new Color(255, 205, 150) * t, 0.62f);
             }
         }
 

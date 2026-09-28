@@ -251,11 +251,15 @@ namespace DuskAndDawn
         public static void FillGradientRect(SpriteBatch spriteBatch, RectangleF bounds, Color topColor, Color bottomColor, int steps = 14)
         {
             if (bounds.Height <= 0f || bounds.Width <= 0f) return;
+            // Opaque strips overlap by a pixel to hide any seam; see-through ones (fading
+            // panels) must not, or every overlap shows up as a darker line.
+            float overlap = topColor.A == 255 && bottomColor.A == 255 ? 1f : 0f;
             for (int i = 0; i < steps; i++)
             {
                 float t0 = i / (float)steps;
                 float t1 = (i + 1) / (float)steps;
-                var strip = new RectangleF(bounds.X, bounds.Y + bounds.Height * t0, bounds.Width, bounds.Height * (t1 - t0) + 1f);
+                float y0 = bounds.Y + bounds.Height * t0, y1 = bounds.Y + bounds.Height * t1;
+                var strip = new RectangleF(bounds.X, y0, bounds.Width, y1 - y0 + overlap);
                 spriteBatch.FillRectangle(strip, Color.Lerp(topColor, bottomColor, (t0 + t1) / 2f));
             }
         }

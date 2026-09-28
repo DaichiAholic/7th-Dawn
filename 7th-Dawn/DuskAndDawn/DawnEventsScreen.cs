@@ -37,6 +37,15 @@ namespace DuskAndDawn
         private float _deltaTimer;
         private const float DeltaDuration = 3f;
 
+        // Entrance timing, and counters that tick from the old values to the new ones so
+        // the morning's changes are visible happening rather than already done.
+        private float _elapsed;
+        private float _resolvedAt = -1f;
+        private readonly CountUp _foodShown, _planksShown, _scrapsShown, _hopeShown;
+        private readonly ParticleField _dust = new ParticleField(30, new RectangleF(0, 0, 1280, 720), new Vector2(-4, -8), new Vector2(6, 4),
+            1f, 2.4f, 5f, 10f, new Color(255, 240, 210), Color.Transparent, wobble: 5f);
+        private const float ReportAt = 0.35f, CardAt = 0.75f, OptionsAt = 1.0f;
+
         // ---- Layout ----
         private const float ContentX = 200f;
         private const float ContentWidth = 880f;
@@ -87,6 +96,10 @@ namespace DuskAndDawn
 
             _shownDelta = new ResourceDelta(food: _playerState.Food - foodBefore, hope: _playerState.Hope - hopeBefore);
             _deltaTimer = DeltaDuration;
+            _foodShown = new CountUp(foodBefore, 12f);
+            _hopeShown = new CountUp(hopeBefore, 12f);
+            _planksShown = new CountUp(_playerState.Planks, 12f);
+            _scrapsShown = new CountUp(_playerState.Scraps, 12f);
 
             _event = MorningEventPool.GetRandom(_random, _playerState);
             _playerState.LastMorningEventTitle = _event.Title;
@@ -115,7 +128,7 @@ namespace DuskAndDawn
                 _optionButtons.Add(new Button(bounds, _options[i].Label) { Enabled = _options[i].CanAfford(_playerState) });
             }
 
-            _continueButton = new Button(new RectangleF(490, 500, 300, 64), "Continue");
+            _continueButton = new Button(new RectangleF(490, 500, 300, 60), "Continue");
         }
 
         public override void Update(GameTime gameTime)
@@ -127,16 +140,28 @@ namespace DuskAndDawn
             }
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _deltaTimer = Math.Max(0f, _deltaTimer - dt);
+            _elapsed += dt;
+            _dust.Update(dt);
+            // The counters wait for the slots to land, then tick.
+            if (_elapsed > 0.5f) _deltaTimer = Math.Max(0f, _deltaTimer - dt);
+            if (_elapsed > 0.6f)
+            {
+                _foodShown.Update(dt, _playerState.Food);
+                _planksShown.Update(dt, _playerState.Planks);
+                _scrapsShown.Update(dt, _playerState.Scraps);
+                _hopeShown.Update(dt, _playerState.Hope);
+            }
             var mouse = InputChecker.GetMouse();
 
+            // Options can't be picked until they've arrived on screen.
+            bool optionsReady = _elapsed > OptionsAt + 0.2f;
             foreach (var button in _optionButtons)
             {
-                button.UpdateAnimation(dt, !_resolved && button.Contains(mouse.X, mouse.Y));
+                button.UpdateAnimation(dt, optionsReady && !_resolved && button.Contains(mouse.X, mouse.Y));
             }
             _continueButton.UpdateAnimation(dt, _resolved && _continueButton.Contains(mouse.X, mouse.Y));
 
-            if (InputChecker.IsNewLeftClick(mouse, _previousMouse))
+            if (InputChecker.IsNewLeftClick(mouse, _previousMouse) && optionsReady && !ScreenTransitions.IsTransitioning)
             {
                 if (!_resolved)
                 {
@@ -177,6 +202,7 @@ namespace DuskAndDawn
             _shownDelta = applied;
             _deltaTimer = DeltaDuration;
             _resolved = true;
+            _resolvedAt = _elapsed;
 
             // Keep Continue clear of a long result.
             float resultBottom = ResultPanel(Game1.Font).Bottom;
@@ -201,7 +227,14 @@ namespace DuskAndDawn
             var font = Game1.Font;
             UITheme.BeginCanvas(spriteBatch);
 
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(245, 218, 178), new Color(215, 180, 140), 10);
+            // Morning light: a warm sky, the sun low on the right, the town faint in the haze.
+            Backdrop.Sky(spriteBatch, new Color(250, 226, 188), new Color(214, 176, 136));
+            UITheme.DrawGlow(spriteBatch, new Vector2(1180, 120), 420f, new Color(255, 245, 215) * (0.45f + UITheme.PulseSine(_elapsed, 0.5f) * 0.08f));
+            Backdrop.DrawRays(spriteBatch, new Vector2(1180, 60), 700f, new Color(255, 248, 225) * 0.5f, _elapsed, 7);
+            float drift = MathF.Sin(_elapsed * 0.05f);
+            Backdrop.DrawSkyline(spriteBatch, 660, 150, new Color(206, 168, 130), seed: 11, drift: drift * 6f);
+            Backdrop.DrawSkyline(spriteBatch, 700, 90, new Color(190, 150, 114), seed: 29, drift: drift * 12f);
+            _dust.Draw(spriteBatch, 0.7f);
 
             DrawResourceBar(spriteBatch, font);
             float y = DrawMorningReport(spriteBatch, font, 128f);
@@ -211,7 +244,7 @@ namespace DuskAndDawn
             {
                 for (int i = 0; i < _optionButtons.Count; i++)
                 {
-                    DrawOption(spriteBatch, font, _optionButtons[i], _options[i]);
+                    DrawOption(spriteBatch, font, _optionButtons[i], _options[i], Anim.Stagger(_elapsed, i, step: 0.09f, baseDelay: OptionsAt, duration: 0.4f));
                 }
             }
             else
@@ -230,22 +263,29 @@ namespace DuskAndDawn
             float x = (1280f - totalWidth) / 2f;
             int cap = _playerState.StorageCap;
 
-            DrawResourceSlot(spriteBatch, font, x, "Food", _playerState.Food, Game1.BreadTexture, _shownDelta.Food, _playerState.Food >= cap);
-            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap), "Planks", _playerState.Planks, Game1.PlanksTexture, _shownDelta.Planks, _playerState.Planks >= cap);
-            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap) * 2, "Scraps", _playerState.Scraps, Game1.ScrapsTexture, _shownDelta.Scraps, _playerState.Scraps >= cap);
-            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap) * 3, "Hope", _playerState.Hope, null, _shownDelta.Hope, false);
+            DrawResourceSlot(spriteBatch, font, x, 0, "Food", _foodShown.Value, Game1.BreadTexture, _shownDelta.Food, _playerState.Food >= cap);
+            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap), 1, "Planks", _planksShown.Value, Game1.PlanksTexture, _shownDelta.Planks, _playerState.Planks >= cap);
+            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap) * 2, 2, "Scraps", _scrapsShown.Value, Game1.ScrapsTexture, _shownDelta.Scraps, _playerState.Scraps >= cap);
+            DrawResourceSlot(spriteBatch, font, x + (SlotWidth + SlotGap) * 3, 3, "Hope", _hopeShown.Value, null, _shownDelta.Hope, false);
 
             string caption = $"Storage holds {cap} of each   -   Upkeep {_playerState.DailyUpkeep} Food every morning";
             var captionSize = UITheme.MeasureString(font, caption) * 0.7f;
-            LightText(spriteBatch, font, caption, new Vector2(640f - captionSize.X / 2f, SlotY + SlotHeight + 8), Ink, 0.7f);
+            LightText(spriteBatch, font, caption, new Vector2(640f - captionSize.X / 2f, SlotY + SlotHeight + 8), Ink * Anim.Intro(_elapsed, 0.4f), 0.7f);
         }
 
-        private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float x, string label, int value, Texture2D icon, int delta, bool atCap)
+        private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float x, int index, string label, int value, Texture2D icon, int delta, bool atCap)
         {
-            var slot = new RectangleF(x, SlotY, SlotWidth, SlotHeight);
-            UITheme.DrawPanel(spriteBatch, slot, new Color(98, 68, 44), new Color(66, 44, 28), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.5f);
+            // Slots drop in from above, one after another.
+            float t = Anim.Stagger(_elapsed, index, step: 0.07f, baseDelay: 0.05f, duration: 0.4f);
+            if (t <= 0.001f) return;
+            float slotY = SlotY - (1f - t) * 30f;
+            var slot = new RectangleF(x, slotY, SlotWidth, SlotHeight);
+            // A warm flash while the number is still changing.
+            float flash = _deltaTimer > 0f && delta != 0 ? _deltaTimer / DeltaDuration : 0f;
+            Color border = Color.Lerp(new Color(150, 110, 70), delta > 0 ? new Color(140, 235, 150) : new Color(255, 130, 110), flash * 0.8f);
+            UITheme.DrawPanel(spriteBatch, slot, new Color(98, 68, 44) * t, new Color(66, 44, 28) * t, border * t, 2f, 12f, shadowStrength: 0.5f * t);
 
-            var iconCenter = new Vector2(x + 38, SlotY + SlotHeight / 2f);
+            var iconCenter = new Vector2(x + 38, slotY + SlotHeight / 2f);
             if (icon != null)
             {
                 float scale = 50f / Math.Max(icon.Width, icon.Height);
@@ -263,18 +303,18 @@ namespace DuskAndDawn
             Color valueColor = atCap ? new Color(255, 200, 100)
                 : (label == "Hope" && value < 30) ? new Color(255, 140, 130)
                 : Color.White;
-            UITheme.DrawTextWithShadow(spriteBatch, font, value.ToString(), new Vector2(x + 72, SlotY + 10), valueColor, 1.3f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, label, new Vector2(x + 72, SlotY + 48), new Color(235, 215, 190), 0.7f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, value.ToString(), new Vector2(x + 72, slotY + 10), valueColor, 1.3f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, label, new Vector2(x + 72, slotY + 48), new Color(235, 215, 190), 0.7f);
 
             if (_deltaTimer > 0f && delta != 0)
             {
-                float t = _deltaTimer / DeltaDuration;
-                float alpha = MathHelper.Clamp(t * 2f, 0f, 1f);
-                float rise = (1f - t) * 10f;
+                float life = _deltaTimer / DeltaDuration;
+                float alpha = MathHelper.Clamp(life * 2f, 0f, 1f) * t;
+                float rise = (1f - life) * 10f;
                 string text = delta > 0 ? $"+{delta}" : delta.ToString();
                 Color color = delta > 0 ? new Color(140, 235, 150) : new Color(255, 140, 120);
                 var size = UITheme.MeasureString(font, text) * 0.85f;
-                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(x + SlotWidth - size.X - 10, SlotY + 12 - rise), color * alpha, 0.85f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(x + SlotWidth - size.X - 10, slotY + 12 - rise), color * alpha, 0.85f);
             }
         }
 
@@ -285,12 +325,22 @@ namespace DuskAndDawn
             // Tight enough for four lines (dread, cooking, eating, spoilage) above the event card.
             const float lineHeight = 22f, padding = 10f;
             var panel = new RectangleF(ContentX, top, ContentWidth, padding * 2 + _morningReport.Count * lineHeight);
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 244, 222), new Color(236, 214, 180), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.4f);
+            float panelIn = Anim.Intro(_elapsed, ReportAt - 0.15f, 0.35f);
+            if (panelIn <= 0.001f) return panel.Y + panel.Height;
+            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 244, 222) * panelIn, new Color(236, 214, 180) * panelIn, new Color(150, 110, 70) * panelIn, 2f, 12f, shadowStrength: 0.4f * panelIn);
 
+            // The report reads out line by line, each sliding in from the left.
             for (int i = 0; i < _morningReport.Count; i++)
             {
                 var (text, bad) = _morningReport[i];
-                LightText(spriteBatch, font, text, new Vector2(panel.X + 20, panel.Y + padding + i * lineHeight), bad ? LossColor : Ink, 0.85f);
+                float t = Anim.Stagger(_elapsed, i, step: 0.12f, baseDelay: ReportAt, duration: 0.35f);
+                if (t <= 0.001f) continue;
+                if (bad)
+                {
+                    // A red tick beside bad news.
+                    UITheme.FillRoundedRect(spriteBatch, new RectangleF(panel.X + 8, panel.Y + padding + i * lineHeight + 3, 4, 14), LossColor * (0.8f * t), 2f);
+                }
+                LightText(spriteBatch, font, text, new Vector2(panel.X + 20 - (1f - t) * 14f, panel.Y + padding + i * lineHeight), (bad ? LossColor : Ink) * t, 0.85f);
             }
 
             return panel.Y + panel.Height;
@@ -303,18 +353,23 @@ namespace DuskAndDawn
             const float descScale = 0.85f;
             var lines = TextLog.WrapText(font, _event.Description, (ContentWidth - 60) / descScale);
             float bottom = OptionsY - 12f;
-            var panel = new RectangleF(ContentX, top, ContentWidth, bottom - top);
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238), new Color(232, 216, 188), new Color(150, 110, 70), 3f, 16f, shadowStrength: 0.6f);
+            float t = Anim.Intro(_elapsed, CardAt, 0.45f);
+            if (t <= 0.001f) return;
+            var panel = Anim.Slide(new RectangleF(ContentX, top, ContentWidth, bottom - top), t, new Vector2(0, 20));
+            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238) * t, new Color(232, 216, 188) * t, new Color(150, 110, 70) * t, 3f, 16f, shadowStrength: 0.6f * t);
+            // An ember accent down the card's left edge.
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(panel.X + 12, panel.Y + 18, 5, panel.Height - 36), new Color(220, 120, 60) * (0.85f * t), 2.5f);
 
-            LightText(spriteBatch, font, _event.Title, new Vector2(panel.X + 30, panel.Y + 16), Color.Black, 1.15f);
+            LightText(spriteBatch, font, _event.Title, new Vector2(panel.X + 30, panel.Y + 16), Color.Black * t, 1.15f);
             for (int i = 0; i < lines.Count; i++)
             {
-                LightText(spriteBatch, font, lines[i], new Vector2(panel.X + 30, panel.Y + 54 + i * 24), Ink, descScale);
+                LightText(spriteBatch, font, lines[i], new Vector2(panel.X + 30, panel.Y + 54 + i * 24), Ink * t, descScale);
             }
         }
 
-        private void DrawOption(SpriteBatch spriteBatch, SpriteFont font, Button button, EventOption option)
+        private void DrawOption(SpriteBatch spriteBatch, SpriteFont font, Button button, EventOption option, float intro)
         {
+            if (intro <= 0.001f) return;
             bool enabled = button.Enabled;
             float hover = button.HoverAmount;
 
@@ -323,19 +378,29 @@ namespace DuskAndDawn
             Color border = enabled ? Color.Lerp(new Color(150, 110, 70), new Color(220, 110, 50), hover) : new Color(170, 150, 130);
             float thickness = enabled ? MathHelper.Lerp(2f, 3f, hover) : 2f;
 
+            // Options slide in from the right; a hovered one lifts and shifts right a touch
+            // with an ember bar on its edge, so the choice under the cursor is unmistakable.
             float squash = button.PressAmount * 3f;
-            var bounds = button.Bounds;
-            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, thickness, 12f, shadowStrength: enabled ? 0.5f : 0.2f);
+            var bounds = Anim.Slide(button.Bounds, intro, new Vector2(40, 0));
+            var drawBounds = new RectangleF(bounds.X + squash + hover * 6f, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
+            if (hover > 0.01f)
+            {
+                UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.4f, new Color(255, 170, 90) * (0.2f * hover));
+            }
+            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, thickness, 12f, shadowStrength: (enabled ? 0.5f : 0.2f) * intro);
+            if (hover > 0.01f)
+            {
+                UITheme.FillRoundedRect(spriteBatch, new RectangleF(drawBounds.X + 6, drawBounds.Y + 12, 5, drawBounds.Height - 24), new Color(220, 110, 50) * hover, 2.5f);
+            }
 
             Color labelColor = enabled ? Color.Black : new Color(120, 105, 90);
-            LightText(spriteBatch, font, option.Label, new Vector2(drawBounds.X + 20, drawBounds.Y + 12), labelColor);
+            float x = drawBounds.X + 20 + hover * 4f;
+            LightText(spriteBatch, font, option.Label, new Vector2(x, drawBounds.Y + 12), labelColor * intro);
 
             // Second line: what you pay, then what happens.
-            float x = drawBounds.X + 20;
             float lineY = drawBounds.Y + 44;
             const float scale = 0.8f;
-            float dim = enabled ? 1f : 0.55f;
+            float dim = (enabled ? 1f : 0.55f) * intro;
 
             if (!option.Cost.IsEmpty)
             {
@@ -360,7 +425,7 @@ namespace DuskAndDawn
             {
                 string reason = option.Cost.Hope > 0 && _playerState.Hope <= option.Cost.Hope ? "Not enough Hope" : "Can't afford";
                 var size = UITheme.MeasureString(font, reason) * 0.8f;
-                LightText(spriteBatch, font, reason, new Vector2(drawBounds.X + drawBounds.Width - size.X - 20, drawBounds.Y + 14), LossColor, 0.8f);
+                LightText(spriteBatch, font, reason, new Vector2(drawBounds.X + drawBounds.Width - size.X - 20, drawBounds.Y + 14), LossColor * intro, 0.8f);
             }
         }
 
@@ -369,38 +434,24 @@ namespace DuskAndDawn
         private void DrawResult(SpriteBatch spriteBatch, SpriteFont font)
         {
             var lines = ResultLines(font);
-            var panel = ResultPanel(font);
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238), new Color(232, 216, 188), new Color(150, 110, 70), 2f, 12f, shadowStrength: 0.5f);
+            // The outcome pops in where the options were.
+            float t = Anim.Intro(_elapsed, _resolvedAt, 0.35f);
+            var panel = Anim.Scale(ResultPanel(font), MathHelper.Lerp(0.94f, 1f, UITheme.EaseOutBack(t)));
+            bool good = _resultDelta.Parts().All(p => p.gain);
+            Color accent = _resultDelta.IsEmpty ? new Color(150, 110, 70) : good ? GainColor : LossColor;
+            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238) * t, new Color(232, 216, 188) * t, Color.Lerp(new Color(150, 110, 70), accent, 0.5f) * t, 2.5f, 12f, shadowStrength: 0.5f * t);
 
             for (int i = 0; i < lines.Count; i++)
             {
-                LightText(spriteBatch, font, lines[i], new Vector2(panel.X + 20, panel.Y + 14 + i * 26), Color.Black);
+                LightText(spriteBatch, font, lines[i], new Vector2(panel.X + 20, panel.Y + 14 + i * 26), Color.Black * t);
             }
 
             float y = panel.Y + 18 + lines.Count * 26;
-            float x = DrawRun(spriteBatch, font, "Result:", panel.X + 20, y, Ink, 0.85f);
-            DrawDelta(spriteBatch, font, _resultDelta, x, y, 0.85f, 1f);
+            float resultIn = Anim.Intro(_elapsed, _resolvedAt + 0.2f, 0.35f);
+            float x = DrawRun(spriteBatch, font, "Result:", panel.X + 20, y, Ink * resultIn, 0.85f);
+            DrawDelta(spriteBatch, font, _resultDelta, x, y, 0.85f, resultIn);
 
-            DrawContinueButton(spriteBatch, font);
-        }
-
-        private void DrawContinueButton(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            var button = _continueButton;
-            float hover = button.HoverAmount;
-            Color top = UITheme.Brighten(new Color(95, 95, 150), hover * 0.2f);
-            Color bottom = UITheme.Brighten(new Color(70, 70, 115), hover * 0.2f);
-            Color border = Color.Lerp(Color.White * 0.8f, Color.White, hover);
-            float borderThickness = MathHelper.Lerp(2f, 3f, hover);
-
-            float squash = button.PressAmount * 4f;
-            var bounds = button.Bounds;
-            var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
-
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 14f, shadowStrength: 0.6f);
-            var textSize = UITheme.MeasureString(font, button.Label);
-            var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
+            EmberButton.Draw(spriteBatch, font, _continueButton, Anim.Intro(_elapsed, _resolvedAt + 0.35f, 0.4f), primary: true);
         }
 
         // ---- Text helpers ----

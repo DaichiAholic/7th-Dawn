@@ -173,7 +173,8 @@ namespace DuskAndDawn
         /// Up to three side by side, centred in the space right of the action buttons.</summary>
         private static RectangleF EnemyPanelBounds(int index, int count)
         {
-            const float areaX = 300f, areaWidth = 940f, gap = 18f, top = 196f, height = 346f;
+            // Starts below the status card, which reaches y 210 on the left.
+            const float areaX = 300f, areaWidth = 940f, gap = 18f, top = 222f, height = 326f;
             float width = count <= 1 ? 320f : Math.Min(290f, (areaWidth - gap * (count - 1)) / count);
             float total = width * count + gap * (count - 1);
             float x = areaX + (areaWidth - total) / 2f + index * (width + gap);
