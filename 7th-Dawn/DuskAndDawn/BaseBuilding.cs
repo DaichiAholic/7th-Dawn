@@ -647,7 +647,7 @@ namespace DuskAndDawn
 
         private static string RoomRole(BaseRoomType room) => room switch
         {
-            BaseRoomType.Storage => "Caps what you keep, and how much you haul home.",
+            BaseRoomType.Storage => "Caps what you keep, your belt, and how much you haul.",
             BaseRoomType.Workshop => "Crafts, reinforces and sharpens weapons.",
             BaseRoomType.Infirmary => "Brews remedies and toughens you for the night.",
             BaseRoomType.Kitchen => "Feeds the house every morning, and holds feasts.",
@@ -658,11 +658,11 @@ namespace DuskAndDawn
 
         private static string LevelDescription(BaseRoomType room, int level) => (room, level) switch
         {
-            (BaseRoomType.Storage, 1) => "Holds 30 of each resource",
-            (BaseRoomType.Storage, 2) => "Holds 50 of each",
-            (BaseRoomType.Storage, 3) => "Holds 70; packframes - Grab takes the whole cache",
-            (BaseRoomType.Storage, 4) => "Holds 90; root cellar - Food never spoils",
-            (BaseRoomType.Storage, _) => "Holds 120; supply runs - caches hold 25% more",
+            (BaseRoomType.Storage, 1) => "Holds 30 of each; belt 2 slots",
+            (BaseRoomType.Storage, 2) => "Holds 50; belt 3 slots",
+            (BaseRoomType.Storage, 3) => "Holds 70; belt 4; packframes - Grab takes it all",
+            (BaseRoomType.Storage, 4) => "Holds 90; belt 5; root cellar - Food never spoils",
+            (BaseRoomType.Storage, _) => "Holds 120; belt 6; caches hold 25% more",
 
             (BaseRoomType.Workshop, 1) => "Clubs; reinforce weapons to +1",
             (BaseRoomType.Workshop, 2) => "Iron weapons; reinforce to +2",
@@ -700,7 +700,7 @@ namespace DuskAndDawn
         // Short line shown on each room tile so the house reads at a glance.
         private string TileSummary(BaseRoomType room) => room switch
         {
-            BaseRoomType.Storage => $"Holds {_playerState.StorageCap} each",
+            BaseRoomType.Storage => $"Holds {_playerState.StorageCap}, belt {_playerState.BeltSlots}",
             BaseRoomType.Workshop => _playerState.WorkshopEdge > 0 ? $"Reinforce to +{_playerState.MaxReinforcement}, whetstone" : $"Reinforce to +{_playerState.MaxReinforcement}",
             BaseRoomType.Infirmary => $"{_playerState.NightMaxHealth} health at night",
             BaseRoomType.Kitchen => $"+{_playerState.KitchenDailyFood} Food per morning",
@@ -725,9 +725,10 @@ namespace DuskAndDawn
             BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked.",
             BaseRoomType.Kitchen when newLevel == 4 => "The smokehouse cuts upkeep by 2 Food.",
             BaseRoomType.Kitchen when newLevel == 5 => "Feasts now give +22 Hope.",
-            BaseRoomType.Storage when newLevel == 3 => "Packframes: grabbing a cache takes all of it.",
-            BaseRoomType.Storage when newLevel == 4 => "Root cellar: Food never spoils.",
-            BaseRoomType.Storage when newLevel == 5 => "Supply caches now hold 25% more.",
+            BaseRoomType.Storage when newLevel == 2 => "One more belt slot.",
+            BaseRoomType.Storage when newLevel == 3 => "One more belt slot, and packframes: grabbing a cache takes it all.",
+            BaseRoomType.Storage when newLevel == 4 => "One more belt slot, and a root cellar: Food never spoils.",
+            BaseRoomType.Storage when newLevel == 5 => "One more belt slot, and caches hold 25% more.",
             BaseRoomType.Barrack when newLevel == 4 => "Riposte: a blocked HEAVY or STUN strikes back.",
             _ => ""
         };
@@ -980,7 +981,7 @@ namespace DuskAndDawn
             int owned = OwnedCount(recipe);
             if (owned > 0)
             {
-                string ownedText = $"(have {owned})";
+                string ownedText = $"({owned})";
                 float nameWidth = UITheme.MeasureString(font, recipe.Name).X * 0.95f;
                 Color ownedColor = recipe.SampleWeapon != null ? new Color(255, 190, 90) : new Color(170, 220, 175);
                 UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(textX + nameWidth + 8, drawBounds.Y + 7), ownedColor, 0.72f);

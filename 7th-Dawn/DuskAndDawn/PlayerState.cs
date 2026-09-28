@@ -42,24 +42,14 @@ namespace DuskAndDawn
         // ---- Items: the stash at home, and the belt you carry ----
         // Crafted remedies go into the stash. Only what's on the belt comes into the night,
         // and the belt holds BeltSlots items - so every night starts with a packing decision.
-        // Belt slots are bought on the Prepare screen.
+        // Belt slots grow with the Storage room: better racks and pouches, one more slot a level.
         public List<Item> Items { get; } = new List<Item>();
         public List<Item> Belt { get; } = new List<Item>();
 
-        public const int StartingBeltSlots = 2;
         public const int MaxBeltSlots = 6;
-        public int BeltSlots = StartingBeltSlots;
+        public int BeltSlots => Math.Min(MaxBeltSlots, 1 + Level(BaseRoomType.Storage)); // 2 at Lv 1 ... 6 at Lv 5
 
         public bool BeltFull => Belt.Count >= BeltSlots;
-
-        /// <summary>Price of the next belt slot (slot 3, 4, 5 or 6).</summary>
-        public static (int food, int planks, int scraps) BeltSlotCost(int slotNumber) => slotNumber switch
-        {
-            3 => (0, 4, 4),
-            4 => (0, 7, 8),
-            5 => (2, 10, 12),
-            _ => (3, 14, 16)
-        };
 
         /// <summary>A remedy picked up at night goes on the belt if there's room, otherwise
         /// into your bag to be stashed at home. Returns where it went, for the log.</summary>

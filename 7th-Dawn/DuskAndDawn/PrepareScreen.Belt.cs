@@ -9,13 +9,12 @@ namespace DuskAndDawn
 {
     // Prepare screen: the belt. Only what's on the belt comes into the night, and it only
     // holds so much - so each night starts with a choice of what to carry. Remedies wait in
-    // the stash at home; click one to pack it, click a belt slot to unpack. More slots can
-    // be bought here.
+    // the stash at home; click one to pack it, click a belt slot to unpack. Upgrading the
+    // Storage room adds a slot per level.
     public partial class PreparationScreen
     {
         private readonly List<Button> _beltSlotButtons = new List<Button>();
         private readonly List<(Button button, string itemName)> _stashChips = new List<(Button, string)>();
-        private Button _buySlotButton;
         private string _beltMessage = "";
 
         private const float BeltTop = 388f;
@@ -30,7 +29,6 @@ namespace DuskAndDawn
             {
                 _beltSlotButtons.Add(new Button(new RectangleF(LoadoutPanel.X + 20 + i * (slotWidth + SlotGap), SlotTop, slotWidth, SlotHeight), ""));
             }
-            _buySlotButton = new Button(new RectangleF(LoadoutPanel.Right - 220, BeltTop - 4, 200, 26), "");
             LayoutStash();
         }
 
@@ -67,8 +65,6 @@ namespace DuskAndDawn
             {
                 button.UpdateAnimation(dt, !_playerState.BeltFull && button.Contains(mouse.X, mouse.Y));
             }
-            bool canBuy = _playerState.BeltSlots < PlayerState.MaxBeltSlots;
-            _buySlotButton.UpdateAnimation(dt, canBuy && _buySlotButton.Contains(mouse.X, mouse.Y));
         }
 
         private void HandleBeltClick(int x, int y)
@@ -93,7 +89,7 @@ namespace DuskAndDawn
                 button.TriggerPress();
                 if (_playerState.BeltFull)
                 {
-                    _beltMessage = "Belt is full - unpack something or buy a slot.";
+                    _beltMessage = "Belt is full - unpack something first.";
                     return;
                 }
                 var item = _playerState.Items.Find(it => it.Name == itemName);
@@ -104,20 +100,6 @@ namespace DuskAndDawn
                 return;
             }
 
-            if (_buySlotButton.Contains(x, y) && _playerState.BeltSlots < PlayerState.MaxBeltSlots)
-            {
-                _buySlotButton.TriggerPress();
-                var (food, planks, scraps) = PlayerState.BeltSlotCost(_playerState.BeltSlots + 1);
-                if (_playerState.TrySpend(food, planks, scraps))
-                {
-                    _playerState.BeltSlots++;
-                    _beltMessage = $"Your belt now holds {_playerState.BeltSlots}.";
-                }
-                else
-                {
-                    _beltMessage = $"Need {BaseBuilding.FormatCost(food, planks, scraps)} for another slot.";
-                }
-            }
         }
 
         private void DrawBelt(SpriteBatch spriteBatch, SpriteFont font)
@@ -125,14 +107,12 @@ namespace DuskAndDawn
             float x = LoadoutPanel.X + 20;
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Belt  {_playerState.Belt.Count}/{_playerState.BeltSlots}", new Vector2(x, BeltTop), Color.White, 0.9f);
 
-            // Buy a slot.
-            if (_playerState.BeltSlots < PlayerState.MaxBeltSlots)
-            {
-                var (food, planks, scraps) = PlayerState.BeltSlotCost(_playerState.BeltSlots + 1);
-                bool afford = _playerState.CanAfford(food, planks, scraps);
-                _buySlotButton.Label = $"+1 slot: {BaseBuilding.FormatCost(food, planks, scraps)}";
-                DrawSmallButton(spriteBatch, font, _buySlotButton, afford ? new Color(120, 220, 130) : new Color(230, 110, 100));
-            }
+            // Where more slots come from.
+            string slotHint = _playerState.BeltSlots < PlayerState.MaxBeltSlots
+                ? $"Storage Lv {_playerState.Level(BaseRoomType.Storage) + 1} adds a slot"
+                : "Belt fully expanded";
+            var hintSize = UITheme.MeasureString(font, slotHint) * 0.62f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, slotHint, new Vector2(LoadoutPanel.Right - 20 - hintSize.X, BeltTop + 4), new Color(190, 185, 200), 0.62f);
 
             for (int i = 0; i < _beltSlotButtons.Count; i++)
             {

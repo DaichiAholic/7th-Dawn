@@ -102,7 +102,6 @@ namespace DuskAndDawn
             public int EquippedIndex { get; set; }
             public List<string> Items { get; set; } = new List<string>();
             public List<string> Belt { get; set; } = new List<string>();
-            public int BeltSlots { get; set; } = PlayerState.StartingBeltSlots;
 
             public static SaveData From(PlayerState state) => new SaveData
             {
@@ -121,8 +120,7 @@ namespace DuskAndDawn
                 Weapons = state.Inventory.Select(w => new SavedWeapon { Name = w.Name, Reinforcement = w.Reinforcement }).ToList(),
                 EquippedIndex = state.Inventory.IndexOf(state.EquippedWeapon),
                 Items = state.Items.Select(i => i.Name).ToList(),
-                Belt = state.Belt.Select(i => i.Name).ToList(),
-                BeltSlots = state.BeltSlots
+                Belt = state.Belt.Select(i => i.Name).ToList()
             };
 
             public PlayerState ToPlayerState()
@@ -167,8 +165,8 @@ namespace DuskAndDawn
                 state.Items.Clear();
                 state.Items.AddRange(Items.Select(Item.Create).Where(item => item != null));
 
-                // Saves from before the belt have none - everything starts in the stash.
-                state.BeltSlots = Math.Clamp(BeltSlots, PlayerState.StartingBeltSlots, PlayerState.MaxBeltSlots);
+                // Saves from before the belt have none - everything starts in the stash. Slot
+                // count comes from the Storage level restored above.
                 state.Belt.Clear();
                 foreach (var item in (Belt ?? new List<string>()).Select(Item.Create).Where(item => item != null))
                 {
