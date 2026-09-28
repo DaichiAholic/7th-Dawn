@@ -129,14 +129,22 @@ namespace DuskAndDawn
             UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(_playerState.EquippedWeapon), new Vector2(40 + weaponLineWidth + 8, 94), 1);
             DrawPlayerHealthBar(spriteBatch, font);
 
-            // District + corruption, with a pip per corruption tier that glows like embers.
+            // District + corruption, with a pip per corruption tier that glows like embers. The
+            // district's landmark icon leads the line when it has one.
             var infoX = InfoCard.X + 18;
-            UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(infoX, InfoCard.Y + 12), new Color(255, 180, 120));
+            float nameX = infoX;
+            var landmark = Game1.GetDistrictIcon(_district);
+            if (landmark != null)
+            {
+                UITheme.DrawPixelIconFit(spriteBatch, landmark, new Vector2(infoX + 12, InfoCard.Y + 25), 24f);
+                nameX += 32;
+            }
+            UITheme.DrawTextWithShadow(spriteBatch, font, DistrictInfo.Name(_district), new Vector2(nameX, InfoCard.Y + 12), new Color(255, 180, 120));
             string night = $"Night {_playerState.Day}/{DayInfo.FinalDay}";
             var nightSize = UITheme.MeasureString(font, night) * 0.8f;
             UITheme.DrawTextWithShadow(spriteBatch, font, night, new Vector2(InfoCard.Right - nightSize.X - 16, InfoCard.Y + 14),
                 DayInfo.IsFinalNight(_playerState.Day) ? new Color(255, 200, 110) : new Color(200, 195, 220), 0.8f);
-            float pipX = infoX + UITheme.MeasureString(font, DistrictInfo.Name(_district)).X + 20;
+            float pipX = nameX + UITheme.MeasureString(font, DistrictInfo.Name(_district)).X + 20;
             int corruption = DistrictInfo.Corruption(_district);
             for (int i = 0; i < DistrictInfo.MaxCorruption; i++)
             {

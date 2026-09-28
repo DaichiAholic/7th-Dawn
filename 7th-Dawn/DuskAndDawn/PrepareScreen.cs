@@ -392,10 +392,24 @@ namespace DuskAndDawn
             FillCircle(spriteBatch, center, radius, UITheme.Brighten(fill, hover * 0.15f));
             FillCircle(spriteBatch, center + new Vector2(0, -radius * 0.25f), radius * 0.7f, Color.White * 0.06f);
 
-            // The district's signature material sits in the landmark, so the map itself says
-            // what each place is good for before you even hover it.
-            var icon = MaterialIcon(DistrictInfo.SpecialtyMaterial(district));
-            DrawMaterialIcon(spriteBatch, icon, center, radius * 1.45f, unlocked ? Color.White : new Color(130, 125, 135));
+            // The district's landmark art sits in the circle, with its signature material in a
+            // small badge, so the map itself says what each place is good for before you even
+            // hover it. Districts without art yet show the material large instead.
+            Color iconTint = unlocked ? Color.White : new Color(130, 125, 135);
+            var material = MaterialIcon(DistrictInfo.SpecialtyMaterial(district));
+            var landmark = Game1.GetDistrictIcon(district);
+            if (landmark != null)
+            {
+                UITheme.DrawPixelIconFit(spriteBatch, landmark, center, radius * 1.45f, iconTint);
+                var badge = center + new Vector2(radius * 0.74f, radius * 0.74f);
+                FillCircle(spriteBatch, badge, 11f, Color.Black * 0.6f);
+                FillCircle(spriteBatch, badge, 10f, UITheme.Darken(fill, 0.35f));
+                DrawMaterialIcon(spriteBatch, material, badge, 17f, iconTint);
+            }
+            else
+            {
+                DrawMaterialIcon(spriteBatch, material, center, radius * 1.45f, iconTint);
+            }
 
             if (selected)
             {
@@ -710,7 +724,9 @@ namespace DuskAndDawn
             UITheme.DrawPanel(spriteBatch, box, UITheme.Darken(LandmarkColor(district), 0.45f) * intro, UITheme.Darken(LandmarkColor(district), 0.7f) * intro, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), 2f, 10f, shadowStrength: 0.4f * intro);
 
             string specialty = DistrictInfo.SpecialtyMaterial(district);
-            DrawMaterialIcon(spriteBatch, MaterialIcon(specialty), new Vector2(box.X + 26, box.Y + box.Height / 2f), 32f, Color.White);
+            var landmark = Game1.GetDistrictIcon(district);
+            if (landmark != null) UITheme.DrawPixelIconFit(spriteBatch, landmark, new Vector2(box.X + 26, box.Y + box.Height / 2f), 32f);
+            else DrawMaterialIcon(spriteBatch, MaterialIcon(specialty), new Vector2(box.X + 26, box.Y + box.Height / 2f), 32f, Color.White);
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Tonight: {DistrictInfo.Name(district)}", new Vector2(box.X + 50, box.Y + 5), Color.White, 0.85f);
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Rich in {specialty}  -  Corruption {DistrictInfo.Corruption(district)}", new Vector2(box.X + 50, box.Y + 28), new Color(255, 200, 150), 0.62f);
         }

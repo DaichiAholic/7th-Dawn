@@ -147,10 +147,10 @@ namespace DuskAndDawn
 
         // ---- Tier 3: Workshop Lv 3 ----
         public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2, iconName: "HolyLance", trait: WeaponTrait.Lifesteal, traitPower: 15);
-        public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2, trait: WeaponTrait.Stagger, traitPower: 35);
+        public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2, iconName: "WarMaul", trait: WeaponTrait.Stagger, traitPower: 35);
 
         // ---- Tier 4: Workshop Lv 5 only - the Herald-killer ----
-        public static Weapon Dawnbreaker() => new Weapon("Dawnbreaker", 4, 3, 6, 3, corruptionBonus: 2, trait: WeaponTrait.Sunbane, traitPower: 30);
+        public static Weapon Dawnbreaker() => new Weapon("Dawnbreaker", 4, 3, 6, 3, corruptionBonus: 2, iconName: "Dawnbreaker", trait: WeaponTrait.Sunbane, traitPower: 30);
 
         // Every weapon by name - how a save file turns names back into weapons.
         private static readonly Func<Weapon>[] AllFactories =

@@ -48,7 +48,15 @@ namespace DuskAndDawn
         public Texture2D ScrapsTexture { get; private set; }
 
         // 32x32 pixel-art weapon icons, keyed by asset name (Weapon.IconName).
-        private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance" };
+        private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance", "Dawnbreaker", "WarMaul" };
+
+        // 32x32 pixel-art landmarks for the districts that have one (the Outskirts don't yet -
+        // screens fall back to the district's material there).
+        private readonly Dictionary<District, Texture2D> _districtIcons = new Dictionary<District, Texture2D>();
+
+        /// <summary>A district's landmark icon, or null if it has no art yet.</summary>
+        public Texture2D GetDistrictIcon(District district) =>
+            _districtIcons.TryGetValue(district, out var icon) ? icon : null;
         private readonly Dictionary<string, Texture2D> _weaponIcons = new Dictionary<string, Texture2D>();
 
         /// <summary>The icon for a weapon, or null if it has no art yet.</summary>
@@ -110,6 +118,9 @@ namespace DuskAndDawn
             {
                 _weaponIcons[iconName] = Content.Load<Texture2D>(iconName);
             }
+            _districtIcons[District.ChurchRuins] = Content.Load<Texture2D>("Church");
+            _districtIcons[District.CastleKeep] = Content.Load<Texture2D>("Keep");
+            _districtIcons[District.Castle] = Content.Load<Texture2D>("TheCastle");
 
             _screenManager.ShowScreen(new MainMenuScreen(this));
         }

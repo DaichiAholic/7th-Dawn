@@ -342,6 +342,24 @@ namespace DuskAndDawn
 
         /// <summary>Icon with a dark rounded backing slot. The slot is drawn even when there's
         /// no icon yet, so cards keep the same layout for weapons still waiting on art.</summary>
+        /// <summary>Pixel art centred on `center`, as close to `size` canvas pixels across as it
+        /// can get while every art pixel still covers a whole number of screen pixels - so it
+        /// stays crisp at any window size.</summary>
+        public static void DrawPixelIconFit(SpriteBatch spriteBatch, Texture2D texture, Vector2 center, float size, Color? tint = null)
+        {
+            if (texture == null) return;
+            int nativeSize = Math.Max(texture.Width, texture.Height);
+            float screenScale = Math.Max(1f, MathF.Round(size / nativeSize * RenderScale));
+            float scale = screenScale / RenderScale;
+            var topLeft = center - new Vector2(texture.Width, texture.Height) * (scale / 2f);
+
+            spriteBatch.End();
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            spriteBatch.Draw(texture, SnapToDevice(topLeft), null, tint ?? Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            BeginCanvas(spriteBatch);
+        }
+
         public static void DrawIconSlot(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, int nativeSize = 32)
         {
             float size = nativeSize * scale;
