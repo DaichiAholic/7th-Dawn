@@ -19,6 +19,10 @@ namespace DuskAndDawn
         private const float PackPanelX = 820f, PackPanelWidth = 420f, PackTop = 148f;
         private const float PackRowHeight = 56f, PackRowGap = 6f;
 
+        // Stopping to tend yourself isn't free: every remedy used on the map costs this much
+        // of the night. (Fights still cost no time, so a remedy mid-fight costs only a turn.)
+        private const int PackUseMinutes = 15;
+
         private void InitializePack()
         {
             _packButton = new Button(PackButtonBounds, "Pack");
@@ -37,7 +41,7 @@ namespace DuskAndDawn
         {
             _packRows.Clear();
             float y = PackTop + 52f;
-            foreach (var group in _playerState.Items.GroupBy(item => item.Name))
+            foreach (var group in _playerState.Belt.GroupBy(item => item.Name))
             {
                 int count = group.Count();
                 string label = count > 1 ? $"{group.Key} x{count}" : group.Key;
@@ -49,7 +53,7 @@ namespace DuskAndDawn
 
         private void UpdatePack(float dt, MouseState mouse, bool mapInteractive)
         {
-            _packButton.Label = _packOpen ? "Close Pack" : $"Pack ({_playerState.Items.Count})";
+            _packButton.Label = _packOpen ? "Close Pack" : $"Pack ({_playerState.Belt.Count})";
             _packButton.UpdateAnimation(dt, mapInteractive && _packButton.Contains(mouse.X, mouse.Y));
             foreach (var (button, itemName) in _packRows)
             {
@@ -88,8 +92,10 @@ namespace DuskAndDawn
 
         private bool UsableNow(string itemName, out string reason)
         {
-            var item = _playerState.Items.Find(it => it.Name == itemName);
-            reason = item == null ? "Used up" : item.WastedReason(_playerState, _dawnTimer);
+            var item = _playerState.Belt.Find(it => it.Name == itemName);
+            reason = item == null ? "Used up"
+                : item.WastedReason(_playerState, _dawnTimer)
+                  ?? (!_dawnTimer.CanAfford(PackUseMinutes) ? "Dawn would break first" : null);
             return reason == null;
         }
 
@@ -101,11 +107,19 @@ namespace DuskAndDawn
                 return;
             }
 
-            var item = _playerState.Items.Find(it => it.Name == itemName);
+            var item = _playerState.Belt.Find(it => it.Name == itemName);
             string log = item.ApplyRemedy(_playerState, _dawnTimer);
-            _playerState.Items.Remove(item);
-            _textLog.Push($"You stop to gather yourself. {log}");
+            _playerState.Belt.Remove(item);
+            _dawnTimer.Spend(PackUseMinutes);
+            _textLog.Push($"You stop to gather yourself ({DawnTimer.FormatDuration(PackUseMinutes)}). {log}");
             RebuildPackRows();
+            WarnOfDawn();
+
+            if (IsNightOver)
+            {
+                _packOpen = false;
+                GoToDawnReturn();
+            }
         }
 
         private void DrawPack(SpriteBatch spriteBatch, SpriteFont font)
@@ -116,16 +130,16 @@ namespace DuskAndDawn
             var panel = new RectangleF(PackPanelX, PackTop, PackPanelWidth, PackPanelHeight);
             UITheme.DrawPanel(spriteBatch, panel, new Color(34, 32, 46), new Color(20, 18, 28), new Color(150, 200, 160), 2f, 14f, shadowStrength: 0.9f);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Pack", new Vector2(panel.X + 16, panel.Y + 12), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Patch yourself up between rooms. Takes no time.", new Vector2(panel.X + 16, panel.Y + 34), new Color(175, 170, 195), 0.62f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Patch yourself up between rooms. Each use takes {DawnTimer.FormatDuration(PackUseMinutes)}.", new Vector2(panel.X + 16, panel.Y + 34), new Color(175, 170, 195), 0.62f);
 
             if (_packRows.Count == 0)
             {
-                UITheme.DrawTextWithShadow(spriteBatch, font, "Empty - the Infirmary and Kitchen make remedies.", new Vector2(panel.X + 16, panel.Y + 60), new Color(200, 190, 190), 0.72f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, "Your belt is empty - pack remedies on the Prepare screen.", new Vector2(panel.X + 16, panel.Y + 60), new Color(200, 190, 190), 0.72f);
             }
 
             foreach (var (button, itemName) in _packRows)
             {
-                var item = _playerState.Items.Find(it => it.Name == itemName);
+                var item = _playerState.Belt.Find(it => it.Name == itemName);
                 bool usable = UsableNow(itemName, out string reason);
                 float hover = button.HoverAmount;
                 var b = button.Bounds;
@@ -143,7 +157,7 @@ namespace DuskAndDawn
                     UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(draw.X + 12, draw.Y + 32), usable ? new Color(170, 230, 180) : new Color(120, 130, 125), 0.66f);
                 }
 
-                string right = usable ? "Use" : reason;
+                string right = usable ? $"Use  ({DawnTimer.FormatDuration(PackUseMinutes)})" : reason;
                 var rightSize = UITheme.MeasureString(font, right) * 0.7f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, right, new Vector2(draw.Right - rightSize.X - 12, draw.Y + 8), usable ? new Color(255, 205, 140) : new Color(200, 130, 120), 0.7f);
             }

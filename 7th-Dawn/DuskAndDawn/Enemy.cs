@@ -6,7 +6,8 @@ namespace DuskAndDawn
     {
         Wretch,   // common everywhere: light hits, sometimes winds up a heavy blow
         Penitent, // Church Ruins only, in groups: holy spells and a binding chant that stuns
-        Knight    // the final night's boss: hits hard and calls Wretches to its side
+        Knight    // hits hard and winds up heavy blows. In the Keep, an elite; on the final
+                  // night, the Hollow Knight boss, who also calls Wretches to its side
     }
 
     /// <summary>What an enemy will do on its next turn. Shown to the player before they act,
@@ -46,10 +47,16 @@ namespace DuskAndDawn
         private int _turnsSinceCall;
 
         public bool IsDefeated => Health <= 0;
-        public bool IsBoss => Kind == EnemyKind.Knight;
+        // The final night's Hollow Knight. Other Knights are Keep elites: hard, but they
+        // fight alone.
+        public bool IsBoss { get; }
 
-        public Enemy(string name, EnemyKind kind, int maxHealth, int attackPower, int corruption = 1, bool isSummoned = false)
+        /// <summary>A Knight that isn't the boss - tagged ELITE in fights.</summary>
+        public bool IsElite => Kind == EnemyKind.Knight && !IsBoss;
+
+        public Enemy(string name, EnemyKind kind, int maxHealth, int attackPower, int corruption = 1, bool isSummoned = false, bool isBoss = false)
         {
+            IsBoss = isBoss;
             Name = name;
             Kind = kind;
             MaxHealth = maxHealth;
@@ -98,7 +105,12 @@ namespace DuskAndDawn
 
                 case EnemyKind.Knight:
                     _turnsSinceCall++;
-                    if (_turnsSinceCall >= KnightCallInterval && summonedAllies < MaxSummonedAllies)
+                    // Only the boss calls for aid; an elite winds up a little more often instead.
+                    if (!IsBoss)
+                    {
+                        Intent = roll < 35 ? IntentType.Charge : IntentType.Attack;
+                    }
+                    else if (_turnsSinceCall >= KnightCallInterval && summonedAllies < MaxSummonedAllies)
                     {
                         _turnsSinceCall = 0;
                         Intent = IntentType.CallForAid;

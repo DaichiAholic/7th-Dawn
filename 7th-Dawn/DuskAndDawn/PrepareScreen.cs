@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    public class PreparationScreen : GameScreen, IGameplayScreen
+    public partial class PreparationScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
@@ -21,6 +21,10 @@ namespace DuskAndDawn
         // be hovered and scouted; the lock is checked on click instead.
         private readonly List<Button> _landmarkButtons = new List<Button>();
         private readonly List<Button> _weaponButtons = new List<Button>();
+        // Which Inventory entry each weapon card shows (cards are paged).
+        private readonly List<int> _weaponIndices = new List<int>();
+        private int _weaponPage;
+        private Button _prevPageButton, _nextPageButton;
         private Button _startButton;
         private Button _backButton; // back to the base - to reinforce the weapon you just equipped
         private bool _leaving;
@@ -61,12 +65,15 @@ namespace DuskAndDawn
             new Vector2(500, 450), new Vector2(230, 640)
         };
 
-        // Weapon cards: 2 per row, up to 4 rows. The Workshop can fill this over a long run.
+        // Weapon cards: 2 per row, 3 rows a page. The Workshop can fill more than one page
+        // over a long run - the arrows page through, so every weapon can be equipped.
         private const int WeaponsPerRow = 2;
         private const float WeaponCardWidth = 232f;
         private const float WeaponCardHeight = 76f;
         private const int IconScale = 2; // 32px icons drawn at 64px
-        private const int MaxWeaponRows = 4;
+        private const int MaxWeaponRows = 3;
+        private const int WeaponsPerPage = WeaponsPerRow * MaxWeaponRows;
+        private int WeaponPageCount => Math.Max(1, (_playerState.Inventory.Count + WeaponsPerPage - 1) / WeaponsPerPage);
 
         public PreparationScreen(Game game, PlayerState playerState) : base(game)
         {
@@ -96,17 +103,31 @@ namespace DuskAndDawn
                 _landmarkButtons.Add(new Button(bounds, DistrictInfo.Name(DistrictInfo.All[i])));
             }
 
+            // Open on the page with the equipped weapon.
+            _weaponPage = Math.Max(0, _playerState.Inventory.IndexOf(_playerState.EquippedWeapon)) / WeaponsPerPage;
+            _prevPageButton = new Button(new RectangleF(LoadoutPanel.X + 20, 360, 90, 22), "< Prev");
+            _nextPageButton = new Button(new RectangleF(LoadoutPanel.Right - 110, 360, 90, 22), "Next >");
+            LayoutWeapons();
+            InitializeBelt();
+
+            _backButton = new Button(new RectangleF(LoadoutPanel.X + 20, 620, 170, 60), "Back to Base");
+            _startButton = new Button(new RectangleF(LoadoutPanel.X + 204, 620, LoadoutPanel.Width - 224, 60), "Head Into the Night");
+        }
+
+        private void LayoutWeapons()
+        {
             _weaponButtons.Clear();
-            int shown = Math.Min(_playerState.Inventory.Count, WeaponsPerRow * MaxWeaponRows);
+            _weaponIndices.Clear();
+            _weaponPage = Math.Clamp(_weaponPage, 0, WeaponPageCount - 1);
+            int first = _weaponPage * WeaponsPerPage;
+            int shown = Math.Min(WeaponsPerPage, _playerState.Inventory.Count - first);
             for (int i = 0; i < shown; i++)
             {
                 float x = LoadoutPanel.X + 20 + (i % WeaponsPerRow) * (WeaponCardWidth + 16);
                 float y = 112 + (i / WeaponsPerRow) * (WeaponCardHeight + 10);
-                _weaponButtons.Add(new Button(new RectangleF(x, y, WeaponCardWidth, WeaponCardHeight), _playerState.Inventory[i].Name));
+                _weaponButtons.Add(new Button(new RectangleF(x, y, WeaponCardWidth, WeaponCardHeight), _playerState.Inventory[first + i].Name));
+                _weaponIndices.Add(first + i);
             }
-
-            _backButton = new Button(new RectangleF(LoadoutPanel.X + 20, 620, 170, 60), "Back to Base");
-            _startButton = new Button(new RectangleF(LoadoutPanel.X + 204, 620, LoadoutPanel.Width - 224, 60), "Head Into the Night");
         }
 
         public override void Update(GameTime gameTime)
@@ -128,6 +149,10 @@ namespace DuskAndDawn
             {
                 button.UpdateAnimation(dt, button.Contains(mouse.X, mouse.Y));
             }
+            bool paged = WeaponPageCount > 1;
+            _prevPageButton.UpdateAnimation(dt, paged && _prevPageButton.Contains(mouse.X, mouse.Y));
+            _nextPageButton.UpdateAnimation(dt, paged && _nextPageButton.Contains(mouse.X, mouse.Y));
+            UpdateBelt(dt, mouse);
             foreach (var button in _landmarkButtons)
             {
                 button.UpdateAnimation(dt, button.Contains(mouse.X, mouse.Y));
@@ -150,9 +175,19 @@ namespace DuskAndDawn
                     if (_weaponButtons[i].Contains(mouse.X, mouse.Y))
                     {
                         _weaponButtons[i].TriggerPress();
-                        _playerState.EquippedWeapon = _playerState.Inventory[i];
+                        _playerState.EquippedWeapon = _playerState.Inventory[_weaponIndices[i]];
                     }
                 }
+
+                if (paged && (_prevPageButton.Contains(mouse.X, mouse.Y) || _nextPageButton.Contains(mouse.X, mouse.Y)))
+                {
+                    bool next = _nextPageButton.Contains(mouse.X, mouse.Y);
+                    (next ? _nextPageButton : _prevPageButton).TriggerPress();
+                    _weaponPage = (_weaponPage + (next ? 1 : WeaponPageCount - 1)) % WeaponPageCount;
+                    LayoutWeapons();
+                }
+
+                HandleBeltClick(mouse.X, mouse.Y);
 
                 if (hitStart)
                 {
@@ -196,7 +231,7 @@ namespace DuskAndDawn
 
             UITheme.DrawPanel(spriteBatch, LoadoutPanel, new Color(30, 28, 42), new Color(18, 17, 26), Color.White * 0.15f, 2f, 16f, shadowStrength: 0.6f);
             DrawWeapons(spriteBatch, font);
-            DrawItemsSummary(spriteBatch, font);
+            DrawBelt(spriteBatch, font);
             DrawDestination(spriteBatch, font);
             DrawStartButton(spriteBatch, font);
 
@@ -490,16 +525,20 @@ namespace DuskAndDawn
             var (supplies, encounter, special, empty) = RoomGenerator.Odds(district, 0, day: _playerState.Day);
             Wrapped($"Near the entrance: {Percent(supplies)} supplies, {Percent(encounter)} fights, {Percent(special)} strange, {Percent(empty)} quiet", new Color(210, 210, 220), 0.62f);
 
-            int weaponChance = DistrictInfo.WeaponFindChance(district);
-            Wrapped($"Special rooms: {weaponChance}% weapon, {100 - weaponChance}% material cache", new Color(200, 185, 230), 0.62f);
+            Wrapped($"Strange rooms: choices that trade time and risk for {DistrictInfo.EventTheme(district)}.", new Color(200, 185, 230), 0.62f);
 
             int day = _playerState.Day;
             int enemyHealth = (int)MathF.Round(DistrictInfo.EnemyHealth(district, 0) * DayInfo.EnemyHealthMultiplier(day));
             int enemyAttack = DistrictInfo.EnemyAttack(district, 0) + DayInfo.EnemyAttackBonus(day);
             Wrapped($"Wretches tonight: {enemyHealth}+ health, hit for {enemyAttack}+ and wind up heavy blows. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
-            if (district == District.ChurchRuins)
+            int penitents = EnemyRoster.PenitentChance(district);
+            if (penitents > 0)
             {
-                Wrapped($"Penitents ({EnemyRoster.PenitentChance}% of fights): groups that cast holy fire and chant stuns.", new Color(235, 200, 140), 0.62f);
+                Wrapped($"Penitents ({penitents}% of fights): groups that cast holy fire and chant stuns.", new Color(235, 200, 140), 0.62f);
+            }
+            if (district == District.CastleKeep)
+            {
+                Wrapped($"Castle Knights ({EnemyRoster.CastleKnightChance}%): elites that hit hard and wind up often.", new Color(255, 200, 120), 0.62f);
             }
             Divider();
 
@@ -532,7 +571,7 @@ namespace DuskAndDawn
 
             for (int i = 0; i < _weaponButtons.Count; i++)
             {
-                var weapon = _playerState.Inventory[i];
+                var weapon = _playerState.Inventory[_weaponIndices[i]];
                 var button = _weaponButtons[i];
                 bool equipped = weapon == _playerState.EquippedWeapon;
                 float hover = button.HoverAmount;
@@ -571,32 +610,13 @@ namespace DuskAndDawn
                 }
             }
 
-            if (_playerState.Inventory.Count > _weaponButtons.Count)
+            if (WeaponPageCount > 1)
             {
-                int hidden = _playerState.Inventory.Count - _weaponButtons.Count;
-                UITheme.DrawTextWithShadow(spriteBatch, font, $"+{hidden} more not shown", new Vector2(LoadoutPanel.X + 20, 452), new Color(170, 165, 175), 0.75f);
-            }
-        }
-
-        // Read-only summary of what's in the pack - items are crafted at the Infirmary and
-        // Kitchen, and every one you own comes along.
-        private void DrawItemsSummary(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            float x = LoadoutPanel.X + 20;
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Pack", new Vector2(x, 480), Color.White, 0.9f);
-
-            string summary = _playerState.Items.Count == 0
-                ? "Empty - craft items at the Infirmary and Kitchen."
-                : string.Join(", ", _playerState.Items
-                    .GroupBy(item => item.Name)
-                    .Select(g => g.Count() > 1 ? $"{g.Key} x{g.Count()}" : g.Key));
-
-            const float scale = 0.75f;
-            var lines = TextLog.WrapText(font, summary, (LoadoutPanel.Width - 40) / scale);
-            for (int i = 0; i < Math.Min(lines.Count, 2); i++)
-            {
-                string line = (i == 1 && lines.Count > 2) ? lines[i] + " ..." : lines[i];
-                UITheme.DrawTextWithShadow(spriteBatch, font, line, new Vector2(x, 508 + i * 20), new Color(210, 220, 200), scale);
+                DrawSmallButton(spriteBatch, font, _prevPageButton);
+                DrawSmallButton(spriteBatch, font, _nextPageButton);
+                string page = $"Page {_weaponPage + 1}/{WeaponPageCount}  ({_playerState.Inventory.Count} weapons)";
+                var size = UITheme.MeasureString(font, page) * 0.7f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, page, new Vector2(LoadoutPanel.X + LoadoutPanel.Width / 2f - size.X / 2f, 362), new Color(190, 185, 200), 0.7f);
             }
         }
 

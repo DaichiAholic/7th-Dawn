@@ -129,15 +129,6 @@ namespace DuskAndDawn
             return (0, planks, scraps);
         }
 
-        // Weapons a Special room or the Hoard can turn up. Tier 3 is Workshop-only, so
-        // crafting always stays ahead of what you can find.
-        public static Func<Weapon>[] WeaponLoot(District district) => district switch
-        {
-            District.ChurchRuins => new Func<Weapon>[] { Weapon.ScrapClub, Weapon.IronSword, Weapon.Cleaver },
-            District.CastleKeep => new Func<Weapon>[] { Weapon.IronSword, Weapon.Cleaver, Weapon.HandAxe },
-            _ => new Func<Weapon>[] { Weapon.WoodenClub, Weapon.ScrapClub }
-        };
-
         // ---- Materials ----
         // Every district now yields all three materials, but each leans hard into one of
         // them, so picking a district is also picking what the base gets tonight:
@@ -173,13 +164,14 @@ namespace DuskAndDawn
             _ => (0, 0, amount)
         };
 
-        // Chance (0-100) that a Special room holds a weapon instead of a material cache.
-        public static int WeaponFindChance(District district) => district switch
+        // What this district's Strange Room events tend to offer (see NightEventPool).
+        // Weapons are never found out here - they come from the Workshop.
+        public static string EventTheme(District district) => district switch
         {
-            District.VillageOutskirts => 30,
-            District.ChurchRuins => 60,
-            District.CastleKeep => 45,
-            _ => 50
+            District.VillageOutskirts => "food and supplies",
+            District.ChurchRuins => "timber and relics",
+            District.CastleKeep => "metal - and traps",
+            _ => "odds and ends"
         };
 
         // Added to RoomGenerator's baseline weights.

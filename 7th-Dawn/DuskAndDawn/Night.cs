@@ -13,7 +13,8 @@ namespace DuskAndDawn
     {
         Map,
         Encounter,
-        Supplies
+        Supplies,
+        Event
     }
 
     public enum CombatMenu
@@ -257,6 +258,12 @@ namespace DuskAndDawn
                 button.UpdateAnimation(dt, inSupplies && button.Contains(mouse.X, mouse.Y));
             }
 
+            bool inEvent = _state == ExplorationState.Event;
+            foreach (var button in _eventButtons)
+            {
+                button.UpdateAnimation(dt, inEvent && button.Contains(mouse.X, mouse.Y));
+            }
+
             if (clicked && !_leaving)
             {
                 switch (_state)
@@ -272,6 +279,9 @@ namespace DuskAndDawn
                         break;
                     case ExplorationState.Supplies:
                         HandleSuppliesClick(mouse.X, mouse.Y);
+                        break;
+                    case ExplorationState.Event:
+                        HandleEventClick(mouse.X, mouse.Y);
                         break;
                 }
             }
@@ -354,7 +364,7 @@ namespace DuskAndDawn
                     StartSupplies();
                     break;
                 case RoomType.Special:
-                    ResolveSpecial();
+                    StartEvent();
                     break;
                 case RoomType.Hoard:
                     if (node.Enemies != null) StartEncounter(node); // the Knight, on the last night
@@ -514,44 +524,7 @@ namespace DuskAndDawn
             }
         }
 
-        // ---------- Special / Empty / Hoard ----------
-
-        private void ResolveSpecial()
-        {
-            if (_random.Next(100) >= DistrictInfo.WeaponFindChance(_district))
-            {
-                var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random);
-                _playerState.AddResources(food, planks, scraps);
-                _textLog.Push($"A moment of quiet beauty in the dark, and a forgotten cache. {MaterialYield.Describe(food, planks, scraps)}.");
-            }
-            else
-            {
-                _textLog.Push(FindWeapon(out _));
-            }
-
-            _roomsCleared++;
-            _state = ExplorationState.Map;
-        }
-
-        /// <summary>Rolls a weapon from this district's loot table. New weapons go on the rack;
-        /// one you already own is broken down for Scraps instead of cluttering it.
-        /// Returns the full log line; `brief` is a shorter version to tack onto another line.</summary>
-        private string FindWeapon(out string brief)
-        {
-            var loot = DistrictInfo.WeaponLoot(_district);
-            var weapon = loot[_random.Next(loot.Length)]();
-
-            if (_playerState.Inventory.Any(owned => owned.Name == weapon.Name))
-            {
-                _playerState.AddResources(scraps: weapon.SalvageValue);
-                brief = $"And a spare {weapon.Name}, broken down for {weapon.SalvageValue} Scraps.";
-                return $"You find another {weapon.Name} and break it down for {weapon.SalvageValue} Scraps.";
-            }
-
-            _playerState.Inventory.Add(weapon);
-            brief = $"And a {weapon.Name}.";
-            return $"You find a {weapon.Name} ({weapon.StatLabel}) left behind by someone else.";
-        }
+        // ---------- Empty / Hoard (Strange Rooms are events: see Night.Events.cs) ----------
 
         private static readonly string[] QuietHallLines =
         {
@@ -587,10 +560,11 @@ namespace DuskAndDawn
             _playerState.AddResources(food, planks, scraps);
 
             string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
+            // No weapons out here any more - those come from the Workshop. A good remedy, maybe.
             if (_random.Next(100) < 50)
             {
-                FindWeapon(out string brief);
-                line += $" {brief}";
+                var remedy = _random.Next(3) == 0 ? Item.Elixir() : Item.Tonic();
+                line += $" And a {remedy.Name} - {_playerState.GainItemAtNight(remedy)}.";
             }
 
             _playerState.ChangeHope(PlayerState.HoardHope);

@@ -112,7 +112,8 @@ namespace DuskAndDawn
             return first.Kind switch
             {
                 EnemyKind.Penitent => $"{enemies.Count} Penitents turn from their prayers, chanting as one.",
-                EnemyKind.Knight => "The Hollow Knight rises from the Hoard's throne.",
+                EnemyKind.Knight when first.IsBoss => "The Hollow Knight rises from the Hoard's throne.",
+                EnemyKind.Knight => $"An {first.Name} steps out of the dark, blade already raised.",
                 _ => $"A {first.Name} lurches out of the dark."
             };
         }
@@ -154,7 +155,7 @@ namespace DuskAndDawn
                         // Tall enough for the name plus a line on what it does.
                         const float itemHeight = 56, itemGap = 6;
                         _itemButtonNames.Clear();
-                        foreach (var group in _playerState.Items.GroupBy(it => it.Name))
+                        foreach (var group in _playerState.Belt.GroupBy(it => it.Name))
                         {
                             int count = group.Count();
                             string itemLabel = count > 1 ? $"{group.Key} x{count}" : group.Key;
@@ -243,7 +244,7 @@ namespace DuskAndDawn
                     if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
                     int itemIndex = _combatButtons.IndexOf(button);
                     string itemName = itemIndex >= 0 && itemIndex < _itemButtonNames.Count ? _itemButtonNames[itemIndex] : label;
-                    var item = _playerState.Items.Find(it => it.Name == itemName);
+                    var item = _playerState.Belt.Find(it => it.Name == itemName);
                     if (item != null)
                     {
                         _textLog.Push(_activeCombat.UseItem(item));

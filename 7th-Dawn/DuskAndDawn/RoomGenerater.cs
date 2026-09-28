@@ -55,7 +55,8 @@ namespace DuskAndDawn
             {
                 { RoomType.Supplies, Math.Max(1, 45 + supplies + deadEndLoot) },
                 { RoomType.Encounter, Math.Max(1, encounterWeight + encounter - (isDeadEnd ? 10 : 0)) },
-                { RoomType.Special, Math.Max(1, 10 + special + deadEndLoot / 2) },
+                // Strange Rooms hold the night's events - common enough to meet a few each night.
+                { RoomType.Special, Math.Max(1, 18 + special + deadEndLoot / 2) },
                 { RoomType.Empty, isDeadEnd ? 8 : 24 }
             };
         }

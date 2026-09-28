@@ -134,8 +134,8 @@ namespace DuskAndDawn
                         {
                             var remedies = new Func<Item>[] { Item.Bandage, Item.Tonic, Item.SmokeFlask };
                             var remedy = remedies[_random.Next(remedies.Length)]();
-                            _playerState.Items.Add(remedy);
-                            text += $" Tucked at the bottom: a {remedy.Name}.";
+                            string whereItWent = _playerState.GainItemAtNight(remedy);
+                            text += $" Tucked at the bottom: a {remedy.Name} - {whereItWent}.";
                         }
                         if (_random.Next(100) < ThoroughNoiseChance)
                         {

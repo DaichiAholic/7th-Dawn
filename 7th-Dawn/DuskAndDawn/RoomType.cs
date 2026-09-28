@@ -33,7 +33,7 @@ namespace DuskAndDawn
         {
             RoomType.Supplies => "Food, planks and scraps - if you take the time.",
             RoomType.Encounter => "A corrupted thing. Fights cost no time - only blood.",
-            RoomType.Special => "Could be a quiet find, could be a weapon.",
+            RoomType.Special => "Something happened here. A choice awaits.",
             RoomType.Empty => "Nothing stirs. Probably.",
             RoomType.Entrance => "The way you came in.",
             RoomType.Hoard => "The deepest room. Someone hid a lot here.",

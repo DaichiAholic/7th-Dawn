@@ -48,7 +48,7 @@ namespace DuskAndDawn
         public Texture2D ScrapsTexture { get; private set; }
 
         // 32x32 pixel-art weapon icons, keyed by asset name (Weapon.IconName).
-        private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger" };
+        private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance" };
         private readonly Dictionary<string, Texture2D> _weaponIcons = new Dictionary<string, Texture2D>();
 
         /// <summary>The icon for a weapon, or null if it has no art yet.</summary>

@@ -39,7 +39,43 @@ namespace DuskAndDawn
         public List<Weapon> Inventory { get; } = new List<Weapon>();
         public Weapon EquippedWeapon;
 
+        // ---- Items: the stash at home, and the belt you carry ----
+        // Crafted remedies go into the stash. Only what's on the belt comes into the night,
+        // and the belt holds BeltSlots items - so every night starts with a packing decision.
+        // Belt slots are bought on the Prepare screen.
         public List<Item> Items { get; } = new List<Item>();
+        public List<Item> Belt { get; } = new List<Item>();
+
+        public const int StartingBeltSlots = 2;
+        public const int MaxBeltSlots = 6;
+        public int BeltSlots = StartingBeltSlots;
+
+        public bool BeltFull => Belt.Count >= BeltSlots;
+
+        /// <summary>Price of the next belt slot (slot 3, 4, 5 or 6).</summary>
+        public static (int food, int planks, int scraps) BeltSlotCost(int slotNumber) => slotNumber switch
+        {
+            3 => (0, 4, 4),
+            4 => (0, 7, 8),
+            5 => (2, 10, 12),
+            _ => (3, 14, 16)
+        };
+
+        /// <summary>A remedy picked up at night goes on the belt if there's room, otherwise
+        /// into your bag to be stashed at home. Returns where it went, for the log.</summary>
+        public string GainItemAtNight(Item item)
+        {
+            if (!BeltFull)
+            {
+                Belt.Add(item);
+                return "on your belt";
+            }
+            Items.Add(item);
+            return "your belt is full, so it goes in your bag for home";
+        }
+
+        /// <summary>How many of an item you have anywhere - stash and belt together.</summary>
+        public int OwnedItemCount(string name) => Items.Count(i => i.Name == name) + Belt.Count(i => i.Name == name);
 
         public Dictionary<BaseRoomType, int> RoomLevels { get; } = new Dictionary<BaseRoomType, int>();
 
@@ -63,7 +99,7 @@ namespace DuskAndDawn
             Inventory.Add(starterWeapon);
             EquippedWeapon = starterWeapon;
 
-            Items.Add(Item.Bandage());
+            Belt.Add(Item.Bandage());
         }
 
 

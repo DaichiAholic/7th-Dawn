@@ -11,15 +11,30 @@ namespace DuskAndDawn
     /// </summary>
     public static class EnemyRoster
     {
-        // % of Church Ruins fights that are a Penitent group instead of a single Wretch.
-        public const int PenitentChance = 25;
+        // % of fights that are a Penitent group instead of a single Wretch. The Church is
+        // their home; some have wandered into the Keep.
+        public static int PenitentChance(District district) => district switch
+        {
+            District.ChurchRuins => 25,
+            District.CastleKeep => 20,
+            _ => 0
+        };
+
+        // % of Castle Keep fights that are a Castle Knight - an elite, not the boss.
+        public const int CastleKnightChance = 15;
+
+        private static readonly string[] CastleKnightNames = { "Oathbound Knight", "Gilded Knight", "Ashen Knight" };
 
         private static readonly string[] PenitentNames = { "Penitent of Ash", "Penitent of Thorns", "Penitent of Salt" };
 
         /// <summary>A fresh encounter for a room at `tier` (0-6, from its depth).</summary>
         public static List<Enemy> RollEncounter(District district, int tier, int day, Random random)
         {
-            if (district == District.ChurchRuins && random.Next(100) < PenitentChance)
+            if (district == District.CastleKeep && random.Next(100) < CastleKnightChance)
+            {
+                return new List<Enemy> { CastleKnight(district, tier, day, random) };
+            }
+            if (random.Next(100) < PenitentChance(district))
             {
                 int count = tier >= 3 && day >= 5 ? 3 : 2;
                 var group = new List<Enemy>();
@@ -57,6 +72,17 @@ namespace DuskAndDawn
             return enemy;
         }
 
+        /// <summary>A Keep elite: half again a Wretch's health, hits 25% harder and winds up
+        /// often, but never calls for aid. Drops loot to match its health.</summary>
+        public static Enemy CastleKnight(District district, int tier, int day, Random random)
+        {
+            var (health, attack) = BaseStats(district, tier, day);
+            var knight = new Enemy(CastleKnightNames[random.Next(CastleKnightNames.Length)], EnemyKind.Knight,
+                (int)MathF.Round(health * 1.5f), Math.Max(3, attack), DistrictInfo.Corruption(district));
+            knight.PlanNextAction(random, day, 0);
+            return knight;
+        }
+
         /// <summary>The final night's boss. Fixed rather than depth-scaled - it guards the
         /// Hoard wherever you go - but tougher in the deeper districts.</summary>
         public static Enemy Knight(District district, Random random)
@@ -65,7 +91,8 @@ namespace DuskAndDawn
             var knight = new Enemy("The Hollow Knight", EnemyKind.Knight,
                 maxHealth: 100 + 20 * districtIndex,
                 attackPower: 9 + 2 * districtIndex,
-                corruption: DistrictInfo.Corruption(district));
+                corruption: DistrictInfo.Corruption(district),
+                isBoss: true);
             knight.PlanNextAction(random, DayInfo.FinalDay, 0);
             return knight;
         }

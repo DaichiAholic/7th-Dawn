@@ -106,8 +106,8 @@ namespace DuskAndDawn
             return new Recipe(sample.Name, sample.Description, room, level, food, planks, scraps, state =>
             {
                 state.Items.Add(make());
-                int owned = state.Items.Count(i => i.Name == sample.Name);
-                return $"Made a {sample.Name} (you have {owned}).";
+                int owned = state.OwnedItemCount(sample.Name);
+                return $"Made a {sample.Name} (you have {owned}). It's in the stash - pack it on the Prepare screen.";
             }, sampleItem: sample);
         }
 
@@ -536,7 +536,7 @@ namespace DuskAndDawn
             var equipped = _playerState.EquippedWeapon;
             _craftToastDetail = recipe.IsReinforce ? $"{equipped.DisplayName} now rolls {equipped.DiceLabel}"
                 : recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
-                : recipe.SampleItem != null ? $"Now in your pack: {OwnedCount(recipe)}"
+                : recipe.SampleItem != null ? $"In the stash ({OwnedCount(recipe)} owned) - pack it to use"
                 : recipe.GetDetail(_playerState);
             _craftToastTimer = CraftToastDuration;
             _craftFlashButton = button;
@@ -974,19 +974,22 @@ namespace DuskAndDawn
             }
 
             UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 4), nameColor, 0.95f);
+
+            // How many you already have, right beside the name - amber for a weapon you'd be
+            // duplicating (reinforce the one you have instead), green for stackable remedies.
+            int owned = OwnedCount(recipe);
+            if (owned > 0)
+            {
+                string ownedText = $"(have {owned})";
+                float nameWidth = UITheme.MeasureString(font, recipe.Name).X * 0.95f;
+                Color ownedColor = recipe.SampleWeapon != null ? new Color(255, 190, 90) : new Color(170, 220, 175);
+                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(textX + nameWidth + 8, drawBounds.Y + 7), ownedColor, 0.72f);
+            }
+
             UITheme.DrawTextWithShadow(spriteBatch, font, recipe.GetDetail(_playerState), new Vector2(textX, drawBounds.Y + 28), detailColor, 0.72f);
 
             var rightSize = UITheme.MeasureString(font, rightText) * 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 5), rightColor, 0.85f);
-
-            // How many you already have, so repeat crafts are visibly adding up.
-            int owned = OwnedCount(recipe);
-            if (owned > 0)
-            {
-                string ownedText = $"Owned: {owned}";
-                var ownedSize = UITheme.MeasureString(font, ownedText) * 0.7f;
-                UITheme.DrawTextWithShadow(spriteBatch, font, ownedText, new Vector2(drawBounds.X + drawBounds.Width - ownedSize.X - 12, drawBounds.Y + 29), new Color(170, 220, 175), 0.7f);
-            }
 
             // Just crafted: a bright green flash that fades out.
             if (button == _craftFlashButton && _craftFlashTimer > 0f)
@@ -1000,7 +1003,7 @@ namespace DuskAndDawn
         private int OwnedCount(Recipe recipe)
         {
             if (recipe.SampleWeapon != null) return _playerState.Inventory.Count(w => w.Name == recipe.Name);
-            if (recipe.SampleItem != null) return _playerState.Items.Count(i => i.Name == recipe.Name);
+            if (recipe.SampleItem != null) return _playerState.OwnedItemCount(recipe.Name);
             return 0;
         }
 

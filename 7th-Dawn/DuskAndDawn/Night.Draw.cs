@@ -48,6 +48,10 @@ namespace DuskAndDawn
                     DrawSupplies(spriteBatch, font, totalSeconds);
                     DrawMapFragment(spriteBatch, font);
                     break;
+                case ExplorationState.Event:
+                    DrawEvent(spriteBatch, font, totalSeconds);
+                    DrawMapFragment(spriteBatch, font);
+                    break;
             }
 
             // Combat animations go on top of everything, centered on the screen - only while
@@ -691,7 +695,7 @@ namespace DuskAndDawn
             UITheme.DrawPanel(spriteBatch, legend, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 12f, shadowStrength: 0.5f);
             var entries = new (RoomType type, string label)[]
             {
-                (RoomType.Supplies, "Supplies"), (RoomType.Encounter, "Enemy"), (RoomType.Special, "Strange"),
+                (RoomType.Supplies, "Supplies"), (RoomType.Encounter, "Enemy"), (RoomType.Special, "Event"),
                 (RoomType.Hoard, "Hoard"), (RoomType.Empty, "Quiet"), (RoomType.Entrance, "Entrance")
             };
             for (int i = 0; i < entries.Length; i++)
@@ -797,7 +801,7 @@ namespace DuskAndDawn
         /// top, and what it does underneath - so a choice mid-fight never means guessing.</summary>
         private void DrawItemButton(SpriteBatch spriteBatch, SpriteFont font, Button button, string itemName)
         {
-            var item = _playerState.Items.Find(it => it.Name == itemName);
+            var item = _playerState.Belt.Find(it => it.Name == itemName);
             float hover = IsActionLocked ? 0f : button.HoverAmount;
             Color top = IsActionLocked ? new Color(40, 40, 50) : UITheme.Brighten(new Color(60, 70, 64), hover * 0.2f);
             Color bottom = IsActionLocked ? new Color(30, 30, 38) : UITheme.Brighten(new Color(40, 48, 44), hover * 0.2f);
@@ -825,9 +829,9 @@ namespace DuskAndDawn
                 var button = _combatButtons[i];
                 if (button.HoverAmount < 0.5f) continue;
 
-                var item = _playerState.Items.Find(it => it.Name == _itemButtonNames[i]);
+                var item = _playerState.Belt.Find(it => it.Name == _itemButtonNames[i]);
                 if (item == null) return;
-                int owned = _playerState.Items.Count(it => it.Name == item.Name);
+                int owned = _playerState.Belt.Count(it => it.Name == item.Name);
 
                 const float width = 320f, descScale = 0.72f;
                 var lines = TextLog.WrapText(font, item.Description, (width - 28) / descScale);
@@ -899,10 +903,10 @@ namespace DuskAndDawn
             // Name, and a tag for the boss / current target.
             float scale = UITheme.MeasureString(font, enemy.Name).X * 0.85f > bounds.Width - 24 ? 0.72f : 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.Name, new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * alpha, scale);
-            string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : targeted ? "TARGET" : null;
+            string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : enemy.IsElite ? "ELITE" : targeted ? "TARGET" : null;
             if (tag != null)
             {
-                Color tagColor = fallen ? new Color(160, 150, 150) : enemy.IsBoss ? new Color(255, 215, 110) : new Color(255, 170, 100);
+                Color tagColor = fallen ? new Color(160, 150, 150) : enemy.IsBoss || enemy.IsElite ? new Color(255, 215, 110) : new Color(255, 170, 100);
                 var tagSize = UITheme.MeasureString(font, tag) * 0.62f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, tag, new Vector2(bounds.Right - tagSize.X - 12, bounds.Y + 36), tagColor, 0.62f);
             }

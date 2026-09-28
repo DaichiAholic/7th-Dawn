@@ -161,7 +161,7 @@ namespace DuskAndDawn
                     break;
             }
 
-            _playerState.Items.Remove(item);
+            _playerState.Belt.Remove(item);
             ResolveEnemyTurn();
             return log;
         }
