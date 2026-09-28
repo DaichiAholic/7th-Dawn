@@ -7,7 +7,8 @@ namespace DuskAndDawn
     {
         VillageOutskirts,
         ChurchRuins,
-        CastleKeep
+        CastleKeep,
+        Castle      // the last night only: the Sun Herald's court
     }
 
     /// <summary>An inclusive min-max roll for one material.</summary>
@@ -62,11 +63,18 @@ namespace DuskAndDawn
     /// <summary>
     /// Per-district tuning. District identity lives in these numbers (room weight skews,
     /// enemy stats, corruption tier, material yields) rather than in new art or systems.
-    /// A district is unlocked once the Archive reaches its RequiredArchiveLevel.
+    /// The first three are unlocked by the Archive (see RequiredArchiveLevel); The Castle
+    /// opens only on the last night, and on that night it's the only way in.
     /// </summary>
     public static class DistrictInfo
     {
         public static readonly District[] All =
+        {
+            District.VillageOutskirts, District.ChurchRuins, District.CastleKeep, District.Castle
+        };
+
+        /// <summary>The districts you can scavenge on an ordinary night.</summary>
+        public static readonly District[] Scavenging =
         {
             District.VillageOutskirts, District.ChurchRuins, District.CastleKeep
         };
@@ -76,6 +84,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => "Village Outskirts",
             District.ChurchRuins => "Church Ruins",
             District.CastleKeep => "Castle Keep",
+            District.Castle => "The Castle",
             _ => district.ToString()
         };
 
@@ -84,13 +93,17 @@ namespace DuskAndDawn
             District.VillageOutskirts => "Gluttony and Envy. Low corruption, full larders.",
             District.ChurchRuins => "Pride and Zealotry. Stranger rooms, old relics.",
             District.CastleKeep => "Pride and Tyranny. Brutal fights, iron by the cartload.",
+            District.Castle => "The Sun Herald's court. His knights and choir hold every hall, and he waits for his dawn at the heart of it.",
             _ => ""
         };
 
-        // Archive Lv 1 opens the Outskirts, Lv 2 the Church, Lv 3 the Keep.
-        public static int RequiredArchiveLevel(District district) => (int)district + 1;
+        // Archive Lv 1 opens the Outskirts, Lv 2 the Church, Lv 3 the Keep. The Castle isn't
+        // opened by the Archive at all - see PlayerState.IsDistrictUnlocked.
+        public static int RequiredArchiveLevel(District district) => Math.Min(3, (int)district + 1);
 
-        // Corruption tier 1-3. Holy weapons scale off this, and it's the number the
+        public const int MaxCorruption = 4;
+
+        // Corruption tier 1-4. Holy weapons scale off this, and it's the number the
         // ember-glow visual language is meant to express.
         public static int Corruption(District district) => (int)district + 1;
 
@@ -103,6 +116,7 @@ namespace DuskAndDawn
         {
             District.ChurchRuins => 34 + tier * 4,
             District.CastleKeep => 50 + tier * 5,
+            District.Castle => 54 + tier * 5,
             _ => 18 + tier * 3
         };
 
@@ -110,6 +124,7 @@ namespace DuskAndDawn
         {
             District.ChurchRuins => 8 + tier,
             District.CastleKeep => 12 + tier,
+            District.Castle => 12 + tier,
             _ => 4 + tier
         };
 
@@ -122,10 +137,11 @@ namespace DuskAndDawn
             {
                 District.ChurchRuins => 1,
                 District.CastleKeep => 3,
+                District.Castle => 3,
                 _ => 0
             };
             int scraps = enemyMaxHealth / 6 + districtBonus + random.Next(0, 3);
-            int planks = random.Next(0, 2) + (int)district;
+            int planks = random.Next(0, 2) + Math.Min(2, (int)district);
             return (0, planks, scraps);
         }
 
@@ -143,6 +159,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => new MaterialYield(food: new LootRange(2, 4), planks: new LootRange(1, 2), scraps: new LootRange(0, 2)),
             District.ChurchRuins => new MaterialYield(food: new LootRange(1, 2), planks: new LootRange(2, 5), scraps: new LootRange(0, 2)),
             District.CastleKeep => new MaterialYield(food: new LootRange(1, 2), planks: new LootRange(1, 3), scraps: new LootRange(3, 5)),
+            District.Castle => new MaterialYield(food: new LootRange(1, 3), planks: new LootRange(1, 3), scraps: new LootRange(3, 6)),
             _ => new MaterialYield(new LootRange(0, 2), new LootRange(0, 2), new LootRange(0, 2))
         };
 
@@ -152,6 +169,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => "Food",
             District.ChurchRuins => "Planks",
             District.CastleKeep => "Scraps",
+            District.Castle => "Scraps",
             _ => ""
         };
 
@@ -171,6 +189,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => "food and supplies",
             District.ChurchRuins => "timber and relics",
             District.CastleKeep => "metal - and traps",
+            District.Castle => "the Herald's gifts, which always cost something",
             _ => "odds and ends"
         };
 
@@ -180,6 +199,7 @@ namespace DuskAndDawn
             District.VillageOutskirts => (20, 0, 0),
             District.ChurchRuins => (10, 0, 10),
             District.CastleKeep => (5, 15, 0),
+            District.Castle => (5, 20, 5),
             _ => (0, 0, 0)
         };
 
@@ -188,7 +208,8 @@ namespace DuskAndDawn
         {
             { District.VillageOutskirts, new[] { "Gluttonous Wretch", "Envious Wretch", "Starved Wretch" } },
             { District.ChurchRuins, new[] { "Zealot Wretch", "Proud Wretch", "Hollow Wretch" } },
-            { District.CastleKeep, new[] { "Gilded Wretch", "Crowned Wretch", "Tyrant's Wretch" } }
+            { District.CastleKeep, new[] { "Gilded Wretch", "Crowned Wretch", "Tyrant's Wretch" } },
+            { District.Castle, new[] { "Sunscorched Wretch", "Herald's Wretch", "Blinded Wretch" } }
         };
 
         public static string RandomWretchName(District district, Random random)

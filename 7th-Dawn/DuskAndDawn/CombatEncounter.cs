@@ -8,7 +8,8 @@ namespace DuskAndDawn
     /// One fight: the player against one or more enemies. Each round the player acts, then
     /// every living enemy carries out the intent it showed, then picks its next one - so the
     /// player always sees what's coming before choosing. Guard halves normal hits and fully
-    /// blocks Heavy blows and Stuns; spells ignore it; smoke makes everything miss.
+    /// blocks Heavy blows, Stuns and the Herald's Brand; spells and Solar Flares ignore it;
+    /// smoke makes everything miss.
     /// </summary>
     public class CombatEncounter
     {
@@ -50,6 +51,14 @@ namespace DuskAndDawn
 
         public int RerollsLeft => _rerollsLeft;
 
+        // Searing Brand: this much damage at the end of each of the next BurnTurns rounds.
+        // Guard stops the brand landing; a healing remedy puts it out.
+        public int BurnDamage { get; private set; }
+        public int BurnTurns { get; private set; }
+
+        /// <summary>There's no running from the Sun Herald - the doors seal behind you.</summary>
+        public bool CanFlee => !HasBoss;
+
         // ---- Last-action results, for the UI to react to (dice popup, hit flashes) ----
         // Reset at the top of every action, then set as applicable.
         public int LastPlayerRoll { get; private set; }
@@ -63,7 +72,7 @@ namespace DuskAndDawn
         public string LastEnemyReplyText { get; private set; } = "";
 
         /// <param name="day">Scales how often Wretches wind up heavy blows.</param>
-        /// <param name="summonAid">Makes the Wretch a Knight calls in. null = nobody answers.</param>
+        /// <param name="summonAid">Makes the ally a boss calls in. null = nobody answers.</param>
         public CombatEncounter(List<Enemy> enemies, PlayerState playerState, DawnTimer dawnTimer, Random random, int day, Func<Enemy> summonAid)
         {
             Enemies = enemies;
@@ -140,6 +149,13 @@ namespace DuskAndDawn
             {
                 case ItemEffect.Heal:
                 case ItemEffect.FullHeal:
+                    if (BurnTurns > 0)
+                    {
+                        BurnTurns = 0;
+                        BurnDamage = 0;
+                        log += " It puts out the brand, too.";
+                    }
+                    break;
                 case ItemEffect.RestoreDawn:
                     break;
                 case ItemEffect.Smoke:
@@ -181,6 +197,10 @@ namespace DuskAndDawn
         public string Flee()
         {
             ResetLastActionEffects();
+            if (!CanFlee)
+            {
+                return "The doors have sealed. There's no way out but through him.";
+            }
             if (_smokeActive)
             {
                 return "You slip away through the smoke.";
@@ -206,10 +226,40 @@ namespace DuskAndDawn
             LastRollWasAttack = true;
             LastTarget = target;
 
-            if (!target.IsDefeated) return "";
+            string extra = ApplyTrait(target, damage);
+            if (!target.IsDefeated) return extra;
 
             Target = Living.FirstOrDefault(e => e.IsBoss) ?? Living.FirstOrDefault();
-            return Target != null ? $" {target.Name} falls." : "";
+            return extra + (Target != null ? $" {target.Name} falls." : "");
+        }
+
+        /// <summary>The equipped weapon's trait, after a hit lands. Returns log text.</summary>
+        private string ApplyTrait(Enemy target, int damage)
+        {
+            var weapon = _playerState.EquippedWeapon;
+            switch (weapon.Trait)
+            {
+                case WeaponTrait.Lifesteal:
+                    {
+                        int heal = Math.Min((int)MathF.Ceiling(damage * weapon.TraitPower / 100f), _playerState.MaxHealth - _playerState.Health);
+                        if (heal <= 0) return "";
+                        _playerState.Health += heal;
+                        return $" You drain {heal} health.";
+                    }
+                case WeaponTrait.Bleed when !target.IsDefeated:
+                    target.ApplyBleed(weapon.TraitPower, Weapon.BleedTurns);
+                    return " It bleeds.";
+                case WeaponTrait.Stagger when !target.IsDefeated:
+                    {
+                        // Bosses keep their feet more easily.
+                        int chance = target.IsBoss ? weapon.TraitPower / 2 : weapon.TraitPower;
+                        if (_random.Next(100) >= chance) return "";
+                        target.Stagger();
+                        return $" {target.Name} staggers - its next move is lost!";
+                    }
+                default:
+                    return "";
+            }
         }
 
         /// <summary>One weapon roll with every Barracks modifier and holy-weapon bonus
@@ -230,7 +280,12 @@ namespace DuskAndDawn
                 roll = Math.Max(roll, weapon.RollDamage(_random, minFace, extraDice));
             }
 
-            return roll + weapon.CorruptionBonus * target.Corruption + _playerState.WorkshopEdge;
+            int total = roll + weapon.CorruptionBonus * target.Corruption + _playerState.WorkshopEdge;
+            if (weapon.Trait == WeaponTrait.Sunbane && target.Kind == EnemyKind.Herald)
+            {
+                total = (int)MathF.Round(total * (1f + weapon.TraitPower / 100f));
+            }
+            return total;
         }
 
         /// <summary>Barracks Lv 4: a blocked HEAVY or STUN opens the attacker up for one
@@ -269,6 +324,31 @@ namespace DuskAndDawn
             var joined = new List<Enemy>();
             int totalDamage = 0;
 
+            // Open wounds bleed before anyone moves - a bleeding enemy can fall before it acts.
+            foreach (var enemy in Living.ToList())
+            {
+                int bled = enemy.TickBleed();
+                if (bled > 0) lines.Add(enemy.IsDefeated ? $"{enemy.Name} bleeds out." : $"{enemy.Name} bleeds for {bled}.");
+            }
+            if (Target == null || Target.IsDefeated) Target = Living.FirstOrDefault(e => e.IsBoss) ?? Living.FirstOrDefault();
+            if (Enemies.All(e => e.IsDefeated))
+            {
+                lines.Add(Enemies.Count == 1 ? $"{Enemies[0].Name} is defeated!" : "The last of them falls!");
+                LastEnemyReplyText = string.Join(" ", lines);
+                ClearRoundModifiers();
+                return;
+            }
+
+            // Half health breaks the Herald's composure: he ascends, and starts gathering
+            // the light at once (his move this turn becomes the gather).
+            foreach (var enemy in Living)
+            {
+                if (enemy.TryAscend())
+                {
+                    lines.Add($"{enemy.Name} ascends - HIGH NOON! His light doubles, and he begins to gather it.");
+                }
+            }
+
             foreach (var enemy in Living.ToList())
             {
                 if (_playerState.Health <= 0) break;
@@ -283,6 +363,14 @@ namespace DuskAndDawn
                         lines.Add($"{enemy.Name} begins a binding chant.");
                         break;
 
+                    case IntentType.Gather:
+                        lines.Add($"{enemy.Name} gathers the light - the air starts to burn.");
+                        break;
+
+                    case IntentType.Staggered:
+                        lines.Add($"{enemy.Name} is still reeling.");
+                        break;
+
                     case IntentType.CallForAid:
                         {
                             var aid = _summonAid?.Invoke();
@@ -290,7 +378,9 @@ namespace DuskAndDawn
                             {
                                 Enemies.Add(aid);
                                 joined.Add(aid);
-                                lines.Add($"{enemy.Name} bellows into the dark - a Wretch answers.");
+                                lines.Add(aid.Kind == EnemyKind.Penitent
+                                    ? $"{enemy.Name} lifts his voice - {aid.Name} answers, singing."
+                                    : $"{enemy.Name} bellows into the dark - a Wretch answers.");
                             }
                             else
                             {
@@ -303,6 +393,18 @@ namespace DuskAndDawn
                         totalDamage += ResolveHit(enemy, lines);
                         break;
                 }
+            }
+
+            // The brand burns at the end of the round - Guard and smoke don't help against a
+            // fire that's already on you.
+            if (BurnTurns > 0 && _playerState.Health > 0)
+            {
+                int burn = Math.Min(BurnDamage, _playerState.Health);
+                _playerState.Health -= burn;
+                BurnTurns--;
+                totalDamage += burn;
+                lines.Add(BurnTurns > 0 ? $"The brand sears you for {burn}." : $"The brand sears you for {burn}, then fades.");
+                if (BurnTurns == 0) BurnDamage = 0;
             }
 
             ClearRoundModifiers();
@@ -347,10 +449,14 @@ namespace DuskAndDawn
                         lines.Add($"{enemy.Name}'s binding breaks against your guard.");
                         Riposte(enemy, lines);
                         return 0;
+                    case IntentType.Brand:
+                        lines.Add($"{enemy.Name}'s brand hisses against your guard - it doesn't take.");
+                        Riposte(enemy, lines);
+                        return 0;
                     case IntentType.Attack:
                         damage /= 2;
                         break;
-                    // Spells ignore Guard.
+                    // Spells and Solar Flares ignore Guard.
                 }
             }
 
@@ -364,6 +470,14 @@ namespace DuskAndDawn
                     break;
                 case IntentType.Spell:
                     lines.Add($"{enemy.Name}'s holy fire burns you for {damage}.");
+                    break;
+                case IntentType.Flare:
+                    lines.Add($"SOLAR FLARE! {enemy.Name}'s light scorches you for {damage}!");
+                    break;
+                case IntentType.Brand when _playerState.Health > 0:
+                    BurnDamage = Math.Max(BurnDamage, enemy.BrandBurn);
+                    BurnTurns = Enemy.BrandTurns;
+                    lines.Add($"{enemy.Name} brands you for {damage} - it burns!");
                     break;
                 case IntentType.Stun when _stunImmune:
                     lines.Add($"{enemy.Name}'s chant hits for {damage}, but can't take hold again.");

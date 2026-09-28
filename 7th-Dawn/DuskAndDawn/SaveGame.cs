@@ -94,7 +94,8 @@ namespace DuskAndDawn
             public int Scraps { get; set; }
             public int HungryMornings { get; set; }
             public bool FeastUsedToday { get; set; }
-            public bool KnightSlain { get; set; }
+            public bool HeraldSlain { get; set; }
+            public List<NightRecord> Nights { get; set; } = new List<NightRecord>();
             public string LastMorningEventTitle { get; set; }
             public District SelectedDistrict { get; set; }
             public Dictionary<BaseRoomType, int> RoomLevels { get; set; } = new Dictionary<BaseRoomType, int>();
@@ -113,7 +114,8 @@ namespace DuskAndDawn
                 Scraps = state.Scraps,
                 HungryMornings = state.HungryMornings,
                 FeastUsedToday = state.FeastUsedToday,
-                KnightSlain = state.KnightSlain,
+                HeraldSlain = state.HeraldSlain,
+                Nights = state.Nights.ToList(),
                 LastMorningEventTitle = state.LastMorningEventTitle,
                 SelectedDistrict = state.SelectedDistrict,
                 RoomLevels = new Dictionary<BaseRoomType, int>(state.RoomLevels),
@@ -134,7 +136,7 @@ namespace DuskAndDawn
                     Scraps = Math.Max(0, Scraps),
                     HungryMornings = Math.Max(0, HungryMornings),
                     FeastUsedToday = FeastUsedToday,
-                    KnightSlain = KnightSlain,
+                    HeraldSlain = HeraldSlain,
                     LastMorningEventTitle = LastMorningEventTitle,
                     SelectedDistrict = SelectedDistrict
                 };
@@ -164,6 +166,10 @@ namespace DuskAndDawn
 
                 state.Items.Clear();
                 state.Items.AddRange(Items.Select(Item.Create).Where(item => item != null));
+
+                // Saves from before the run summary have no night records - the summary just
+                // starts from where this version picked the run up.
+                state.Nights.AddRange((Nights ?? new List<NightRecord>()).Where(n => n != null));
 
                 // Saves from before the belt have none - everything starts in the stash. Slot
                 // count comes from the Storage level restored above.

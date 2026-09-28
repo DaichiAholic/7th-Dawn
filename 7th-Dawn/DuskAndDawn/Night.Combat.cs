@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using MonoGame.Extended;
 using System;
 using System.Collections.Generic;
@@ -23,10 +24,11 @@ namespace DuskAndDawn
         // One animated health bar per enemy in the fight (summoned ones get theirs on arrival).
         private readonly Dictionary<Enemy, LerpBar> _enemyBars = new Dictionary<Enemy, LerpBar>();
 
-        // Set when the fight is the Knight guarding the Hoard: winning opens the Hoard.
+        // Set when the fight is the Sun Herald guarding the Hoard: winning opens the Hoard.
         private bool _fightingForHoard;
 
         private const string ShakeItOffLabel = "Shake it off (stunned)";
+        private const string NoEscapeLabel = "No escape";
 
         // ---- Combat sprite effects ----
         // All three sheets are 7 frames of 64x64. Timings are per whole animation.
@@ -83,7 +85,8 @@ namespace DuskAndDawn
             {
                 enemies = enemies.Where(e => !e.IsDefeated).ToList();
                 bool wounded = enemies.Any(e => e.Health < e.MaxHealth);
-                _textLog.Push(enemies.Any(e => e.IsBoss) ? "The Knight lowers its visor. It has been waiting."
+                // The Herald is placed on the Hoard ahead of time, so this is where you first meet him.
+                _textLog.Push(enemies.Any(e => e.IsBoss) ? EncounterIntro(enemies)
                     : wounded ? $"{DescribeGroup(enemies)} still here, waiting for you."
                     : EncounterIntro(enemies)); // identified ahead of time by the Archive's bestiary
             }
@@ -91,11 +94,12 @@ namespace DuskAndDawn
             room.Enemies = null; // put back by Retreat() if you run again
             _fightingForHoard = room.Type == RoomType.Hoard;
 
-            // Summons are shallow-tier Wretches whatever the room's depth, so the Hoard's
-            // depth doesn't turn every call for aid into a second boss.
-            const int summonTier = 1;
-            _activeCombat = new CombatEncounter(enemies, _playerState, _dawnTimer, _random, _playerState.Day,
-                () => EnemyRoster.Wretch(_district, summonTier, _playerState.Day, _random, summoned: true));
+            // Only the Sun Herald calls for help: frail acolytes from his choir, whatever the
+            // room's depth, so a call is a nuisance rather than a second boss.
+            Func<Enemy> summon = enemies.Any(e => e.Kind == EnemyKind.Herald)
+                ? () => EnemyRoster.ChoirAcolyte(_district, _playerState.Day, _random)
+                : null;
+            _activeCombat = new CombatEncounter(enemies, _playerState, _dawnTimer, _random, _playerState.Day, summon);
 
             _enemyBars.Clear();
             foreach (var enemy in enemies) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
@@ -112,7 +116,7 @@ namespace DuskAndDawn
             return first.Kind switch
             {
                 EnemyKind.Penitent => $"{enemies.Count} Penitents turn from their prayers, chanting as one.",
-                EnemyKind.Knight when first.IsBoss => "The Hollow Knight rises from the Hoard's throne.",
+                EnemyKind.Herald => "The Sun Herald rises from his throne, and the hall floods with light. The doors seal behind you.",
                 EnemyKind.Knight => $"An {first.Name} steps out of the dark, blade already raised.",
                 _ => $"A {first.Name} lurches out of the dark."
             };
@@ -139,7 +143,8 @@ namespace DuskAndDawn
                     _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Attack")); y += height + gap;
                     _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Skills")); y += height + gap;
                     _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Items")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Flee"));
+                    bool canFlee = _activeCombat == null || _activeCombat.CanFlee;
+                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), canFlee ? "Flee" : NoEscapeLabel) { Enabled = canFlee });
                     break;
 
                 case CombatMenu.Skills:
@@ -197,80 +202,134 @@ namespace DuskAndDawn
             foreach (var button in _combatButtons)
             {
                 if (!button.Contains(x, y)) continue;
+                PressCombatButton(button);
+                return;
+            }
+        }
 
-                button.TriggerPress();
-                var label = button.Label;
+        // Number keys, top row or keypad, for the Nth combat button.
+        private static readonly Keys[][] ButtonKeys =
+        {
+            new[] { Keys.D1, Keys.NumPad1 }, new[] { Keys.D2, Keys.NumPad2 }, new[] { Keys.D3, Keys.NumPad3 },
+            new[] { Keys.D4, Keys.NumPad4 }, new[] { Keys.D5, Keys.NumPad5 }, new[] { Keys.D6, Keys.NumPad6 },
+            new[] { Keys.D7, Keys.NumPad7 }, new[] { Keys.D8, Keys.NumPad8 }, new[] { Keys.D9, Keys.NumPad9 }
+        };
 
-                if (label == ShakeItOffLabel)
+        /// <summary>Keyboard play: 1-9 press the matching button, Space attacks (or shakes off
+        /// a stun), Tab / Shift+Tab cycle the target, Backspace backs out of a submenu.</summary>
+        private void HandleCombatKeys(Func<Keys, bool> pressed, bool shift)
+        {
+            for (int i = 0; i < ButtonKeys.Length && i < _combatButtons.Count; i++)
+            {
+                if (ButtonKeys[i].Any(pressed))
                 {
-                    _textLog.Push(_activeCombat.Recover());
+                    PressCombatButton(_combatButtons[i]);
+                    return;
+                }
+            }
+
+            if (pressed(Keys.Space))
+            {
+                var quick = _activeCombat.PlayerStunned
+                    ? _combatButtons.FirstOrDefault(b => b.Label == ShakeItOffLabel)
+                    : _combatMenu == CombatMenu.TopLevel ? _combatButtons.FirstOrDefault(b => b.Label == "Attack") : null;
+                if (quick != null) PressCombatButton(quick);
+                return;
+            }
+
+            if (pressed(Keys.Tab))
+            {
+                var living = _activeCombat.Enemies.Where(e => !e.IsDefeated).ToList();
+                if (living.Count > 1)
+                {
+                    int index = living.IndexOf(_activeCombat.Target);
+                    index = (index + (shift ? -1 : 1) + living.Count) % living.Count;
+                    _activeCombat.SetTarget(living[index]);
+                }
+                return;
+            }
+
+            if (pressed(Keys.Back) && _combatMenu != CombatMenu.TopLevel)
+            {
+                _combatMenu = CombatMenu.TopLevel;
+                LayoutCombatButtons();
+            }
+        }
+
+        /// <summary>Carries out one combat button - from a click or its number key.</summary>
+        private void PressCombatButton(Button button)
+        {
+            if (!button.Enabled) return;
+            button.TriggerPress();
+            var label = button.Label;
+
+            if (label == ShakeItOffLabel)
+            {
+                _textLog.Push(_activeCombat.Recover());
+                _combatTurn++;
+                TriggerCombatEffects(Game1.AttackTexture);
+            }
+            else if (_combatMenu == CombatMenu.TopLevel)
+            {
+                switch (label)
+                {
+                    case "Attack":
+                        _textLog.Push(_activeCombat.Attack());
+                        _combatTurn++;
+                        TriggerCombatEffects(Game1.AttackTexture);
+                        break;
+                    case "Skills":
+                        _combatMenu = CombatMenu.Skills;
+                        LayoutCombatButtons();
+                        return;
+                    case "Items":
+                        _combatMenu = CombatMenu.Items;
+                        LayoutCombatButtons();
+                        return;
+                    case "Flee":
+                        _playerState.ChangeHope(-PlayerState.FleeHopeLoss);
+                        _textLog.Push($"{_activeCombat.Flee()} Hope -{PlayerState.FleeHopeLoss}.");
+                        EndCombat(fled: true);
+                        return;
+                }
+            }
+            else if (_combatMenu == CombatMenu.Skills)
+            {
+                if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
+                var skill = label.StartsWith("Power") ? SkillType.PowerStrike : SkillType.Guard;
+                _textLog.Push(_activeCombat.UseSkill(skill));
+                _combatTurn++;
+                TriggerCombatEffects(Game1.SkillTexture);
+                _combatMenu = CombatMenu.TopLevel;
+            }
+            else if (_combatMenu == CombatMenu.Items)
+            {
+                if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
+                int itemIndex = _combatButtons.IndexOf(button);
+                string itemName = itemIndex >= 0 && itemIndex < _itemButtonNames.Count ? _itemButtonNames[itemIndex] : label;
+                var item = _playerState.Belt.Find(it => it.Name == itemName);
+                if (item != null)
+                {
+                    _textLog.Push(_activeCombat.UseItem(item));
                     _combatTurn++;
                     TriggerCombatEffects(Game1.AttackTexture);
                 }
-                else if (_combatMenu == CombatMenu.TopLevel)
-                {
-                    switch (label)
-                    {
-                        case "Attack":
-                            _textLog.Push(_activeCombat.Attack());
-                            _combatTurn++;
-                            TriggerCombatEffects(Game1.AttackTexture);
-                            break;
-                        case "Skills":
-                            _combatMenu = CombatMenu.Skills;
-                            LayoutCombatButtons();
-                            return;
-                        case "Items":
-                            _combatMenu = CombatMenu.Items;
-                            LayoutCombatButtons();
-                            return;
-                        case "Flee":
-                            _playerState.ChangeHope(-PlayerState.FleeHopeLoss);
-                            _textLog.Push($"{_activeCombat.Flee()} Hope -{PlayerState.FleeHopeLoss}.");
-                            EndCombat(fled: true);
-                            return;
-                    }
-                }
-                else if (_combatMenu == CombatMenu.Skills)
-                {
-                    if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
-                    var skill = label.StartsWith("Power") ? SkillType.PowerStrike : SkillType.Guard;
-                    _textLog.Push(_activeCombat.UseSkill(skill));
-                    _combatTurn++;
-                    TriggerCombatEffects(Game1.SkillTexture);
-                    _combatMenu = CombatMenu.TopLevel;
-                }
-                else if (_combatMenu == CombatMenu.Items)
-                {
-                    if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
-                    int itemIndex = _combatButtons.IndexOf(button);
-                    string itemName = itemIndex >= 0 && itemIndex < _itemButtonNames.Count ? _itemButtonNames[itemIndex] : label;
-                    var item = _playerState.Belt.Find(it => it.Name == itemName);
-                    if (item != null)
-                    {
-                        _textLog.Push(_activeCombat.UseItem(item));
-                        _combatTurn++;
-                        TriggerCombatEffects(Game1.AttackTexture);
-                    }
-                    _combatMenu = CombatMenu.TopLevel;
-                }
+                _combatMenu = CombatMenu.TopLevel;
+            }
 
-                // A Knight's call for aid can add an enemy mid-fight.
-                foreach (var enemy in _activeCombat.Enemies)
-                {
-                    if (!_enemyBars.ContainsKey(enemy)) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
-                }
+            // The Herald's choir can add an enemy mid-fight.
+            foreach (var enemy in _activeCombat.Enemies)
+            {
+                if (!_enemyBars.ContainsKey(enemy)) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
+            }
 
-                if (_activeCombat.IsOver)
-                {
-                    EndCombat(fled: false);
-                }
-                else
-                {
-                    LayoutCombatButtons();
-                }
-
-                return;
+            if (_activeCombat.IsOver)
+            {
+                EndCombat(fled: false);
+            }
+            else
+            {
+                LayoutCombatButtons();
             }
         }
 
@@ -353,10 +412,13 @@ namespace DuskAndDawn
             _activeCombat = null;
             _combatMenu = CombatMenu.TopLevel;
             _state = ExplorationState.Map;
+            _enemiesDefeatedTonight += combat.Enemies.Count(e => e.IsDefeated && !e.IsSummoned);
 
             if (knockedOut)
             {
-                Collapse();
+                _knockedOutTonight = true;
+                if (combat.HasBoss) FallToHerald();
+                else Collapse();
                 return;
             }
             if (won)
@@ -381,7 +443,7 @@ namespace DuskAndDawn
         }
 
         /// <summary>Fights are the main source of Scraps: every fallen enemy (except the
-        /// Knight's summons) is stripped, so a weapon that wins without bleeding out pays.</summary>
+        /// Herald's choir) is stripped, so a weapon that wins without bleeding out pays.</summary>
         private void CollectCombatLoot(CombatEncounter combat)
         {
             int food = 0, planks = 0, scraps = 0;
@@ -397,9 +459,9 @@ namespace DuskAndDawn
 
             if (combat.HasBoss)
             {
-                _playerState.KnightSlain = true;
-                _playerState.ChangeHope(PlayerState.KnightSlainHope);
-                _textLog.Push($"The Hollow Knight falls, and the whole ruin seems to exhale. Hope +{PlayerState.KnightSlainHope}.");
+                _playerState.HeraldSlain = true;
+                _playerState.ChangeHope(PlayerState.HeraldSlainHope);
+                _textLog.Push($"The Sun Herald falls, and his light goes out like a snuffed candle. Hope +{PlayerState.HeraldSlainHope}.");
             }
         }
 
@@ -423,6 +485,17 @@ namespace DuskAndDawn
             }
 
             _textLog.Push($"You back out the way you came. {DescribeGroup(survivors)} still in there.");
+        }
+
+        /// <summary>Beaten by the Sun Herald: there's no one to drag you home from his hall.
+        /// A short beat, then the run is over.</summary>
+        private void FallToHerald()
+        {
+            _playerState.FellToHerald = true;
+            _collapseText = "The Sun Herald's light fills everything, and then there is nothing left of you to burn.";
+            _collapseTimer = CollapseDuration;
+            _collapseEndsRun = true;
+            _state = ExplorationState.Map;
         }
 
         /// <summary>Knocked out: half of tonight's haul is dropped in the dark, the house

@@ -42,12 +42,13 @@ namespace DuskAndDawn
         private static readonly Vector2 ShelterPoint = new Vector2(130, 610);
 
         // Landmark centers, in DistrictInfo.All order - a road winding from the shelter up
-        // toward the Keep, so distance on the map reads as danger.
+        // toward the Keep and on to the Castle, so distance on the map reads as danger.
         private static readonly Vector2[] LandmarkPoints =
         {
             new Vector2(240, 470), // Village Outskirts
-            new Vector2(420, 330), // Church Ruins
-            new Vector2(575, 185)  // Castle Keep
+            new Vector2(410, 335), // Church Ruins
+            new Vector2(520, 225), // Castle Keep
+            new Vector2(620, 134)  // The Castle
         };
 
         private const float LandmarkRadius = 30f;
@@ -66,7 +67,7 @@ namespace DuskAndDawn
         {
             new Vector2(90, 200), new Vector2(112, 228), new Vector2(150, 182), new Vector2(200, 300),
             new Vector2(90, 400), new Vector2(470, 160), new Vector2(180, 120), new Vector2(520, 560),
-            new Vector2(556, 598), new Vector2(600, 540), new Vector2(640, 420), new Vector2(620, 640),
+            new Vector2(556, 598), new Vector2(600, 540), new Vector2(640, 420), new Vector2(560, 650),
             new Vector2(500, 450), new Vector2(230, 640)
         };
 
@@ -93,9 +94,13 @@ namespace DuskAndDawn
             // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
-            // If the saved choice is somehow locked (shouldn't happen, Archive never
-            // downgrades), fall back to the Outskirts.
-            if (!_playerState.IsDistrictUnlocked(_playerState.SelectedDistrict))
+            // The last night can only be spent in The Castle. Any other night, a choice that's
+            // locked falls back to the Outskirts.
+            if (DayInfo.IsFinalNight(_playerState.Day))
+            {
+                _playerState.SelectedDistrict = District.Castle;
+            }
+            else if (!_playerState.IsDistrictUnlocked(_playerState.SelectedDistrict))
             {
                 _playerState.SelectedDistrict = District.VillageOutskirts;
             }
@@ -232,7 +237,7 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, heading, new Vector2(40, 22 - (1f - headIn) * 14f), Color.White * headIn);
             float headingWidth = UITheme.MeasureString(font, heading).X;
             string dayLine = DayInfo.IsFinalNight(day)
-                ? $"{DayInfo.Label(day)}  -  the Hollow Knight guards the Hoard"
+                ? $"{DayInfo.Label(day)}  -  every road leads to the Castle tonight"
                 : $"{DayInfo.Label(day)}  -  the dark grows bolder each night";
             UITheme.DrawTextWithShadow(spriteBatch, font, dayLine, new Vector2(40 + headingWidth + 24, 27), (DayInfo.IsFinalNight(day) ? new Color(255, 190, 110) : new Color(190, 180, 205)) * Anim.Intro(_elapsed, 0.15f, 0.4f), 0.75f);
 
@@ -270,8 +275,9 @@ namespace DuskAndDawn
             {
                 float t = MathHelper.Clamp((_elapsed - RoadAt - i * RoadStep) / RoadStep, 0f, 1f);
                 if (t <= 0f) break;
-                bool reachable = _playerState.IsDistrictUnlocked(DistrictInfo.All[i]);
                 bool onRoute = i <= selectedIndex;
+                // The road to tonight's target is open even through districts sealed tonight.
+                bool reachable = onRoute || _playerState.IsDistrictUnlocked(DistrictInfo.All[i]);
                 Color roadColor = !reachable ? Color.White * 0.15f
                     : onRoute ? new Color(255, 205, 140) * 0.9f
                     : new Color(225, 195, 140) * 0.55f;
@@ -290,7 +296,7 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hover a landmark to scout it, click to choose.", new Vector2(MapPanel.X + 18, MapPanel.Y + MapPanel.Height - 30), new Color(190, 180, 165), 0.65f);
 
             // A little compass rose in the corner.
-            var compass = new Vector2(MapPanel.X + MapPanel.Width - 40, MapPanel.Y + 50);
+            var compass = new Vector2(MapPanel.X + MapPanel.Width - 40, MapPanel.Y + MapPanel.Height - 70);
             spriteBatch.DrawLine(compass + new Vector2(0, -18), compass + new Vector2(0, 18), new Color(225, 205, 165) * 0.6f, 2f);
             spriteBatch.DrawLine(compass + new Vector2(-12, 0), compass + new Vector2(12, 0), new Color(225, 205, 165) * 0.4f, 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, "N", compass + new Vector2(-6, -44), new Color(225, 205, 165), 0.75f);
@@ -409,7 +415,7 @@ namespace DuskAndDawn
             {
                 // Corruption tier as ember pips under the name.
                 int tier = DistrictInfo.Corruption(district);
-                const int maxTier = 3;
+                const int maxTier = DistrictInfo.MaxCorruption;
                 const float pip = 5f, gap = 6f;
                 float startX = center.X - (maxTier * pip * 2f + (maxTier - 1) * gap) / 2f + pip;
                 float pipY = center.Y + radius + 38;
@@ -421,7 +427,7 @@ namespace DuskAndDawn
             }
             else
             {
-                DrawCenteredText(spriteBatch, font, $"Locked - Archive Lv {DistrictInfo.RequiredArchiveLevel(district)}", new Vector2(center.X, center.Y + radius + 30), new Color(160, 150, 160), 0.6f);
+                DrawCenteredText(spriteBatch, font, LockLabel(district), new Vector2(center.X, center.Y + radius + 30), new Color(160, 150, 160), 0.6f);
             }
         }
 
@@ -565,16 +571,22 @@ namespace DuskAndDawn
             {
                 Wrapped($"Penitents ({penitents}% of fights): groups that cast holy fire and chant stuns.", new Color(235, 200, 140), 0.62f);
             }
-            if (district == District.CastleKeep)
+            int knights = EnemyRoster.CastleKnightChance(district);
+            if (knights > 0)
             {
-                Wrapped($"Castle Knights ({EnemyRoster.CastleKnightChance}%): elites that hit hard and wind up often.", new Color(255, 200, 120), 0.62f);
+                Wrapped($"Castle Knights ({knights}%): elites that hit hard and wind up often.", new Color(255, 200, 120), 0.62f);
+            }
+            if (district == District.Castle)
+            {
+                Wrapped("The Sun Herald holds the Hoard: solar flares, a burning brand, a choir that answers his call. Optional - but once the doors seal there's no fleeing, and falling to him ends the run.",
+                    new Color(255, 225, 150), 0.62f);
             }
             Divider();
 
             // ---- Footer ----
             if (!unlocked)
             {
-                Wrapped($"Locked - upgrade the Archive to Lv {DistrictInfo.RequiredArchiveLevel(district)}", new Color(235, 130, 115), 0.7f);
+                Wrapped(LockReason(district), new Color(235, 130, 115), 0.7f);
             }
             else if (selected)
             {
@@ -642,9 +654,39 @@ namespace DuskAndDawn
                 string stats = weapon.IsHoly ? $"{weapon.DiceLabel}  +{weapon.CorruptionBonus}/corr" : $"{weapon.DiceLabel}  avg {weapon.AverageDamage:0.#}";
                 UITheme.DrawTextWithShadow(spriteBatch, font, stats, new Vector2(textX, drawBounds.Y + 32), new Color(215, 215, 215) * intro, 0.75f);
 
+                // Bottom line: the trait on the left, "Equipped" tucked in on the right.
+                if (weapon.TraitLabel.Length > 0)
+                {
+                    UITheme.DrawTextWithShadow(spriteBatch, font, weapon.TraitLabel, new Vector2(textX, drawBounds.Y + drawBounds.Height - 22), TraitColor(weapon.Trait) * intro, 0.68f);
+                }
                 if (equipped)
                 {
-                    UITheme.DrawTextWithShadow(spriteBatch, font, "Equipped", new Vector2(textX, drawBounds.Y + drawBounds.Height - 22), new Color(255, 235, 190) * intro, 0.7f);
+                    const string tag = "Equipped";
+                    var tagSize = UITheme.MeasureString(font, tag) * 0.6f;
+                    UITheme.DrawTextWithShadow(spriteBatch, font, tag, new Vector2(drawBounds.Right - tagSize.X - 10, drawBounds.Y + drawBounds.Height - 20), new Color(255, 235, 190) * intro, 0.6f);
+                }
+            }
+
+            // What the hovered weapon's trait does (or the equipped one's), in the space under
+            // the cards - when there's room for it.
+            if (WeaponPageCount == 1 && _weaponButtons.Count <= WeaponsPerRow * 2)
+            {
+                int shown = -1;
+                float bestHover = 0.5f;
+                for (int i = 0; i < _weaponButtons.Count; i++)
+                {
+                    if (_weaponButtons[i].HoverAmount > bestHover) { bestHover = _weaponButtons[i].HoverAmount; shown = i; }
+                }
+                var described = shown >= 0 ? _playerState.Inventory[_weaponIndices[shown]] : _playerState.EquippedWeapon;
+                if (described != null && described.TraitDescription.Length > 0)
+                {
+                    float y = 112 + ((_weaponButtons.Count + WeaponsPerRow - 1) / WeaponsPerRow) * (WeaponCardHeight + 10) + 6;
+                    string text = $"{described.Name} - {described.TraitDescription}";
+                    foreach (var line in TextLog.WrapText(font, text, (LoadoutPanel.Width - 40) / 0.64f))
+                    {
+                        UITheme.DrawTextWithShadow(spriteBatch, font, line, new Vector2(LoadoutPanel.X + 20, y), new Color(200, 195, 210) * Anim.Intro(_elapsed, 0.4f, 0.4f), 0.64f);
+                        y += 18;
+                    }
                 }
             }
 
@@ -726,8 +768,30 @@ namespace DuskAndDawn
             District.VillageOutskirts => new Color(104, 132, 64),  // mossy fields
             District.ChurchRuins => new Color(112, 78, 150),       // stained-glass violet
             District.CastleKeep => new Color(150, 56, 48),         // banner crimson
+            District.Castle => new Color(176, 140, 60),            // the Herald's gold
             _ => new Color(80, 80, 90)
         };
+
+        private static Color TraitColor(WeaponTrait trait) => trait switch
+        {
+            WeaponTrait.Bleed => new Color(255, 140, 130),
+            WeaponTrait.Stagger => new Color(170, 200, 255),
+            WeaponTrait.Lifesteal => new Color(150, 230, 170),
+            WeaponTrait.Sunbane => new Color(255, 220, 140),
+            _ => Color.White
+        };
+
+        /// <summary>Short lock tag under a landmark.</summary>
+        private string LockLabel(District district) =>
+            district == District.Castle ? "Opens on the last night"
+            : DayInfo.IsFinalNight(_playerState.Day) ? "Sealed tonight"
+            : $"Locked - Archive Lv {DistrictInfo.RequiredArchiveLevel(district)}";
+
+        /// <summary>Why a district can't be chosen tonight, for its tooltip.</summary>
+        private string LockReason(District district) =>
+            district == District.Castle ? $"Opens only on the last night ({DayInfo.Label(DayInfo.FinalDay)}) - and then it's the only way in."
+            : DayInfo.IsFinalNight(_playerState.Day) ? "Sealed tonight - the last night belongs to the Castle."
+            : $"Locked - upgrade the Archive to Lv {DistrictInfo.RequiredArchiveLevel(district)}";
 
         private Texture2D MaterialIcon(string material) => material switch
         {

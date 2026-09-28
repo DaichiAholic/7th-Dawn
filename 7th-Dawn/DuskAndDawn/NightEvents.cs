@@ -77,7 +77,8 @@ namespace DuskAndDawn
     /// <summary>
     /// The Strange Rooms of the night: small stories with a choice. What they offer follows
     /// the district - the Outskirts deal in food and supplies, the Church in timber and
-    /// relics, the Keep in metal (and traps) - plus a few that can turn up anywhere.
+    /// relics, the Keep in metal (and traps), the Castle in gifts with a price - plus a few
+    /// that can turn up anywhere.
     /// </summary>
     public static class NightEventPool
     {
@@ -213,6 +214,33 @@ namespace DuskAndDawn
                 Opt("Bury them", "Hope.", 40, (s, r, d) => Gain(s, "It's the least anyone could do.", hope: 5))),
         };
 
+        // ---------------- The Castle: the Herald's gifts, which always cost something ----------------
+        private static readonly Func<NightEvent>[] Castle =
+        {
+            () => new NightEvent("A sunlit chapel", "Light pours through a window that should face the night. It is warm, and it is watching.",
+                Opt("Kneel in the light", "+25 health - but it feels like being seen (-4 Hope).", 20, (s, r, d) => Gain(s, "The light closes your wounds, and takes something for it.", hope: -4, health: 25)),
+                Opt("Smash the window", "Lead and glass for Scraps. The light dies, and you breathe easier.", 10, (s, r, d) => Gain(s, "It shatters, and the dark comes back like cool water.", scraps: Roll(r, 3, 5, d), hope: 3))),
+
+            () => new NightEvent("The Herald's armoury", "Racks of gilded arms, polished for a war that hasn't started yet.",
+                Opt("Pry off the gilding", "Lots of Scraps, slowly.", 40, (s, r, d) => Gain(s, "Gold leaf over good steel.", scraps: Roll(r, 8, 11, d))),
+                Opt("Take a flask of blessed oil", "60%: a Tonic. Otherwise it burns (-12 health).", 10, (s, r, d) =>
+                {
+                    if (r.Next(100) < 60)
+                    {
+                        var tonic = Item.Tonic();
+                        return new NightEventResult($"It soothes rather than burns - a Tonic, {s.GainItemAtNight(tonic)}.");
+                    }
+                    return Gain(s, "It was never meant for hands like yours.", health: -12);
+                }, healthRisk: 12)),
+
+            () => new NightEvent("A choir loft", "Empty stalls. A hymn hangs in the air, sung by no one.",
+                Opt("Cut the bell ropes", "Timber and cord - and no bells to raise the alarm.", 20, (s, r, d) => Gain(s, "The ropes fall slack. The hymn falters.", planks: Roll(r, 4, 6, d), hope: 2)),
+                Opt("Hum along", "50%: the hymn steadies you (+8 Hope). Otherwise the choir hears you - a fight.", 5, (s, r, d) =>
+                    r.Next(100) < 50
+                        ? Gain(s, "For a moment it's just a song, and it's beautiful.", hope: 8)
+                        : new NightEventResult("The stalls are not empty after all.", startsFight: true))),
+        };
+
         /// <summary>A district-themed event (or, a quarter of the time, one that can happen
         /// anywhere), avoiding ones already seen tonight when possible.</summary>
         public static NightEvent Pick(District district, Random random, ISet<string> seenTonight)
@@ -221,6 +249,7 @@ namespace DuskAndDawn
             {
                 District.ChurchRuins => Church,
                 District.CastleKeep => Keep,
+                District.Castle => Castle,
                 _ => Village
             };
             var pool = random.Next(100) < 25 ? Anywhere : local;

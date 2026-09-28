@@ -16,7 +16,7 @@ namespace DuskAndDawn
         // Every Hope rule lives here. It starts short of full so gains always count, and it
         // drains steadily: dread each dawn (DayInfo.DawnDread, 3 rising to 8), hunger (below),
         // knockouts and running away. Feasts, generous morning choices, reaching the Hoard and
-        // slaying the Knight are how it comes back.
+        // slaying the Sun Herald are how it comes back.
         public const int MaxHope = 100;
         public const int StartingHope = 80;
         public int Hope = StartingHope;
@@ -24,14 +24,23 @@ namespace DuskAndDawn
         public const int KnockoutHopeLoss = 12;  // dragged home half-dead
         public const int FleeHopeLoss = 2;       // every retreat shakes the house a little
         public const int HoardHope = 4;          // a find like the Hoard gives everyone heart
-        public const int KnightSlainHope = 12;
+        public const int HeraldSlainHope = 12;
 
         // ---- The goal: reach the seventh dawn ----
         // Day 1 is the first day at the base; its night is night 1. Surviving night 7 wins.
         public int Day = 1;
 
-        // Slain the Hollow Knight on the final night - the better ending.
-        public bool KnightSlain;
+        // Slew the Sun Herald on the final night - the better ending.
+        public bool HeraldSlain;
+
+        // Fell to the Sun Herald - the run ends on the spot, whatever Hope is left.
+        public bool FellToHerald;
+
+        // ---- The run so far, for the summary at the end ----
+        /// <summary>One entry per night played, added as the night ends.</summary>
+        public List<NightRecord> Nights { get; } = new List<NightRecord>();
+
+        public int EnemiesDefeated => Nights.Sum(n => n.EnemiesDefeated);
 
         public int MaxHealth = 100;
         public int Health = 100;
@@ -297,9 +306,35 @@ namespace DuskAndDawn
         /// <summary>Lv 5 old roads: extra minutes before dawn each night.</summary>
         public int ArchiveExtraNightMinutes => Level(BaseRoomType.Archive) >= 5 ? 60 : 0;
 
+        /// <summary>Whether the Archive's maps reach this district (The Castle is never on them).</summary>
+        public bool ArchiveReaches(District district) =>
+            district != District.Castle && Level(BaseRoomType.Archive) >= DistrictInfo.RequiredArchiveLevel(district);
+
+        /// <summary>Where you can go tonight. The last night belongs to The Castle - it's the
+        /// only way in, and the only night it opens.</summary>
         public bool IsDistrictUnlocked(District district)
         {
-            return Level(BaseRoomType.Archive) >= DistrictInfo.RequiredArchiveLevel(district);
+            if (DayInfo.IsFinalNight(Day)) return district == District.Castle;
+            return ArchiveReaches(district);
         }
+    }
+
+    /// <summary>How one night went - kept for the run summary on the Game Over screen.</summary>
+    public class NightRecord
+    {
+        public int Day { get; set; }
+        public District District { get; set; }
+        /// <summary>Hope when you set out, before anything tonight changed it.</summary>
+        public int HopeAtDusk { get; set; }
+        /// <summary>Hope when the night ended.</summary>
+        public int HopeAtDawn { get; set; }
+        public int Food { get; set; }
+        public int Planks { get; set; }
+        public int Scraps { get; set; }
+        public int EnemiesDefeated { get; set; }
+        public int RoomsExplored { get; set; }
+        public bool KnockedOut { get; set; }
+
+        public int Haul => Food + Planks + Scraps;
     }
 }

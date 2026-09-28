@@ -26,11 +26,11 @@ namespace DuskAndDawn
         public bool Visited { get; set; }
 
         // Enemies you fled from stay in their room, wounds and all, until you come back and
-        // finish them. Also holds the Knight on the final night's Hoard. null = none waiting
+        // finish them. Also holds the Sun Herald on the last night's Hoard. null = none waiting
         // (a fresh encounter is rolled on entry).
         public List<Enemy> Enemies { get; set; }
 
-        public bool HasKnight => Enemies != null && Enemies.Exists(e => e.IsBoss && !e.IsDefeated);
+        public bool HasBoss => Enemies != null && Enemies.Exists(e => e.IsBoss && !e.IsDefeated);
         public bool Discovered { get; set; } // seen at all - drawn as a silhouette
         public bool Scouted { get; set; }    // type known
 

@@ -109,7 +109,7 @@ namespace DuskAndDawn
 
             string headline = IsFinalDawn ? "The seventh dawn breaks." : $"Dawn. Night {_playerState.Day} of {DayInfo.FinalDay} survived.";
             string subline = IsFinalDawn
-                ? (_playerState.KnightSlain ? "The Hollow Knight is dead, and the light comes up gold." : "You made it. The house is still standing.")
+                ? (_playerState.HeraldSlain ? "The Sun Herald is ash, and the light comes up gold." : "You made it. The house is still standing.")
                 : $"{DayInfo.FinalDay - _playerState.Day} more night{(DayInfo.FinalDay - _playerState.Day == 1 ? "" : "s")} until the seventh dawn.";
 
             float titleIn = Anim.Intro(_elapsed, 0.25f, 0.7f);

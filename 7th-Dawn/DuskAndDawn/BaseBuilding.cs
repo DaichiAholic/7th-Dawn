@@ -93,7 +93,8 @@ namespace DuskAndDawn
         public static Recipe ForWeapon(BaseRoomType room, int level, int food, int planks, int scraps, Func<Weapon> make)
         {
             var sample = make();
-            return new Recipe(sample.Name, sample.StatLabel, room, level, food, planks, scraps, state =>
+            string detail = sample.TraitLabel.Length > 0 ? $"{sample.StatLabel}  {sample.TraitLabel}" : sample.StatLabel;
+            return new Recipe(sample.Name, detail, room, level, food, planks, scraps, state =>
             {
                 state.Inventory.Add(make());
                 return $"Crafted a {sample.Name}. Equip it on the Prepare screen.";
@@ -682,7 +683,7 @@ namespace DuskAndDawn
             (BaseRoomType.Workshop, 2) => "Iron weapons; reinforce to +2",
             (BaseRoomType.Workshop, 3) => "Holy Lance and War Maul; reinforce to +3",
             (BaseRoomType.Workshop, 4) => "Whetstone - +1 damage on every hit; reinforce to +4",
-            (BaseRoomType.Workshop, _) => "Dawnbreaker, the Knight-killer; reinforce to +5",
+            (BaseRoomType.Workshop, _) => "Dawnbreaker, the Herald-killer; reinforce to +5",
 
             (BaseRoomType.Infirmary, 1) => "Bandages",
             (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
@@ -719,7 +720,7 @@ namespace DuskAndDawn
             BaseRoomType.Infirmary => $"{_playerState.NightMaxHealth} health at night",
             BaseRoomType.Kitchen => $"+{_playerState.KitchenDailyFood} Food per morning",
             BaseRoomType.Barrack => $"{_playerState.BarracksRerolls} reroll(s) per fight",
-            BaseRoomType.Archive => $"{DistrictInfo.All.Count(_playerState.IsDistrictUnlocked)} district(s) open",
+            BaseRoomType.Archive => $"{DistrictInfo.Scavenging.Count(_playerState.ArchiveReaches)} district(s) open",
             _ => ""
         };
 

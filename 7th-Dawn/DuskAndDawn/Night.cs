@@ -93,6 +93,7 @@ namespace DuskAndDawn
 
         private Button _headBackButton;
         private MouseState _previousMouse;
+        private KeyboardState _previousKeyboard;
 
         // Animated health bars - see LerpBar.cs
         private LerpBar _playerHealthBar;
@@ -105,6 +106,15 @@ namespace DuskAndDawn
         private float _collapseTimer = -1f;
         private string _collapseText = "";
         private int _startFood, _startPlanks, _startScraps;
+
+        // Set when the Sun Herald wins: the collapse beat ends the run instead of the night.
+        private bool _collapseEndsRun;
+
+        // ---- Tonight, for the run summary ----
+        private int _startHope;
+        private int _enemiesDefeatedTonight;
+        private bool _knockedOutTonight;
+        private bool _nightRecorded;
 
 
         public NightScavengingScreen(Game game, PlayerState playerState) : base(game)
@@ -119,6 +129,7 @@ namespace DuskAndDawn
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
+            _previousKeyboard = Keyboard.GetState();
 
             // Rested at the base - full health tonight (more of it with a better Infirmary).
             _playerState.MaxHealth = _playerState.NightMaxHealth;
@@ -130,16 +141,18 @@ namespace DuskAndDawn
             _startFood = _playerState.Food;
             _startPlanks = _playerState.Planks;
             _startScraps = _playerState.Scraps;
+            _startHope = _playerState.Hope;
             var roomGenerator = new RoomGenerator(_district, _random, _playerState.Day);
             _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
 
-            // The last night: the Knight sits on the Hoard. It's optional - survive until dawn
-            // and the house lives - but slaying it is the victory worth telling.
+            // The last night is The Castle's, and the Sun Herald sits on its Hoard. He's
+            // optional - survive until dawn and the house lives - but slaying him is the
+            // victory worth telling, and falling to him ends everything.
             bool finalNight = DayInfo.IsFinalNight(_playerState.Day);
-            if (finalNight)
+            if (finalNight && _district == District.Castle)
             {
-                _map.Hoard.Enemies = new List<Enemy> { EnemyRoster.Knight(_district, _random) };
+                _map.Hoard.Enemies = new List<Enemy> { EnemyRoster.SunHerald(_random) };
             }
 
             _current = _map.Entrance;
@@ -151,7 +164,7 @@ namespace DuskAndDawn
             foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
 
             _textLog.Push(finalNight
-                ? $"{_dawnTimer.ClockLabel}. The last night. Somewhere deep in the {DistrictInfo.Name(_district)}, a Knight guards the Hoard."
+                ? $"{_dawnTimer.ClockLabel}. The last night. The Sun Herald waits at the heart of the Castle."
                 : $"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
 
             for (int i = 0; i < EmberCount; i++)
@@ -179,6 +192,7 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
+                RecordNight();
                 Game1.EndRun(victory: false);
                 return;
             }
@@ -186,6 +200,10 @@ namespace DuskAndDawn
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             var mouse = InputChecker.GetMouse();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
+            var keyboard = Keyboard.GetState();
+            var previousKeyboard = _previousKeyboard;
+            _previousKeyboard = keyboard;
+            bool KeyPressed(Keys key) => keyboard.IsKeyDown(key) && !previousKeyboard.IsKeyDown(key);
 
             // Bars and one-shot effects animate every frame regardless of state, so they keep
             // catching up (or finish playing out) even right after combat ends.
@@ -205,7 +223,18 @@ namespace DuskAndDawn
             if (_collapseTimer >= 0f)
             {
                 _collapseTimer -= dt;
-                if (_collapseTimer < 0f) GoToDawnReturn();
+                if (_collapseTimer < 0f)
+                {
+                    if (_collapseEndsRun)
+                    {
+                        RecordNight();
+                        Game1.EndRun(victory: false);
+                    }
+                    else
+                    {
+                        GoToDawnReturn();
+                    }
+                }
                 _previousMouse = mouse;
                 return;
             }
@@ -268,6 +297,11 @@ namespace DuskAndDawn
             foreach (var button in _eventButtons)
             {
                 button.UpdateAnimation(dt, inEvent && button.Contains(mouse.X, mouse.Y));
+            }
+
+            if (inCombat && !_leaving && !IsActionLocked && _activeCombat != null && !ScreenTransitions.IsTransitioning)
+            {
+                HandleCombatKeys(KeyPressed, keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift));
             }
 
             if (clicked && !_leaving)
@@ -373,7 +407,7 @@ namespace DuskAndDawn
                     StartEvent();
                     break;
                 case RoomType.Hoard:
-                    if (node.Enemies != null) StartEncounter(node); // the Knight, on the last night
+                    if (node.Enemies != null) StartEncounter(node); // the Sun Herald, on the last night
                     else ResolveHoard();
                     break;
                 default:
@@ -492,7 +526,28 @@ namespace DuskAndDawn
         {
             if (_leaving) return;
             _leaving = true;
+            RecordNight();
             ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _roomsVisited), ScreenTransitions.FadeTransition(GraphicsDevice));
+        }
+
+        /// <summary>Writes tonight into the run's history, once, however the night ends.</summary>
+        private void RecordNight()
+        {
+            if (_nightRecorded) return;
+            _nightRecorded = true;
+            _playerState.Nights.Add(new NightRecord
+            {
+                Day = _playerState.Day,
+                District = _district,
+                HopeAtDusk = _startHope,
+                HopeAtDawn = _playerState.Hope,
+                Food = Math.Max(0, _playerState.Food - _startFood),
+                Planks = Math.Max(0, _playerState.Planks - _startPlanks),
+                Scraps = Math.Max(0, _playerState.Scraps - _startScraps),
+                EnemiesDefeated = _enemiesDefeatedTonight,
+                RoomsExplored = _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance),
+                KnockedOut = _knockedOutTonight
+            });
         }
 
         // ---------- Atmosphere ----------
