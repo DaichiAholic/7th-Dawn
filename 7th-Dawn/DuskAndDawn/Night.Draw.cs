@@ -287,36 +287,15 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, $"New room {DawnTimer.FormatDuration(RoomEntryMinutes)}.  Fights take no time.", new Vector2(textX, 70), new Color(170, 165, 190), 0.62f);
         }
 
-        // Hp_bar.png is a single "full" bar sprite (heart + red track), not a separate
-        // empty/full pair. To show partial health without a second asset, this draws a dim
-        // full-width copy as the track, then the same sprite - cropped from its left edge to
-        // just the current-health fraction - at full brightness on top. Both draws share the
-        // same position/scale, so the crop lines up exactly with the track underneath, and the
-        // bar visually drains from the right while the heart and left cap stay put.
-        private void DrawHpBarSprite(SpriteBatch spriteBatch, Vector2 position, float scale, float ratio)
-        {
-            var texture = Game1.HpBarTexture;
-            if (texture == null) return;
-
-            var fullSource = new Rectangle(0, 0, texture.Width, texture.Height);
-            spriteBatch.Draw(texture, position, fullSource, Color.White * 0.35f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-
-            if (ratio > 0.01f)
-            {
-                int fillWidth = Math.Max(1, (int)(texture.Width * MathHelper.Clamp(ratio, 0f, 1f)));
-                var fillSource = new Rectangle(0, 0, fillWidth, texture.Height);
-                spriteBatch.Draw(texture, position, fillSource, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            }
-        }
-
         private void DrawPlayerHealthBar(SpriteBatch spriteBatch, SpriteFont font)
         {
             var shakenPosition = PlayerHpBarPosition + _playerShake.Offset;
-            DrawHpBarSprite(spriteBatch, shakenPosition, PlayerHpBarScale, _playerHealthBar.Ratio);
+            var frame = Game1.HpBarFrame;
+            UITheme.DrawPixelBar(spriteBatch, frame, Game1.HpBarGauge, shakenPosition, PlayerHpBarScreenScale, _playerHealthBar.Ratio);
 
-            var texture = Game1.HpBarTexture;
-            float dispW = texture != null ? texture.Width * PlayerHpBarScale : 0f;
-            float dispH = texture != null ? texture.Height * PlayerHpBarScale : 0f;
+            float scale = PlayerHpBarScreenScale / UITheme.RenderScale;
+            float dispW = frame != null ? frame.Width * scale : 0f;
+            float dispH = frame != null ? frame.Height * scale : 0f;
 
             var label = $"{_playerState.Health}/{_playerState.MaxHealth}";
             var labelPos = new Vector2(shakenPosition.X + dispW + 14, shakenPosition.Y + dispH / 2f - 10);
@@ -891,10 +870,18 @@ namespace DuskAndDawn
             var draw = new RectangleF(b.X + squash, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
             UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.5f);
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(draw.X + 12, draw.Y + 6), Color.White, 0.9f);
+            // The item's icon on the left when it has one; text shifts over.
+            float textX = draw.X + 12;
+            var icon = Game1.GetItemIcon(itemName);
+            if (icon != null)
+            {
+                UITheme.DrawIconSlot(spriteBatch, icon, new Vector2(draw.X + 12, draw.Y + (draw.Height - 32) / 2f), 1);
+                textX = draw.X + 54;
+            }
+            UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(textX, draw.Y + 6), Color.White, 0.9f);
             if (item != null)
             {
-                UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(draw.X + 12, draw.Y + 32), new Color(170, 230, 180), 0.66f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(textX, draw.Y + 32), new Color(170, 230, 180), 0.66f);
             }
         }
 

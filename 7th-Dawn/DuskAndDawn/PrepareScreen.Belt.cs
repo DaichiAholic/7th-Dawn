@@ -162,8 +162,19 @@ namespace DuskAndDawn
                     continue;
                 }
 
-                // Item name, wrapped to fit the slot.
-                var lines = TextLog.WrapText(font, _playerState.Belt[i].Name, (b.Width - 8) / 0.6f);
+                string itemName = _playerState.Belt[i].Name;
+                var icon = Game1.GetItemIcon(itemName);
+                if (icon != null)
+                {
+                    // The item's icon, with its name small underneath.
+                    UITheme.DrawPixelIcon(spriteBatch, icon, new Vector2(b.X + (b.Width - 32) / 2f, b.Y + 2), 1);
+                    var nameSize = UITheme.MeasureString(font, itemName) * 0.5f;
+                    UITheme.DrawTextWithShadow(spriteBatch, font, itemName, new Vector2(b.X + (b.Width - nameSize.X) / 2f, b.Bottom - nameSize.Y - 3), Color.White, 0.5f);
+                    continue;
+                }
+
+                // No art: the item name, wrapped to fit the slot.
+                var lines = TextLog.WrapText(font, itemName, (b.Width - 8) / 0.6f);
                 float lineY = b.Y + (b.Height - lines.Count * 16) / 2f;
                 foreach (var line in lines)
                 {

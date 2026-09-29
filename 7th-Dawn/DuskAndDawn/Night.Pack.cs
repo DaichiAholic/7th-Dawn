@@ -151,10 +151,18 @@ namespace DuskAndDawn
                 Color border = usable ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
                 UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.4f);
 
-                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(draw.X + 12, draw.Y + 6), usable ? Color.White : new Color(150, 145, 155), 0.9f);
+                // The item's icon on the left when it has one (dimmed when it can't be used now).
+                float textX = draw.X + 12;
+                var icon = Game1.GetItemIcon(itemName);
+                if (icon != null)
+                {
+                    UITheme.DrawIconSlot(spriteBatch, icon, new Vector2(draw.X + 12, draw.Y + (draw.Height - 32) / 2f), 1, tint: usable ? Color.White : Color.White * 0.45f);
+                    textX = draw.X + 54;
+                }
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(textX, draw.Y + 6), usable ? Color.White : new Color(150, 145, 155), 0.9f);
                 if (item != null)
                 {
-                    UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(draw.X + 12, draw.Y + 32), usable ? new Color(170, 230, 180) : new Color(120, 130, 125), 0.66f);
+                    UITheme.DrawTextWithShadow(spriteBatch, font, item.ShortEffect(_playerState), new Vector2(textX, draw.Y + 32), usable ? new Color(170, 230, 180) : new Color(120, 130, 125), 0.66f);
                 }
 
                 string right = usable ? $"Use  ({DawnTimer.FormatDuration(PackUseMinutes)})" : reason;

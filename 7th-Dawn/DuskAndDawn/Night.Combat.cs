@@ -65,7 +65,8 @@ namespace DuskAndDawn
         private float _pendingPlayerHitDelay = -1f;
         private string _pendingEnemyReplyText = "";
 
-        private const float PlayerHpBarScale = 0.25f;
+        // The 64x32 HP bar art at 4 screen pixels per art pixel (~171x85 layout units).
+        private const int PlayerHpBarScreenScale = 4;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
 
         // ---------- Encounter (combat) ----------

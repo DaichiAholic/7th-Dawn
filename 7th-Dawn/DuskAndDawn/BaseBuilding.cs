@@ -1080,12 +1080,12 @@ namespace DuskAndDawn
             Color nameColor = available ? Color.White : new Color(150, 145, 145);
             Color detailColor = available ? new Color(200, 195, 190) : new Color(120, 115, 115);
 
-            // Weapon recipes get their icon at native 32px on the left; text shifts over.
+            // The recipe's icon at native 32px on the left; text shifts over.
             float textX = drawBounds.X + 12;
-            var iconWeapon = recipe.IconWeapon(_playerState);
-            if (iconWeapon != null)
+            var icon = RecipeIcon(recipe);
+            if (icon != null)
             {
-                UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(iconWeapon), new Vector2(drawBounds.X + 14, drawBounds.Y + (drawBounds.Height - 32) / 2f), 1);
+                UITheme.DrawIconSlot(spriteBatch, icon, new Vector2(drawBounds.X + 14, drawBounds.Y + (drawBounds.Height - 32) / 2f), 1);
                 textX = drawBounds.X + 56;
             }
 
@@ -1157,19 +1157,14 @@ namespace DuskAndDawn
             UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 230f, gold * (0.3f * alpha));
             UITheme.DrawPanel(spriteBatch, card, new Color(72, 96, 62) * alpha, new Color(40, 58, 36) * alpha, gold * alpha, 3f, 14f, shadowStrength: 0.8f * alpha);
 
-            // Icon on the left: the weapon's pixel art, bread for food, a vial for remedies.
+            // Icon on the left: the recipe's pixel art at 2x, or a vial for anything without art.
             var iconCenter = new Vector2(card.X + 44, card.Y + card.Height / 2f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 34, iconCenter.Y - 34, 68, 68), Color.Black * (0.35f * alpha), 10f);
             var recipe = _craftToastRecipe;
-            var toastWeapon = recipe.IconWeapon(_playerState);
-            if (toastWeapon != null && Game1.GetWeaponIcon(toastWeapon) != null)
+            var icon = RecipeIcon(recipe);
+            if (icon != null)
             {
-                UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(toastWeapon), iconCenter - new Vector2(32, 32), 2, Color.White * alpha);
-            }
-            else if (recipe.Room == BaseRoomType.Kitchen && Game1.BreadTexture != null)
-            {
-                var bread = Game1.BreadTexture;
-                spriteBatch.Draw(bread, iconCenter, null, Color.White * alpha, 0f, new Vector2(bread.Width / 2f, bread.Height / 2f), 56f / bread.Width, SpriteEffects.None, 0f);
+                UITheme.DrawPixelIcon(spriteBatch, icon, iconCenter - new Vector2(32, 32), 64f / icon.Width, Color.White * alpha);
             }
             else
             {
@@ -1183,6 +1178,16 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, _craftToastDetail, new Vector2(textX, card.Y + 60), new Color(210, 230, 200) * alpha, 0.62f, shadowAlpha: 0.45f * alpha);
         }
 
+        /// <summary>The weapon a recipe makes (or reinforces), the item it makes, or bread for the
+        /// Feast. null if that has no art.</summary>
+        private Texture2D RecipeIcon(Recipe recipe)
+        {
+            var weapon = recipe.IconWeapon(_playerState);
+            if (weapon != null) return Game1.GetWeaponIcon(weapon);
+            if (recipe.SampleItem != null) return Game1.GetItemIcon(recipe.SampleItem.Name);
+            return recipe.Room == BaseRoomType.Kitchen ? Game1.BreadTexture : null;
+        }
+
         private static Color VialColor(Item item) => item?.Effect switch
         {
             ItemEffect.Heal => new Color(220, 70, 70),
@@ -1192,7 +1197,7 @@ namespace DuskAndDawn
             _ => new Color(150, 220, 160)
         };
 
-        // Items have no art yet - a little glass vial stands in, tinted by what it does.
+        // For an item without art - a little glass vial stands in, tinted by what it does.
         private static void DrawVial(SpriteBatch spriteBatch, Vector2 center, Color liquid, float alpha)
         {
             var glass = new Color(220, 230, 240);
@@ -1243,42 +1248,37 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
         }
 
+        // The 128x32 Hope bar art at 5 screen pixels per art pixel: its sparkle sits on art
+        // rows 5-12 over the left end, the bar itself on rows 12-20.
+        private const int HopeBarScreenScale = 5;
+        private static readonly Vector2 HopeBarPosition = new Vector2(56, 4);
+
         private void DrawHopeBar(SpriteBatch spriteBatch, SpriteFont font, GameTime gameTime)
         {
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Hope", new Vector2(60, 16), Color.White);
+            float ratio = _playerState.Hope / (float)PlayerState.MaxHope;
+            // Slow reddish warning pulse once Hope runs low - purely cosmetic, doesn't touch
+            // the actual game-over threshold or value.
+            Color gaugeTint = Color.White;
+            if (ratio < 0.25f)
+            {
+                float pulse = UITheme.PulseSine((float)gameTime.TotalGameTime.TotalSeconds, 4f);
+                gaugeTint = Color.Lerp(Color.White, new Color(255, 120, 100), pulse * 0.7f);
+            }
+            UITheme.DrawPixelBar(spriteBatch, Game1.HopeBarFrame, Game1.HopeBarGauge, HopeBarPosition, HopeBarScreenScale, ratio, gaugeTint);
+
+            // "Hope 80/100" just right of the sparkle, above the bar.
+            float art = HopeBarScreenScale / UITheme.RenderScale;
+            var labelPos = new Vector2(HopeBarPosition.X + 16 * art, HopeBarPosition.Y + 14);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Hope", labelPos, Color.White);
+            var value = $"{_playerState.Hope}/{PlayerState.MaxHope}";
+            float hopeWidth = UITheme.MeasureString(font, "Hope ").X;
+            UITheme.DrawTextWithShadow(spriteBatch, font, value, labelPos + new Vector2(hopeWidth + 4, 2), new Color(255, 215, 120), 0.85f);
 
             // The goal, always in view: which day this is, out of seven.
             string day = DayInfo.IsFinalNight(_playerState.Day) ? $"{DayInfo.Label(_playerState.Day)} - the last night" : DayInfo.Label(_playerState.Day);
             var daySize = UITheme.MeasureString(font, day) * 0.85f;
-            UITheme.DrawTextWithShadow(spriteBatch, font, day, new Vector2(480 - daySize.X, 20), new Color(255, 205, 150), 0.85f);
-
-            var barMax = new RectangleF(60, 46, 420, 26);
-            float ratio = _playerState.Hope / (float)PlayerState.MaxHope;
-            var barFill = new RectangleF(60, 46, 420 * ratio, 26);
-
-            UITheme.DrawSoftShadow(spriteBatch, barMax, 13f, 0.5f);
-            UITheme.FillRoundedRectGradient(spriteBatch, barMax, Color.Black * 0.55f, Color.Black * 0.35f, 13f, 8);
-
-            if (barFill.Width > 1f)
-            {
-                Color fillTop = new Color(225, 90, 165);
-                Color fillBottom = new Color(175, 40, 115);
-                if (ratio < 0.25f)
-                {
-                    // Slow warning pulse once Hope runs low - purely cosmetic, doesn't touch
-                    // the actual game-over threshold or value.
-                    float pulse = UITheme.PulseSine((float)gameTime.TotalGameTime.TotalSeconds, 4f);
-                    fillTop = Color.Lerp(fillTop, Color.White, pulse * 0.25f);
-                }
-                UITheme.FillRoundedRectGradient(spriteBatch, barFill, fillTop, fillBottom, 13f, 8);
-            }
-
-            UITheme.DrawRoundedRectBorder(spriteBatch, barMax, Color.Black * 0.7f, 2f, 13f);
-
-            var label = $"{_playerState.Hope}/{PlayerState.MaxHope}";
-            var labelSize = UITheme.MeasureString(font, label);
-            var labelPos = new Vector2(barMax.X + (barMax.Width - labelSize.X) / 2f, barMax.Y + (barMax.Height - labelSize.Y) / 2f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, label, labelPos, Color.White);
+            float barRight = HopeBarPosition.X + (Game1.HopeBarFrame?.Width ?? 128) * art;
+            UITheme.DrawTextWithShadow(spriteBatch, font, day, new Vector2(barRight - 4 - daySize.X, labelPos.Y + 2), new Color(255, 205, 150), 0.85f);
         }
 
         private void DrawResourceIcons(SpriteBatch spriteBatch, SpriteFont font)

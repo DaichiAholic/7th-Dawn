@@ -310,7 +310,7 @@ namespace DuskAndDawn
         /// with point sampling, so it stays crisp instead of being blurred by the default
         /// linear filter. Briefly restarts the batch to switch sampler, then restores the
         /// default Begin() every screen uses. Safe to call with a null texture (draws nothing).</summary>
-        public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, Color? tint = null)
+        public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, float scale, Color? tint = null)
         {
             if (texture == null) return;
 
@@ -318,7 +318,7 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch, SamplerState.PointClamp);
             // Snapped to whole screen pixels - a fractional position smears pixel art even with point sampling.
             var snapped = SnapToDevice(topLeft);
-            spriteBatch.Draw(texture, snapped, null, tint ?? Color.White, 0f, Vector2.Zero, (float)scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(texture, snapped, null, tint ?? Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             spriteBatch.End();
             BeginCanvas(spriteBatch);
         }
@@ -340,8 +340,6 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch);
         }
 
-        /// <summary>Icon with a dark rounded backing slot. The slot is drawn even when there's
-        /// no icon yet, so cards keep the same layout for weapons still waiting on art.</summary>
         /// <summary>Pixel art centred on `center`, as close to `size` canvas pixels across as it
         /// can get while every art pixel still covers a whole number of screen pixels - so it
         /// stays crisp at any window size.</summary>
@@ -374,12 +372,44 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch);
         }
 
-        public static void DrawIconSlot(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, int nativeSize = 32)
+        /// <summary>A pixel-art meter: `gauge` cropped from the left to `ratio` of its channel,
+        /// over a dark copy of itself as the empty track, under `frame`. Both are the same size,
+        /// the gauge's channel running GaugeInset art pixels in from each end. Point-sampled at
+        /// `screenScale` screen pixels per art pixel, so it stays crisp.</summary>
+        public static void DrawPixelBar(SpriteBatch spriteBatch, Texture2D frame, Texture2D gauge, Vector2 topLeft, int screenScale, float ratio, Color? gaugeTint = null)
+        {
+            if (frame == null || gauge == null) return;
+            const int GaugeInset = 3;
+            float scale = screenScale / RenderScale;
+            var position = SnapToDevice(topLeft);
+            ratio = MathHelper.Clamp(ratio, 0f, 1f);
+            // Any health or Hope left shows at least one pixel of gauge.
+            int filled = (int)MathF.Round((gauge.Width - GaugeInset * 2) * ratio);
+            if (ratio > 0f) filled = Math.Max(1, filled);
+
+            spriteBatch.End();
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            spriteBatch.Draw(gauge, position, null, Color.Black * 0.6f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            if (filled > 0)
+            {
+                var source = new Rectangle(0, 0, GaugeInset + filled, gauge.Height);
+                spriteBatch.Draw(gauge, position, source, gaugeTint ?? Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+            spriteBatch.Draw(frame, position, null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            BeginCanvas(spriteBatch);
+        }
+
+        /// <summary>Icon with a dark rounded backing slot, fitted to `nativeSize` x `scale`
+        /// whatever the texture's own size (32px icons, or the 320px resource art). The slot is
+        /// drawn even when there's no icon yet, so cards keep the same layout for weapons still
+        /// waiting on art.</summary>
+        public static void DrawIconSlot(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, int nativeSize = 32, Color? tint = null)
         {
             float size = nativeSize * scale;
             var slot = new RectangleF(topLeft.X - 4, topLeft.Y - 4, size + 8, size + 8);
             FillRoundedRect(spriteBatch, slot, Color.Black * 0.35f, 8f);
-            DrawPixelIcon(spriteBatch, texture, topLeft, scale);
+            if (texture != null) DrawPixelIcon(spriteBatch, texture, topLeft, size / texture.Width, tint);
         }
 
         // ---------- Text ----------

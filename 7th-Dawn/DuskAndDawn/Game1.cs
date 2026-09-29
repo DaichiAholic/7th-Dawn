@@ -37,7 +37,13 @@ namespace DuskAndDawn
         public PlayerState PlayerState { get; private set; }
 
         // ---- Sprite assets ----
-        public Texture2D HpBarTexture { get; private set; }
+        // Meter art (Content/UI): a frame, and the gauge that fills its channel. The frames
+        // carry their own heart / sparkle over the left end.
+        public Texture2D HpBarFrame { get; private set; }      // 64x32
+        public Texture2D HpBarGauge { get; private set; }
+        public Texture2D HopeBarFrame { get; private set; }    // 128x32
+        public Texture2D HopeBarGauge { get; private set; }
+        public Texture2D HopeIcon { get; private set; }        // 32x32
         public Texture2D AttackedTexture { get; private set; }
         // Combat animations: horizontal sheets of 7 frames, 64x64 each.
         public Texture2D AttackTexture { get; private set; }   // player's basic attack slash
@@ -88,6 +94,14 @@ namespace DuskAndDawn
             return _roomSprites.TryGetValue((room, tier), out var sprite) ? sprite : null;
         }
 
+        // 32x32 pixel-art item icons (Content/Items), named after the item minus its spaces.
+        private static readonly string[] ItemIconNames = { "Bandage", "Tonic", "Smoke Flask", "Elixir", "Holy Water", "Dawn Tincture", "Rations" };
+        private readonly Dictionary<string, Texture2D> _itemIcons = new Dictionary<string, Texture2D>();
+
+        /// <summary>The icon for an item, by item name, or null if it has no art yet.</summary>
+        public Texture2D GetItemIcon(string itemName) =>
+            itemName != null && _itemIcons.TryGetValue(itemName, out var icon) ? icon : null;
+
         private readonly Dictionary<string, Texture2D> _weaponIcons = new Dictionary<string, Texture2D>();
 
         /// <summary>The icon for a weapon, or null if it has no art yet.</summary>
@@ -136,7 +150,11 @@ namespace DuskAndDawn
             hiResFont.Spacing = Font.Spacing * RenderScale;
             UITheme.RegisterHiResFont(Font, hiResFont);
 
-            HpBarTexture = Content.Load<Texture2D>("Hpbar");
+            HpBarFrame = Content.Load<Texture2D>("UI/HpBarFrame");
+            HpBarGauge = Content.Load<Texture2D>("UI/HpBarGauge");
+            HopeBarFrame = Content.Load<Texture2D>("UI/HopeBarFrame");
+            HopeBarGauge = Content.Load<Texture2D>("UI/HopeBarGauge");
+            HopeIcon = Content.Load<Texture2D>("UI/HopeIcon");
             AttackedTexture = Content.Load<Texture2D>("Attacked");
             AttackTexture = Content.Load<Texture2D>("Attack");
             SkillTexture = Content.Load<Texture2D>("Skill");
@@ -148,6 +166,10 @@ namespace DuskAndDawn
             foreach (var iconName in WeaponIconNames)
             {
                 _weaponIcons[iconName] = Content.Load<Texture2D>(iconName);
+            }
+            foreach (var itemName in ItemIconNames)
+            {
+                _itemIcons[itemName] = Content.Load<Texture2D>("Items/" + itemName.Replace(" ", ""));
             }
             _districtIcons[District.VillageOutskirts] = Content.Load<Texture2D>("Village");
             _districtIcons[District.ChurchRuins] = Content.Load<Texture2D>("Church");

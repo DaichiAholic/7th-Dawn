@@ -293,10 +293,8 @@ namespace DuskAndDawn
             }
             else
             {
-                // Hope has no sprite - a glowing pink gem in the same colors as the base's Hope bar.
-                UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 17, iconCenter.Y - 17, 34, 34), new Color(175, 40, 115), 17f);
-                UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 12, iconCenter.Y - 14, 22, 22), new Color(225, 90, 165), 11f);
-                UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 8, iconCenter.Y - 10, 8, 8), Color.White * 0.6f, 4f);
+                // Hope: its 32px pixel-art sparkle, kept crisp.
+                UITheme.DrawPixelIconFit(spriteBatch, Game1.HopeIcon, iconCenter, 50f);
             }
 
             // Amber at the Storage cap (a nudge to spend or upgrade), red when Hope runs low.
