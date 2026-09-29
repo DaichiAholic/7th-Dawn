@@ -24,6 +24,11 @@ namespace DuskAndDawn
         // One animated health bar per enemy in the fight (summoned ones get theirs on arrival).
         private readonly Dictionary<Enemy, LerpBar> _enemyBars = new Dictionary<Enemy, LerpBar>();
 
+        // A boss fight's allies: every one given a side of the boss so far, and who stands on
+        // each side now (0 left, 1 right). Kept for the whole fight so nobody changes sides.
+        private readonly HashSet<Enemy> _placedAllies = new HashSet<Enemy>();
+        private readonly Enemy[] _sideOccupants = new Enemy[2];
+
         // Set when the fight is the Sun Herald guarding the Hoard: winning opens the Hoard.
         private bool _fightingForHoard;
 
@@ -103,6 +108,8 @@ namespace DuskAndDawn
             _activeCombat = new CombatEncounter(enemies, _playerState, _dawnTimer, _random, _playerState.Day, summon);
 
             _enemyBars.Clear();
+            _placedAllies.Clear();
+            Array.Clear(_sideOccupants);
             foreach (var enemy in enemies) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
 
             _combatMenu = CombatMenu.TopLevel;
@@ -175,27 +182,66 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Where each enemy's panel sits - shared by drawing and click-to-target.
-        /// Up to three side by side, centred in the space right of the action buttons.</summary>
-        private static RectangleF EnemyPanelBounds(int index, int count)
+        // The enemy panels' area: right of the action buttons, below the status card (which
+        // reaches y 210 on the left).
+        private const float PanelAreaX = 300f, PanelAreaWidth = 940f, PanelGap = 18f, PanelTop = 222f, PanelHeight = 326f;
+        private const float WidePanelWidth = 320f, PanelWidth = 290f;
+
+        /// <summary>The index-th of `count` panels side by side, centred in the panel area.</summary>
+        private static RectangleF EnemyRowBounds(int index, int count)
         {
-            // Starts below the status card, which reaches y 210 on the left.
-            const float areaX = 300f, areaWidth = 940f, gap = 18f, top = 222f, height = 326f;
-            float width = count <= 1 ? 320f : Math.Min(290f, (areaWidth - gap * (count - 1)) / count);
-            float total = width * count + gap * (count - 1);
-            float x = areaX + (areaWidth - total) / 2f + index * (width + gap);
-            return new RectangleF(x, top, width, height);
+            float width = count <= 1 ? WidePanelWidth : Math.Min(PanelWidth, (PanelAreaWidth - PanelGap * (count - 1)) / count);
+            float total = width * count + PanelGap * (count - 1);
+            float x = PanelAreaX + (PanelAreaWidth - total) / 2f + index * (width + PanelGap);
+            return new RectangleF(x, PanelTop, width, PanelHeight);
+        }
+
+        /// <summary>Each enemy that has a panel, with where it stands, in drawing order. A boss
+        /// holds the middle, his allies either side of him - the first on his left, the next on
+        /// his right - and an ally who joins after one has fallen takes the fallen one's place.
+        /// Otherwise the enemies stand in a centred row.</summary>
+        private List<(Enemy enemy, RectangleF bounds)> EnemyPanels()
+        {
+            var enemies = _activeCombat.Enemies;
+            var boss = enemies.FirstOrDefault(e => e.IsBoss);
+            if (boss == null)
+            {
+                return enemies.Select((enemy, i) => (enemy, EnemyRowBounds(i, enemies.Count))).ToList();
+            }
+
+            foreach (var ally in enemies)
+            {
+                if (ally == boss || _placedAllies.Contains(ally)) continue;
+                // A side that's empty or whose ally has fallen. The boss never has more than
+                // two living allies (Enemy.MaxSummonedAllies), so there's always one.
+                int side = Array.FindIndex(_sideOccupants, occupant => occupant == null || occupant.IsDefeated);
+                if (side < 0) continue;
+                _placedAllies.Add(ally);
+                _sideOccupants[side] = ally;
+            }
+
+            float center = PanelAreaX + PanelAreaWidth / 2f;
+            var bossBounds = new RectangleF(center - WidePanelWidth / 2f, PanelTop, WidePanelWidth, PanelHeight);
+            var panels = new List<(Enemy, RectangleF)> { (boss, bossBounds) };
+            if (_sideOccupants[0] != null)
+            {
+                panels.Add((_sideOccupants[0], new RectangleF(bossBounds.X - PanelGap - PanelWidth, PanelTop, PanelWidth, PanelHeight)));
+            }
+            if (_sideOccupants[1] != null)
+            {
+                panels.Add((_sideOccupants[1], new RectangleF(bossBounds.Right + PanelGap, PanelTop, PanelWidth, PanelHeight)));
+            }
+            return panels;
         }
 
         private void HandleCombatClick(int x, int y)
         {
             // Clicking an enemy makes it the target.
-            var enemies = _activeCombat.Enemies;
-            for (int i = 0; i < enemies.Count; i++)
+            foreach (var (enemy, bounds) in EnemyPanels())
             {
-                if (!enemies[i].IsDefeated && InputChecker.Contains(EnemyPanelBounds(i, enemies.Count), x, y))
+                if (!enemy.IsDefeated && InputChecker.Contains(bounds, x, y))
                 {
-                    _activeCombat.SetTarget(enemies[i]);
+                    _activeCombat.SetTarget(enemy);
                     return;
                 }
             }
@@ -366,8 +412,9 @@ namespace DuskAndDawn
                 _shakenEnemy = _activeCombat.LastTarget;
                 _enemyShake.Play();
 
-                int index = Math.Max(0, _activeCombat.Enemies.IndexOf(_activeCombat.LastTarget));
-                var panel = EnemyPanelBounds(index, _activeCombat.Enemies.Count);
+                var panels = EnemyPanels();
+                var panel = panels.FirstOrDefault(p => p.enemy == _activeCombat.LastTarget).bounds;
+                if (panel.Width <= 0f) panel = panels[0].bounds;
                 _diceRollPopup.Play(Game1.DiceTexture, _activeCombat.LastPlayerRoll, new Vector2(panel.X + panel.Width / 2f, panel.Y + 120));
             }
 
