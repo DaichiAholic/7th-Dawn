@@ -1,13 +1,11 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended;
 using MonoGame.Extended.Screens;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using MonoGame.Extended;
 
 namespace DuskAndDawn
 {
@@ -15,7 +13,8 @@ namespace DuskAndDawn
     {
         Map,
         Encounter,
-        Supplies
+        Supplies,
+        Event
     }
 
     public enum CombatMenu
@@ -26,128 +25,97 @@ namespace DuskAndDawn
     }
 
     /// <summary>
-    /// A bar whose displayed value smoothly chases a real target value over time, instead of
-    /// snapping to it instantly. Use this for anything you want to feel "juicy" when it
-    /// changes (health bars) - keep plain instant bars (like the dawn clock) for things that
-    /// should read as exact/immediate instead.
-    ///
-    /// This only affects rendering - it never touches the real value (PlayerState.Health,
-    /// Enemy.Health, etc.), which stays instant for game logic. Call Update() once per frame
-    /// with the current real value, then read Ratio when drawing.
+    /// Phase 2: Night Scavenging. The ruins are a small maze you explore room by room: winding
+    /// corridors, corners, dead ends and a few loops, hidden under fog until your lantern (or
+    /// the Archive's scouting) reaches them. The night runs on a clock from dusk (8 PM) to
+    /// dawn (6 AM): entering a new room takes 30 minutes and every supply-cache choice has its
+    /// own time cost, while walking back through explored rooms and fighting are free.
+    /// Creatures roam between unexplored rooms as the night goes on. Being knocked out in a
+    /// fight ends the night early and costs half of tonight's haul.
     /// </summary>
-    public class LerpBar
-    {
-        private const float CatchUpSpeed = 4f; // higher = the bar catches up to the real value faster
-
-        public float DisplayedValue { get; private set; }
-        public float MaxValue { get; }
-
-        public LerpBar(float initialValue, float maxValue)
-        {
-            DisplayedValue = initialValue;
-            MaxValue = maxValue;
-        }
-
-        public void Update(GameTime gameTime, float targetValue)
-        {
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            float t = Math.Min(1f, CatchUpSpeed * dt);
-            DisplayedValue = MathHelper.Lerp(DisplayedValue, targetValue, t);
-        }
-
-        /// <summary>0-1 fill ratio, ready to multiply against a bar's max width.</summary>
-        public float Ratio => MaxValue <= 0 ? 0f : MathHelper.Clamp(DisplayedValue / MaxValue, 0f, 1f);
-    }
-
-    /// <summary>
-    /// A 2-line action log: the newest message shows bright and steady; the previous one
-    /// drifts upward and dims as the new one arrives, then vanishes outright the moment a
-    /// third message pushes it out - there's only ever one "fading" slot, no stacking history.
-    /// </summary>
-    public class TextLog
-    {
-        private const float RiseSpeed = 18f;  // pixels/second the fading line drifts upward
-        private const float FadeSpeed = 0.6f; // alpha lost per second
-
-        private string _current = "";
-        private string _fading = "";
-        private float _fadeAlpha;
-        private float _fadeOffset;
-
-        public void Push(string message)
-        {
-            if (string.IsNullOrEmpty(message)) return;
-
-            _fading = _current;   // whatever was current becomes the dimming line...
-            _fadeAlpha = 1f;
-            _fadeOffset = 0f;
-            _current = message;   // ...and the new message takes the bright slot
-        }
-
-        public void Update(GameTime gameTime)
-        {
-            if (_fadeAlpha <= 0f) return;
-
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _fadeAlpha = Math.Max(0f, _fadeAlpha - FadeSpeed * dt);
-            _fadeOffset += RiseSpeed * dt;
-        }
-
-        /// <summary>Draws the current (bright) line at basePosition, and the fading (dim,
-        /// rising) line above it while it's still visible.</summary>
-        public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition)
-        {
-            if (_fadeAlpha > 0f && !string.IsNullOrEmpty(_fading))
-            {
-                var fadingPos = basePosition - new Vector2(0, 26 + _fadeOffset);
-                spriteBatch.DrawString(font, _fading, fadingPos, Color.Gray * _fadeAlpha);
-            }
-
-            if (!string.IsNullOrEmpty(_current))
-            {
-                spriteBatch.DrawString(font, _current, basePosition, Color.White);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Phase 2: Night Scavenging. No player movement - a branching minimap you click through,
-    /// a dawn clock ticking down per action (not real time), and dice-roll combat. This is
-    /// where the dawn clock, room generation, and combat all interact.
-    /// </summary>
-    public class NightScavengingScreen : GameScreen
+    public partial class NightScavengingScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
         private readonly Random _random = new Random();
+        private District _district;
 
-        private const int LayerCount = 6;
-        private const int NodesPerLayer = 2;
+        // ---- Maze layout ----
+        private const int MapColumns = 8;
+        private const int MapRows = 4;
+        private static readonly RectangleF MapArea = new RectangleF(40, 224, 1200, 376);
+        private const float RoomSize = 64f;
 
+        private const int RoamChancePercent = 35; // per new room entered
+
+        // ---- The night clock ----
+        private const int RoomEntryMinutes = 30;
         private DawnTimer _dawnTimer;
+        // The clock hands sweep to the new time instead of jumping - rendering only.
+        private float _displayedElapsed;
+        private bool _warnedOfDawn;
         private NightMap _map;
-        private int _currentDepth; // index of the next layer the player can click into
+        private MapNode _current;
+        private int _roomsVisited;
+        private bool _leaving;
+
+        // Rooms the player can click right now: every explored room, plus unexplored rooms
+        // that border one (the frontier). Recomputed whenever the player arrives somewhere.
+        private readonly HashSet<MapNode> _reachable = new HashSet<MapNode>();
+
+        // ---- Walking ----
+        // Moving is animated: the lantern token walks the corridors room by room instead
+        // of teleporting, and input on the map is paused until it arrives.
+        private const float WalkSpeed = 420f; // pixels per second
+        private List<MapNode> _walkPath;
+        private int _walkIndex;
+        // The room you were in before this one - where fleeing takes you back to.
+        private MapNode _cameFrom;
+        private Vector2 _tokenPosition;
+        private bool IsWalking => _walkPath != null;
+
+        private MapNode _hoveredNode;
+        private List<MapNode> _hoverPath;
+
+        // ---- Atmosphere ----
+        private const int EmberCount = 46;
+        private readonly List<Ember> _embers = new List<Ember>();
 
         private ExplorationState _state = ExplorationState.Map;
+
+        // Seconds since the current state (map, fight, cache, event) began - drives each
+        // panel's entrance. Reset in Draw, the first frame the new state is shown.
+        private ExplorationState _shownState = ExplorationState.Map;
+        private float _stateTime;
         private readonly TextLog _textLog = new TextLog();
         private int _roomsCleared;
         private int _combatTurn;
 
         private Button _headBackButton;
         private MouseState _previousMouse;
+        private KeyboardState _previousKeyboard;
 
         // Animated health bars - see LerpBar.cs
         private LerpBar _playerHealthBar;
-        private LerpBar _enemyHealthBar;
 
-        // Combat sub-state
-        private CombatEncounter _activeCombat;
-        private CombatMenu _combatMenu = CombatMenu.TopLevel;
-        private readonly List<Button> _combatButtons = new List<Button>();
 
-        // Supplies sub-state
-        private List<ChoiceOption> _suppliesOptions;
-        private readonly List<Button> _suppliesButtons = new List<Button>();
+        // ---- Knocked out ----
+        // Losing a fight no longer just burns clock time, so it ends the night instead: a short
+        // beat to read what happened, then home, carrying half of what you found.
+        private const float CollapseDuration = 2.6f;
+        private float _collapseTimer = -1f;
+        private string _collapseText = "";
+        private int _startFood, _startPlanks, _startScraps;
+
+        // Set when the Sun Herald wins: the collapse beat ends the run instead of the night.
+        private bool _collapseEndsRun;
+
+        // ---- Tonight, for the run summary ----
+        private int _startHope;
+        private int _enemiesDefeatedTonight;
+        private bool _knockedOutTonight;
+        private bool _nightRecorded;
+
 
         public NightScavengingScreen(Game game, PlayerState playerState) : base(game)
         {
@@ -160,30 +128,59 @@ namespace DuskAndDawn
 
             // Seeds with the real current mouse state instead of a blank default, so a click
             // still held down from the previous screen doesn't read as a brand-new click here.
-            _previousMouse = Mouse.GetState();
+            _previousMouse = InputChecker.GetMouse();
+            _previousKeyboard = Keyboard.GetState();
 
-            _playerState.Health = _playerState.MaxHealth; // rested at the base - full health tonight
+            // Rested at the base - full health tonight (more of it with a better Infirmary).
+            _playerState.MaxHealth = _playerState.NightMaxHealth;
+            _playerState.Health = _playerState.MaxHealth;
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 
-            _dawnTimer = new DawnTimer(startingBudget: 10);
-            var roomGenerator = new RoomGenerator();
-            _map = new NightMap(roomGenerator, LayerCount, NodesPerLayer);
+            _district = _playerState.SelectedDistrict;
+            _dawnTimer = new DawnTimer(DawnTimer.NightMinutes + _playerState.ArchiveExtraNightMinutes);
+            _startFood = _playerState.Food;
+            _startPlanks = _playerState.Planks;
+            _startScraps = _playerState.Scraps;
+            _startHope = _playerState.Hope;
+            var roomGenerator = new RoomGenerator(_district, _random, _playerState.Day);
+            _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
 
-            _headBackButton = new Button(new RectangleF(1000, 30, 220, 50), "Head Back Before Dawn");
+            // The last night is The Castle's, and it's a single hall with the Sun Herald at the
+            // end of it (see Night.Throne.cs). Beat him and the seventh dawn breaks; fall and
+            // the run is over.
+            bool finalNight = DayInfo.IsFinalNight(_playerState.Day);
+            _throneRoom = finalNight && _district == District.Castle;
+
+            _current = _map.Entrance;
+            _current.Visited = true;
+            _tokenPosition = _current.Center;
+            RefreshVisibility();
+            // Everything visible at the start is already faded in - only rooms found later
+            // should drift out of the fog.
+            foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
+
+            if (_throneRoom) InitializeThrone();
+            else _textLog.Push($"{_dawnTimer.ClockLabel}. You slip into the {DistrictInfo.Name(_district)}. The halls twist off into the dark.");
+
+            for (int i = 0; i < EmberCount; i++)
+            {
+                _embers.Add(SpawnEmber(anywhere: true));
+            }
+
+            _headBackButton = new Button(new RectangleF(1000, 30, 240, 56), "Head Back Before Dawn");
+            InitializePack();
         }
 
         private void LayoutMapNodes()
         {
-            for (int depth = 0; depth < _map.Layers.Count; depth++)
+            float pitchX = MapArea.Width / _map.Columns;
+            float pitchY = MapArea.Height / _map.Rows;
+            foreach (var node in _map.Nodes)
             {
-                var layer = _map.Layers[depth];
-                for (int i = 0; i < layer.Count; i++)
-                {
-                    float x = 150 + depth * 170;
-                    float y = 220 + i * 200;
-                    layer[i].ScreenBounds = new RectangleF(x, y, 130, 130);
-                }
+                float cx = MapArea.X + pitchX * (node.Column + 0.5f);
+                float cy = MapArea.Y + pitchY * (node.Row + 0.5f);
+                node.ScreenBounds = new RectangleF(cx - RoomSize / 2f, cy - RoomSize / 2f, RoomSize, RoomSize);
             }
         }
 
@@ -191,34 +188,144 @@ namespace DuskAndDawn
         {
             if (_playerState.IsGameOver)
             {
-                ScreenManager.ReplaceScreen(new GameOverScreen(Game), ScreenTransitions.Fade(GraphicsDevice));
+                RecordNight();
+                Game1.EndRun(victory: false);
                 return;
             }
 
-            var mouse = Mouse.GetState();
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            var mouse = InputChecker.GetMouse();
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
+            var keyboard = Keyboard.GetState();
+            var previousKeyboard = _previousKeyboard;
+            _previousKeyboard = keyboard;
+            bool KeyPressed(Keys key) => keyboard.IsKeyDown(key) && !previousKeyboard.IsKeyDown(key);
 
-            // Bars animate every frame regardless of state, so they keep catching up even
-            // right after combat ends or an item heals you.
+            // Bars and one-shot effects animate every frame regardless of state, so they keep
+            // catching up (or finish playing out) even right after combat ends.
             _playerHealthBar.Update(gameTime, _playerState.Health);
             _textLog.Update(gameTime);
-            if (_activeCombat != null)
+            _castEffect.Update(gameTime);
+            _playerHitFlash.Update(gameTime);
+            _actionLock = Math.Max(0f, _actionLock - dt);
+            _diceRollPopup.Update(gameTime);
+            _enemyShake.Update(gameTime);
+            _playerShake.Update(gameTime);
+            UpdateEmbers(dt);
+            _stateTime += dt;
+            // ~2 real seconds to sweep a full hour, so a room's 30 minutes reads as a quick tick forward.
+            _displayedElapsed = UITheme.MoveTowards(_displayedElapsed, _dawnTimer.MinutesElapsed, 180f * dt);
+
+            if (_collapseTimer >= 0f)
             {
-                _enemyHealthBar?.Update(gameTime, _activeCombat.Enemy.Health);
+                _collapseTimer -= dt;
+                if (_collapseTimer < 0f)
+                {
+                    if (_collapseEndsRun)
+                    {
+                        RecordNight();
+                        Game1.EndRun(victory: false);
+                    }
+                    else
+                    {
+                        GoToDawnReturn();
+                    }
+                }
+                _previousMouse = mouse;
+                return;
             }
 
-            if (clicked)
+            if (_pendingPlayerHitDelay >= 0f)
+            {
+                _pendingPlayerHitDelay -= dt;
+                if (_pendingPlayerHitDelay <= 0f)
+                {
+                    FirePendingPlayerHit();
+                }
+            }
+            if (_activeCombat != null)
+            {
+                foreach (var enemy in _activeCombat.Enemies)
+                {
+                    if (_enemyBars.TryGetValue(enemy, out var bar)) bar.Update(gameTime, enemy.Health);
+                }
+            }
+
+            // The last night has no map - just the walk up to the throne.
+            if (_throneRoom && _state == ExplorationState.Map)
+            {
+                UpdateThrone(dt, mouse, clicked, KeyPressed);
+                _previousMouse = mouse;
+                return;
+            }
+
+            bool onMap = _state == ExplorationState.Map && !_leaving;
+            if (onMap && IsWalking)
+            {
+                UpdateWalk(dt);
+            }
+
+            // Every interactive element eases its own hover/press animation forward each
+            // frame (even while its screen isn't the active one - that's harmless, it just
+            // idles at rest) so nothing snaps between visual states.
+            bool mapInteractive = onMap && !IsWalking;
+            bool headBackHovered = mapInteractive && !_packOpen && _headBackButton.Contains(mouse.X, mouse.Y);
+            _headBackButton.UpdateAnimation(dt, headBackHovered);
+            UpdatePack(dt, mouse, mapInteractive);
+
+            // The maze sits still under the open Pack.
+            _hoveredNode = null;
+            foreach (var node in _map.Nodes)
+            {
+                bool isUnderMouse = mapInteractive && !_packOpen && node.Discovered && InputChecker.Contains(node.ScreenBounds, mouse.X, mouse.Y);
+                if (isUnderMouse) _hoveredNode = node;
+                node.UpdateAnimation(dt, isUnderMouse && _reachable.Contains(node));
+            }
+            _hoverPath = _hoveredNode != null && _reachable.Contains(_hoveredNode)
+                ? _map.FindKnownPath(_current, _hoveredNode)
+                : null;
+
+            bool inCombat = _state == ExplorationState.Encounter;
+            foreach (var button in _combatButtons)
+            {
+                button.UpdateAnimation(dt, inCombat && !IsActionLocked && button.Contains(mouse.X, mouse.Y));
+            }
+
+            bool inSupplies = _state == ExplorationState.Supplies;
+            foreach (var button in _suppliesButtons)
+            {
+                button.UpdateAnimation(dt, inSupplies && button.Contains(mouse.X, mouse.Y));
+            }
+
+            bool inEvent = _state == ExplorationState.Event;
+            foreach (var button in _eventButtons)
+            {
+                button.UpdateAnimation(dt, inEvent && button.Contains(mouse.X, mouse.Y));
+            }
+
+            if (inCombat && !_leaving && !IsActionLocked && _activeCombat != null && !ScreenTransitions.IsTransitioning)
+            {
+                HandleCombatKeys(KeyPressed, keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift));
+            }
+
+            if (clicked && !_leaving)
             {
                 switch (_state)
                 {
                     case ExplorationState.Map:
-                        HandleMapClick(mouse.X, mouse.Y);
+                        if (!IsWalking) HandleMapClick(mouse.X, mouse.Y);
                         break;
                     case ExplorationState.Encounter:
-                        HandleCombatClick(mouse.X, mouse.Y);
+                        if (!IsActionLocked)
+                        {
+                            HandleCombatClick(mouse.X, mouse.Y);
+                        }
                         break;
                     case ExplorationState.Supplies:
                         HandleSuppliesClick(mouse.X, mouse.Y);
+                        break;
+                    case ExplorationState.Event:
+                        HandleEventClick(mouse.X, mouse.Y);
                         break;
                 }
             }
@@ -230,418 +337,307 @@ namespace DuskAndDawn
 
         private void HandleMapClick(int x, int y)
         {
+            if (HandlePackClick(x, y)) return;
+
             if (_headBackButton.Contains(x, y))
             {
+                _headBackButton.TriggerPress();
                 GoToDawnReturn();
                 return;
             }
 
-            if (_currentDepth >= _map.Layers.Count) return;
-
-            foreach (var node in _map.Layers[_currentDepth])
+            if (_hoverPath != null && _hoverPath.Count > 0)
             {
-                if (InputChecker.Contains(node.ScreenBounds, x, y))
+                _walkPath = _hoverPath;
+                _walkIndex = 0;
+                _hoverPath = null;
+            }
+        }
+
+        private void UpdateWalk(float dt)
+        {
+            float budget = WalkSpeed * dt;
+            while (_walkPath != null && budget > 0f)
+            {
+                var target = _walkPath[_walkIndex].Center;
+                var toTarget = target - _tokenPosition;
+                float distance = toTarget.Length();
+
+                if (distance > budget)
                 {
-                    TravelTo(node);
+                    _tokenPosition += toTarget / distance * budget;
                     return;
+                }
+
+                _tokenPosition = target;
+                budget -= distance;
+                _cameFrom = _current;
+                _current = _walkPath[_walkIndex];
+                _walkIndex++;
+
+                if (_walkIndex >= _walkPath.Count)
+                {
+                    _walkPath = null;
+                    ArriveAt(_current);
                 }
             }
         }
 
-        private void TravelTo(MapNode node)
+        private void ArriveAt(MapNode node)
         {
+            if (node.Visited)
+            {
+                // Walking back through explored ground is free - nothing to resolve.
+                RefreshVisibility();
+                return;
+            }
+
             node.Visited = true;
-            _dawnTimer.SpendOnRoomEntry();
-            _currentDepth = node.Depth + 1;
+            _roomsVisited++;
+            _dawnTimer.Spend(RoomEntryMinutes);
+            RefreshVisibility();
+            StirTheDark();
+            WarnOfDawn();
 
             switch (node.Type)
             {
                 case RoomType.Encounter:
-                    StartEncounter(node.Depth);
+                    StartEncounter(node);
                     break;
                 case RoomType.Supplies:
                     StartSupplies();
                     break;
                 case RoomType.Special:
-                    ResolveSpecial();
+                    StartEvent();
+                    break;
+                case RoomType.Hoard:
+                    if (node.Enemies != null) StartEncounter(node); // the Sun Herald, on the last night
+                    else ResolveHoard();
+                    break;
+                default:
+                    ResolveEmpty();
                     break;
             }
 
-            if (_state == ExplorationState.Map && (!_dawnTimer.HasTimeRemaining || _currentDepth >= _map.Layers.Count))
+            if (_state == ExplorationState.Map && IsNightOver)
             {
                 GoToDawnReturn();
             }
+        }
+
+        private bool IsNightOver => !_dawnTimer.HasTimeRemaining || _map.Nodes.All(n => n.Visited);
+
+        /// <summary>One log line the first time the clock drops under an hour.</summary>
+        private void WarnOfDawn()
+        {
+            if (_warnedOfDawn || !_dawnTimer.HasTimeRemaining || _dawnTimer.MinutesLeft > 60) return;
+            _warnedOfDawn = true;
+            _textLog.Push($"{_dawnTimer.ClockLabel}. The sky is starting to pale - under an hour until dawn.");
+        }
+
+        /// <summary>What the player can see from where they stand. Explored rooms show their
+        /// doorways (neighbors' types are known), the lantern plus the Archive's scouting
+        /// reveals rooms further along the corridors, and one step beyond that shows only a
+        /// silhouette.</summary>
+        private void RefreshVisibility()
+        {
+            foreach (var node in _map.Nodes)
+            {
+                if (!node.Visited) continue;
+                node.Discovered = node.Scouted = true;
+                foreach (var link in node.Links)
+                {
+                    link.Discovered = link.Scouted = true;
+                }
+            }
+
+            int scoutSteps = 1 + _playerState.ArchiveRevealDepth;
+            foreach (var kvp in _map.StepsWithin(_current, scoutSteps + 1))
+            {
+                kvp.Key.Discovered = true;
+                if (kvp.Value <= scoutSteps) kvp.Key.Scouted = true;
+            }
+
+            // Archive Lv 4 bestiary: a scouted enemy room is identified before you go in -
+            // its occupants are rolled now, so the tooltip can say exactly what's waiting.
+            if (_playerState.ArchiveBestiary)
+            {
+                foreach (var node in _map.Nodes)
+                {
+                    if (node.Scouted && !node.Visited && node.Type == RoomType.Encounter && node.Enemies == null)
+                    {
+                        node.Enemies = EnemyRoster.RollEncounter(_district, Math.Min(6, node.Depth / 2), _playerState.Day, _random);
+                    }
+                }
+            }
+
+            _reachable.Clear();
+            foreach (var node in _map.Nodes)
+            {
+                if (node.Visited)
+                {
+                    _reachable.Add(node);
+                    foreach (var link in node.Links) _reachable.Add(link);
+                }
+            }
+            _reachable.Remove(_current);
+        }
+
+        /// <summary>The ruins aren't static: after each new room, a creature may slip from its
+        /// room into a neighboring empty hall. You only see it happen if you can see either
+        /// room - otherwise you just hear it.</summary>
+        private void StirTheDark()
+        {
+            if (_random.Next(100) >= RoamChancePercent) return;
+
+            var prowlers = _map.Nodes
+                .Where(n => n.Type == RoomType.Encounter && !n.Visited)
+                .OrderBy(_ => _random.Next())
+                .ToList();
+
+            foreach (var prowler in prowlers)
+            {
+                var destinations = prowler.Links
+                    .Where(l => !l.Visited && l.Type == RoomType.Empty)
+                    .ToList();
+                if (destinations.Count == 0) continue;
+
+                var destination = destinations[_random.Next(destinations.Count)];
+                prowler.Type = RoomType.Empty;
+                destination.Type = RoomType.Encounter;
+                destination.Enemies = prowler.Enemies;
+                prowler.Enemies = null;
+                prowler.StirAmount = 1f;
+                destination.StirAmount = 1f;
+
+                bool seen = prowler.Scouted || destination.Scouted;
+                _textLog.Push(seen
+                    ? $"Something shuffles between the rooms {DirectionFrom(_current, destination)} of you..."
+                    : "Somewhere in the dark, something shifts its weight.");
+                return;
+            }
+        }
+
+        private static string DirectionFrom(MapNode from, MapNode to)
+        {
+            int dx = to.Column - from.Column;
+            int dy = to.Row - from.Row;
+            if (Math.Abs(dx) >= Math.Abs(dy)) return dx >= 0 ? "east" : "west";
+            return dy >= 0 ? "south" : "north";
         }
 
         private void GoToDawnReturn()
         {
-            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _currentDepth), ScreenTransitions.Fade(GraphicsDevice));
+            if (_leaving) return;
+            _leaving = true;
+            RecordNight();
+            ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _roomsVisited), ScreenTransitions.FadeTransition(GraphicsDevice));
         }
 
-        // ---------- Encounter (combat) ----------
-
-        private void StartEncounter(int depth)
+        /// <summary>Writes tonight into the run's history, once, however the night ends.</summary>
+        private void RecordNight()
         {
-            var enemy = new Enemy($"Corrupted Wretch (Depth {depth + 1})", maxHealth: 30 + depth * 3, attackPower: 6 + depth);
-            _activeCombat = new CombatEncounter(enemy, _playerState, _dawnTimer, _random);
-            _enemyHealthBar = new LerpBar(enemy.MaxHealth, enemy.MaxHealth);
-            _combatMenu = CombatMenu.TopLevel;
-            _combatTurn = 0;
-            LayoutCombatButtons();
-            _state = ExplorationState.Encounter;
+            if (_nightRecorded) return;
+            _nightRecorded = true;
+            _playerState.Nights.Add(new NightRecord
+            {
+                Day = _playerState.Day,
+                District = _district,
+                HopeAtDusk = _startHope,
+                HopeAtDawn = _playerState.Hope,
+                Food = Math.Max(0, _playerState.Food - _startFood),
+                Planks = Math.Max(0, _playerState.Planks - _startPlanks),
+                Scraps = Math.Max(0, _playerState.Scraps - _startScraps),
+                EnemiesDefeated = _enemiesDefeatedTonight,
+                RoomsExplored = _throneRoom ? 1 : _map.Nodes.Count(n => n.Visited && n.Type != RoomType.Entrance),
+                KnockedOut = _knockedOutTonight
+            });
         }
 
-        private void LayoutCombatButtons()
+        // ---------- Atmosphere ----------
+
+        private Ember SpawnEmber(bool anywhere)
         {
-            _combatButtons.Clear();
-            const float x = 40, width = 240, height = 60, gap = 14;
-            float y = 230;
-
-            switch (_combatMenu)
+            var ember = new Ember
             {
-                case CombatMenu.TopLevel:
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Attack")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Skills")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Items")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Flee"));
-                    break;
-
-                case CombatMenu.Skills:
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Power Strike (2 ticks)")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Guard")); y += height + gap;
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Back"));
-                    break;
-
-                case CombatMenu.Items:
-                    for (int i = 0; i < _playerState.Items.Count; i++)
-                    {
-                        _combatButtons.Add(new Button(new RectangleF(x, y, width, height), _playerState.Items[i].Name));
-                        y += height + gap;
-                    }
-                    _combatButtons.Add(new Button(new RectangleF(x, y, width, height), "Back"));
-                    break;
-            }
-        }
-
-        private void HandleCombatClick(int x, int y)
-        {
-            foreach (var button in _combatButtons)
-            {
-                if (!button.Contains(x, y)) continue;
-
-                var label = button.Label;
-
-                if (_combatMenu == CombatMenu.TopLevel)
-                {
-                    switch (label)
-                    {
-                        case "Attack":
-                            _textLog.Push(_activeCombat.Attack());
-                            _combatTurn++;
-                            break;
-                        case "Skills":
-                            _combatMenu = CombatMenu.Skills;
-                            LayoutCombatButtons();
-                            return;
-                        case "Items":
-                            _combatMenu = CombatMenu.Items;
-                            LayoutCombatButtons();
-                            return;
-                        case "Flee":
-                            _textLog.Push(_activeCombat.Flee());
-                            EndCombat(fled: true);
-                            return;
-                    }
-                }
-                else if (_combatMenu == CombatMenu.Skills)
-                {
-                    if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
-                    var skill = label.StartsWith("Power") ? SkillType.PowerStrike : SkillType.Guard;
-                    _textLog.Push(_activeCombat.UseSkill(skill));
-                    _combatTurn++;
-                }
-                else if (_combatMenu == CombatMenu.Items)
-                {
-                    if (label == "Back") { _combatMenu = CombatMenu.TopLevel; LayoutCombatButtons(); return; }
-                    var item = _playerState.Items.Find(it => it.Name == label);
-                    if (item != null)
-                    {
-                        _textLog.Push(_activeCombat.UseItem(item));
-                        _combatTurn++;
-                    }
-                    _combatMenu = CombatMenu.TopLevel;
-                }
-
-                if (_activeCombat.IsOver)
-                {
-                    EndCombat(fled: false);
-                }
-                else
-                {
-                    LayoutCombatButtons();
-                }
-
-                return;
-            }
-        }
-
-        private void EndCombat(bool fled)
-        {
-            if (!fled && _activeCombat.PlayerWon)
-            {
-                _roomsCleared++;
-            }
-
-            _activeCombat = null;
-            _combatMenu = CombatMenu.TopLevel;
-            _state = ExplorationState.Map;
-
-            if (!_dawnTimer.HasTimeRemaining || _currentDepth >= _map.Layers.Count)
-            {
-                GoToDawnReturn();
-            }
-        }
-
-        // ---------- Supplies ----------
-
-        private void StartSupplies()
-        {
-            _suppliesOptions = BuildSuppliesOptions();
-            _suppliesButtons.Clear();
-            const float x = 820, width = 380, height = 130, gap = 16;
-            float y = 230;
-            for (int i = 0; i < _suppliesOptions.Count; i++)
-            {
-                _suppliesButtons.Add(new Button(new RectangleF(x, y, width, height), _suppliesOptions[i].Title));
-                y += height + gap;
-            }
-            _state = ExplorationState.Supplies;
-        }
-
-        private List<ChoiceOption> BuildSuppliesOptions()
-        {
-            return new List<ChoiceOption>
-            {
-                new ChoiceOption("Search quickly", "Fast and safe - a modest find.", (state, rng) =>
-                {
-                    state.AddResources(food: rng.Next(1, 4), scraps: rng.Next(1, 3));
-                    return "You grab what's in easy reach.";
-                }),
-
-                new ChoiceOption("Search thoroughly", "Slower, better odds - but noise draws attention.", (state, rng) =>
-                {
-                    state.AddResources(food: rng.Next(3, 7), planks: rng.Next(2, 5), scraps: rng.Next(2, 5));
-                    if (rng.Next(100) < 30)
-                    {
-                        state.Health = Math.Max(1, state.Health - 8);
-                        return "You find a good haul, but the noise draws something - it clips you on the way out.";
-                    }
-                    return "You find a good haul and slip away clean.";
-                }),
-
-                new ChoiceOption("Leave it", "No risk, no reward - just move on.", (state, rng) =>
-                {
-                    return "You decide it isn't worth the time.";
-                })
+                Position = new Vector2(
+                    (float)_random.NextDouble() * 1280f,
+                    anywhere ? (float)_random.NextDouble() * 720f : 720f + (float)_random.NextDouble() * 30f),
+                Velocity = new Vector2(
+                    ((float)_random.NextDouble() - 0.5f) * 14f,
+                    -10f - (float)_random.NextDouble() * 22f),
+                MaxLife = 5f + (float)_random.NextDouble() * 7f,
+                Size = 1.5f + (float)_random.NextDouble() * 2.5f,
+                Wobble = (float)_random.NextDouble() * MathF.PI * 2f
             };
+            ember.Life = anywhere ? (float)_random.NextDouble() * ember.MaxLife : 0f;
+            return ember;
         }
 
-        private void HandleSuppliesClick(int x, int y)
+        private void UpdateEmbers(float dt)
         {
-            for (int i = 0; i < _suppliesButtons.Count; i++)
+            for (int i = 0; i < _embers.Count; i++)
             {
-                if (!_suppliesButtons[i].Contains(x, y)) continue;
-
-                _textLog.Push(_suppliesOptions[i].Resolve(_playerState, _random));
-                _roomsCleared++;
-                _state = ExplorationState.Map;
-
-                if (!_dawnTimer.HasTimeRemaining || _currentDepth >= _map.Layers.Count)
+                var ember = _embers[i];
+                ember.Life += dt;
+                ember.Wobble += dt * 1.3f;
+                ember.Position += (ember.Velocity + new Vector2(MathF.Sin(ember.Wobble) * 8f, 0f)) * dt;
+                if (ember.IsDead || ember.Position.Y < -20f)
                 {
-                    GoToDawnReturn();
+                    _embers[i] = SpawnEmber(anywhere: false);
                 }
-                return;
             }
         }
 
-        // ---------- Special ----------
+        // ---------- Empty / Hoard (Strange Rooms are events: see Night.Events.cs) ----------
 
-        private void ResolveSpecial()
+        private static readonly string[] QuietHallLines =
         {
-            if (_random.Next(100) < 50)
+            "Dust and broken furniture. Nothing moves.",
+            "A cold draft from somewhere further in.",
+            "Old scratches on the wall, counting days.",
+            "Rainwater drips through a hole in the ceiling.",
+            "A child's shoe, alone in the middle of the floor.",
+            "Your lantern throws long shadows down the hall."
+        };
+
+        private void ResolveEmpty()
+        {
+            string line = QuietHallLines[_random.Next(QuietHallLines.Length)];
+            if (_random.Next(100) < 20)
             {
-                int food = _random.Next(2, 5);
-                int planks = _random.Next(1, 4);
-                _playerState.AddResources(food: food, planks: planks);
-                _textLog.Push($"A moment of quiet beauty in the dark. You gather {food} Food and {planks} Planks.");
-            }
-            else
-            {
-                var weapon = Weapon.LootPool[_random.Next(Weapon.LootPool.Length)];
-                _playerState.Inventory.Add(weapon);
-                _textLog.Push($"You find a {weapon.Name} ({weapon.DiceLabel}) left behind by someone else.");
+                // A stray bit of whatever this district is rich in - more in the deeper districts.
+                int amount = _random.Next(1, 3) + DistrictInfo.Corruption(_district) - 1;
+                var (food, planks, scraps) = DistrictInfo.SpecialtyAmount(_district, amount);
+                _playerState.AddResources(food, planks, scraps);
+                line += $" You pocket {amount} {DistrictInfo.SpecialtyMaterial(_district)} from the rubble.";
             }
 
+            _textLog.Push(line);
             _roomsCleared++;
             _state = ExplorationState.Map;
         }
 
-        // ---------- Draw ----------
-
-        public override void Draw(GameTime gameTime)
+        private void ResolveHoard()
         {
-            GraphicsDevice.Clear(new Color(8, 8, 14)); // night: dark and safe by design
+            // Three finds' worth of this district's materials.
+            var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 3);
+            _playerState.AddResources(food, planks, scraps);
 
-            var spriteBatch = Game1.SpriteBatch;
-            var font = Game1.Font;
-            spriteBatch.Begin();
-
-            DrawClock(spriteBatch, font);
-            spriteBatch.DrawString(font, $"Weapon: {_playerState.EquippedWeapon.Name} ({_playerState.EquippedWeapon.DiceLabel})", new Vector2(40, 100), Color.LightGray);
-            DrawPlayerHealthBar(spriteBatch, font);
-
-            switch (_state)
+            string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
+            // No weapons out here any more - those come from the Workshop. A good remedy, maybe.
+            if (_random.Next(100) < 50)
             {
-                case ExplorationState.Map:
-                    DrawMinimap(spriteBatch, font);
-                    break;
-                case ExplorationState.Encounter:
-                    DrawCombat(spriteBatch, font);
-                    DrawMapFragment(spriteBatch, font);
-                    break;
-                case ExplorationState.Supplies:
-                    DrawSupplies(spriteBatch, font);
-                    DrawMapFragment(spriteBatch, font);
-                    break;
+                var remedy = _random.Next(3) == 0 ? Item.Elixir() : Item.Tonic();
+                line += $" And a {remedy.Name} - {_playerState.GainItemAtNight(remedy)}.";
             }
 
-            spriteBatch.End();
-        }
+            _playerState.ChangeHope(PlayerState.HoardHope);
+            line += $" Hope +{PlayerState.HoardHope}.";
 
-        private void DrawClock(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            spriteBatch.DrawString(font, $"Time until dawn: {_dawnTimer.RemainingBudget}/{_dawnTimer.MaxBudget}", new Vector2(40, 30), Color.White);
-            var clockMax = new RectangleF(40, 60, 300, 20);
-            var clockFill = new RectangleF(40, 60, 300 * (_dawnTimer.RemainingBudget / (float)_dawnTimer.MaxBudget), 20);
-            spriteBatch.FillRectangle(clockMax, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(clockFill, new Color(255, 200, 120));
-            spriteBatch.DrawRectangle(clockMax, Color.White, 2f);
-        }
-
-        private void DrawPlayerHealthBar(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            spriteBatch.DrawString(font, $"Health: {_playerState.Health}/{_playerState.MaxHealth}", new Vector2(40, 135), Color.LightGray);
-            var barMax = new RectangleF(40, 165, 300, 20);
-            var barFill = new RectangleF(40, 165, 300 * _playerHealthBar.Ratio, 20);
-            spriteBatch.FillRectangle(barMax, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(barFill, new Color(200, 50, 50));
-            spriteBatch.DrawRectangle(barMax, Color.White, 2f);
-        }
-
-        private void DrawMinimap(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            for (int depth = 0; depth < _map.Layers.Count; depth++)
-            {
-                foreach (var node in _map.Layers[depth])
-                {
-                    Color color;
-                    string label;
-
-                    if (node.Visited)
-                    {
-                        color = new Color(60, 60, 60);
-                        label = node.Type.ToString();
-                    }
-                    else if (depth == _currentDepth)
-                    {
-                        color = node.Type switch
-                        {
-                            RoomType.Supplies => new Color(40, 90, 60),
-                            RoomType.Encounter => new Color(110, 30, 30),
-                            RoomType.Special => new Color(80, 40, 110),
-                            _ => Color.Gray
-                        };
-                        label = node.Type.ToString();
-                    }
-                    else
-                    {
-                        color = new Color(30, 30, 40);
-                        label = "?";
-                    }
-
-                    spriteBatch.FillRectangle(node.ScreenBounds, color);
-                    spriteBatch.DrawRectangle(node.ScreenBounds, Color.White * 0.5f, 1f);
-                    spriteBatch.DrawString(font, label, new Vector2(node.ScreenBounds.X + 8, node.ScreenBounds.Y + 8), Color.White);
-                }
-            }
-
-            spriteBatch.FillRectangle(_headBackButton.Bounds, new Color(90, 70, 70));
-            spriteBatch.DrawRectangle(_headBackButton.Bounds, Color.White, 2f);
-            spriteBatch.DrawString(font, _headBackButton.Label, new Vector2(_headBackButton.Bounds.X + 10, _headBackButton.Bounds.Y + 14), Color.White);
-        }
-
-        private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            // Small persistent reminder of where you are in tonight's map, even mid-fight or
-            // mid-choice - a stand-in for the reference's parchment map-fragment icon.
-            var box = new RectangleF(40, 610, 200, 90);
-            spriteBatch.FillRectangle(box, new Color(55, 45, 30));
-            spriteBatch.DrawRectangle(box, new Color(150, 120, 70), 2f);
-            spriteBatch.DrawString(font, "Tonight's map", new Vector2(box.X + 10, box.Y + 10), new Color(220, 200, 160));
-            spriteBatch.DrawString(font, $"Depth {_currentDepth}/{_map.Layers.Count}", new Vector2(box.X + 10, box.Y + 40), new Color(220, 200, 160));
-        }
-
-        private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            spriteBatch.DrawString(font, _activeCombat.Enemy.Name, new Vector2(480, 210), Color.White);
-            spriteBatch.DrawString(font, $"Turn {_combatTurn + 1}", new Vector2(1000, 210), Color.LightGray);
-
-            // Portrait placeholder - swap for real enemy art once it exists.
-            var portrait = new RectangleF(480, 250, 300, 260);
-            spriteBatch.FillRectangle(portrait, new Color(35, 20, 25));
-            spriteBatch.DrawRectangle(portrait, new Color(120, 40, 40), 2f);
-
-            // Vertical enemy health bar beside the portrait, like the reference - fills from
-            // the bottom up so it drains from the top as health drops.
-            const float barX = 800, barY = 250, barW = 30, barH = 260;
-            float filledHeight = barH * _enemyHealthBar.Ratio;
-            var barOuter = new RectangleF(barX, barY, barW, barH);
-            var barFill = new RectangleF(barX, barY + (barH - filledHeight), barW, filledHeight);
-            spriteBatch.FillRectangle(barOuter, Color.Black * 0.5f);
-            spriteBatch.FillRectangle(barFill, Color.OrangeRed);
-            spriteBatch.DrawRectangle(barOuter, Color.White, 2f);
-
-            _textLog.Draw(spriteBatch, font, new Vector2(480, 545));
-
-            foreach (var button in _combatButtons)
-            {
-                spriteBatch.FillRectangle(button.Bounds, new Color(60, 60, 80));
-                spriteBatch.DrawRectangle(button.Bounds, Color.White, 2f);
-                spriteBatch.DrawString(font, button.Label, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 18), Color.White);
-            }
-        }
-
-        private void DrawSupplies(SpriteBatch spriteBatch, SpriteFont font)
-        {
-            spriteBatch.DrawString(font, "You find a supply cache.", new Vector2(60, 220), Color.White);
-            spriteBatch.DrawString(font, "What do you do?", new Vector2(60, 250), Color.LightGray);
-
-            // Loot placeholder - swap for real item art once it exists.
-            var lootBox = new RectangleF(60, 300, 260, 260);
-            spriteBatch.FillRectangle(lootBox, new Color(45, 40, 25));
-            spriteBatch.DrawRectangle(lootBox, new Color(140, 110, 60), 2f);
-
-            _textLog.Draw(spriteBatch, font, new Vector2(60, 580));
-
-            for (int i = 0; i < _suppliesButtons.Count; i++)
-            {
-                var button = _suppliesButtons[i];
-                var option = _suppliesOptions[i];
-                spriteBatch.FillRectangle(button.Bounds, new Color(60, 70, 60));
-                spriteBatch.DrawRectangle(button.Bounds, Color.White, 2f);
-                spriteBatch.DrawString(font, option.Title, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 10), Color.White);
-                spriteBatch.DrawString(font, option.Description, new Vector2(button.Bounds.X + 10, button.Bounds.Y + 45), Color.LightGray);
-            }
+            _textLog.Push(line);
+            _roomsCleared++;
+            _state = ExplorationState.Map;
         }
     }
 }
