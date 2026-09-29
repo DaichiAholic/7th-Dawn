@@ -69,13 +69,19 @@ macOS or Linux, add it from `7th-Dawn/DuskAndDawn` with
 
 ## Sharing the game with players
 
-Players don't need the SDK or MGCB. Publish a build that already contains the
-compiled content:
+The GitHub repo holds the source code only. The `bin` and `obj` folders, where a
+build puts the finished game, are left out on purpose (`.gitignore`), so
+downloading the repo always means building it. Players shouldn't have to:
+publish a build that already contains everything, including the .NET
+runtime and the built art:
 
 ```
 cd 7th-Dawn/DuskAndDawn
-dotnet publish -c Release -r win-x64 --self-contained
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishTrimmed=true -p:TrimMode=partial -p:JsonSerializerIsReflectionEnabledByDefault=true -p:DebugType=none -o publish/7th-Dawn
 ```
 
-Zip the `bin/Release/net8.0/win-x64/publish` folder and share that. Use
-`linux-x64` or `osx-arm64` for other platforms.
+Zip the `publish/7th-Dawn` folder (about 10 MB zipped) and share that, for
+example as a GitHub Release. Players unzip it and run `DuskAndDawn.exe`, with
+nothing to install. Keep `JsonSerializerIsReflectionEnabledByDefault=true`:
+trimming switches that off by default, and without it saves and settings
+silently stop working. Use `linux-x64` or `osx-arm64` for other platforms.

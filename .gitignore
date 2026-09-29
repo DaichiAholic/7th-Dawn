@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+# dotnet publish output (README: Sharing the game)
+7th-Dawn/DuskAndDawn/publish/
