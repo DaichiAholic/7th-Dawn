@@ -1,0 +1,72 @@
+# Builds 7th Dawn on a clean Windows machine on every push, so a broken build shows up
+# here (not on a teammate's PC), and publishes a ready-to-play zip players can download
+# from the repo's Releases page without installing or building anything.
+name: Windows build
+
+on:
+  push:
+  workflow_dispatch:
+
+# A newer push to the same branch replaces a build still running.
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # to publish the Release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      # Same settings as README.md "Sharing the game with players". Keep
+      # JsonSerializerIsReflectionEnabledByDefault: trimming turns it off, and saves and
+      # settings then silently stop working.
+      - name: Publish (self-contained, trimmed)
+        working-directory: 7th-Dawn/DuskAndDawn
+        run: >
+          dotnet publish -c Release -r win-x64 --self-contained
+          -p:PublishTrimmed=true -p:TrimMode=partial
+          -p:JsonSerializerIsReflectionEnabledByDefault=true
+          -p:DebugType=none
+          -o ${{ github.workspace }}/publish/7th-Dawn
+
+      - name: Check the build has the game and its art
+        shell: bash
+        run: |
+          test -f publish/7th-Dawn/DuskAndDawn.exe
+          test -f publish/7th-Dawn/Content/DefaultFont.xnb
+          count=$(find publish/7th-Dawn/Content -name '*.xnb' | wc -l)
+          echo "Built content files: $count"
+          test "$count" -ge 30
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/7th-Dawn -DestinationPath 7th-Dawn-win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 7th-Dawn-win64
+          path: 7th-Dawn-win64.zip
+
+      # One always-current download per main branch, e.g. the "latest-1.5-Updates" release.
+      # Other branches (personal ones, dev) only get the build check and the artifact above.
+      - name: Publish the download on the Releases page
+        if: github.ref_name == 'main' || github.ref_name == 'master' || endsWith(github.ref_name, '-Updates')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="latest-${GITHUB_REF_NAME}"
+          gh release delete "$tag" --yes --cleanup-tag || true
+          gh release create "$tag" 7th-Dawn-win64.zip \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Latest build: ${GITHUB_REF_NAME}" \
+            --notes "Ready-to-play Windows build of ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Download 7th-Dawn-win64.zip, unzip it, and run DuskAndDawn.exe - nothing to install. If Windows says it protected your PC, click More info > Run anyway."
