@@ -54,6 +54,13 @@ On Linux, building the fonts needs FreeType (`libfreetype6`).
   NuGet couldn't reach nuget.org. Check the connection and build again. The
   repo's `nuget.config` makes the game restore from nuget.org only, so other
   package sources set up on that computer don't get in the way.
+- **"...Task.targets was not imported ... due to the file being invalid"**
+  (or another error pointing into `.nuget\packages`): that computer's copy of
+  a NuGet package got cut off mid-download. Close Visual Studio, delete that
+  package's folder in `%USERPROFILE%\.nuget\packages` (or run
+  `dotnet nuget locals all --clear`), delete `bin` and `obj`, and build again.
+  If it keeps happening, antivirus is usually scanning the files as they're
+  written, so exclude the `.nuget` folder.
 - **Anything else**: delete the `bin` and `obj` folders in
   `7th-Dawn/DuskAndDawn` and build again.
 
