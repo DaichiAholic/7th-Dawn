@@ -65,6 +65,29 @@ namespace DuskAndDawn
         /// <summary>An enemy kind's portrait, or null if it has no art yet.</summary>
         public Texture2D GetEnemySprite(EnemyKind kind) =>
             _enemySprites.TryGetValue(kind, out var sprite) ? sprite : null;
+
+        // Base room cutaways (Content/Base), three tiers per room: 192x128, the Archive's
+        // map room 288x128. Asset names are the art's own file names, minus _LV{tier}.
+        private static readonly Dictionary<BaseRoomType, string> RoomArtNames = new Dictionary<BaseRoomType, string>
+        {
+            [BaseRoomType.Storage] = "Storage",
+            [BaseRoomType.Workshop] = "Workshop",
+            [BaseRoomType.Infirmary] = "Infirmary",
+            [BaseRoomType.Kitchen] = "Kitchen",
+            [BaseRoomType.Barrack] = "Bed_Room",
+            [BaseRoomType.Archive] = "plan"
+        };
+        private const int RoomArtTiers = 3;
+        private readonly Dictionary<(BaseRoomType room, int tier), Texture2D> _roomSprites = new Dictionary<(BaseRoomType, int), Texture2D>();
+
+        /// <summary>The art for a room at a given room level: Lv 1-2 use tier 1, Lv 3-4 tier 2,
+        /// Lv 5 tier 3. null if the room has no art.</summary>
+        public Texture2D GetRoomSprite(BaseRoomType room, int level)
+        {
+            int tier = MathHelper.Clamp((level + 1) / 2, 1, RoomArtTiers);
+            return _roomSprites.TryGetValue((room, tier), out var sprite) ? sprite : null;
+        }
+
         private readonly Dictionary<string, Texture2D> _weaponIcons = new Dictionary<string, Texture2D>();
 
         /// <summary>The icon for a weapon, or null if it has no art yet.</summary>
@@ -133,6 +156,13 @@ namespace DuskAndDawn
             _enemySprites[EnemyKind.Herald] = Content.Load<Texture2D>("SunHerald");
             _enemySprites[EnemyKind.Penitent] = Content.Load<Texture2D>("Penitent");
             _enemySprites[EnemyKind.Knight] = Content.Load<Texture2D>("Knight");
+            foreach (var (room, artName) in RoomArtNames)
+            {
+                for (int tier = 1; tier <= RoomArtTiers; tier++)
+                {
+                    _roomSprites[(room, tier)] = Content.Load<Texture2D>($"Base/{artName}_LV{tier}");
+                }
+            }
 
             _screenManager.ShowScreen(new MainMenuScreen(this));
         }

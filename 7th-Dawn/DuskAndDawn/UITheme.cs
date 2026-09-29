@@ -360,6 +360,20 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch);
         }
 
+        /// <summary>Pixel art stretched to fill `bounds`, with point sampling. Crisp when the
+        /// bounds are a whole number of screen pixels per art pixel (the base rooms).</summary>
+        public static void DrawPixelArt(SpriteBatch spriteBatch, Texture2D texture, RectangleF bounds)
+        {
+            if (texture == null) return;
+            var scale = new Vector2(bounds.Width / texture.Width, bounds.Height / texture.Height);
+
+            spriteBatch.End();
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            spriteBatch.Draw(texture, SnapToDevice(bounds.Position), null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            BeginCanvas(spriteBatch);
+        }
+
         public static void DrawIconSlot(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, int scale, int nativeSize = 32)
         {
             float size = nativeSize * scale;
