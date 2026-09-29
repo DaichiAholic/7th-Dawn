@@ -29,6 +29,17 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.5.1" />
   </ItemGroup>
 
+  <!-- A "Download ZIP" from GitHub leaves every file marked as downloaded from the internet
+       (Windows: "this file came from another computer and might be blocked"). On Windows,
+       clear that mark from the project's files once, on the first build. Never fails the build. -->
+  <Target Name="UnblockDownloadedFiles" BeforeTargets="PrepareForBuild;_RestoreMGCBTool"
+          Condition="'$(OS)' == 'Windows_NT' And !Exists('$(IntermediateOutputPath)unblocked.marker')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-ChildItem -LiteralPath '$(MSBuildProjectDirectory.Replace(&quot;'&quot;, &quot;''&quot;))' -Recurse -File | Unblock-File&quot;"
+          IgnoreExitCode="true" ContinueOnError="true" StandardOutputImportance="low" />
+    <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
+    <Touch Files="$(IntermediateOutputPath)unblocked.marker" AlwaysCreate="true" ContinueOnError="true" />
+  </Target>
+
   <!-- The content builder (MGCB) is a .NET local tool (.config/dotnet-tools.json), not a NuGet
        package, so a new machine downloads it (about 220 MB) during its first build. MonoGame's
        own step ignores a failed download, and the build then dies later with a bare

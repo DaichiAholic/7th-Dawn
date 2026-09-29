@@ -26,6 +26,18 @@ On Linux, building the fonts needs FreeType (`libfreetype6`).
 
 ## If the build fails
 
+- **"This file came from another computer and might be blocked"**: Windows
+  marks every file from a "Download ZIP" as downloaded from the internet. The
+  build clears that mark itself on Windows, but if Visual Studio or Windows
+  still complains, clear it by hand, either way:
+  - Before unzipping: right-click the ZIP > Properties > tick **Unblock** >
+    OK, then extract it again.
+  - After unzipping: open PowerShell in the project folder and run
+    `Get-ChildItem -Recurse | Unblock-File`
+
+  Cloning with Git or GitHub Desktop instead of downloading a ZIP avoids the
+  mark entirely.
+
 - **"Couldn't download the MonoGame content builder"**, or an error that
   `dotnet mgcb` exited with a code: the MGCB download didn't finish (a slow
   or dropped connection, or a firewall). Run this, then build again:
