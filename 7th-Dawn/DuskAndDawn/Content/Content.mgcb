@@ -107,7 +107,7 @@
 /importer:FontImporter
 /processor:FontDescriptionProcessor
 /processorParam:PremultiplyAlpha=True
-/processorParam:TextureFormat=Compressed
+/processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
 /build:DefaultFont.ttf
 
@@ -115,7 +115,7 @@
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
 /processorParam:PremultiplyAlpha=True
-/processorParam:TextureFormat=Compressed
+/processorParam:TextureFormat=Color
 /build:DefaultFontHD.spritefont
 
 #begin Dice.png
