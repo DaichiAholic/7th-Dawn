@@ -1087,7 +1087,8 @@ namespace DuskAndDawn
         }
 
         /// <summary>An enemy's portrait art, with a little light behind it: the Herald burns
-        /// (redder once he ascends), Knights catch a cold gleam, Penitents a candle glow.</summary>
+        /// (redder once he ascends), Knights catch a cold gleam, Penitents a candle glow, and a
+        /// Wretch's dark shape stands out against a low red smoulder.</summary>
         private static void DrawEnemySprite(SpriteBatch spriteBatch, Enemy enemy, Texture2D sprite, Vector2 center, float alpha, float totalSeconds)
         {
             float glow = UITheme.PulseSine(totalSeconds + enemy.MaxHealth * 0.1f, 2f);
@@ -1107,6 +1108,9 @@ namespace DuskAndDawn
                     break;
                 case EnemyKind.Penitent:
                     UITheme.DrawGlow(spriteBatch, center + new Vector2(0, 20), 90f, new Color(255, 190, 110) * ((0.14f + glow * 0.1f) * alpha));
+                    break;
+                case EnemyKind.Wretch:
+                    UITheme.DrawGlow(spriteBatch, center, 95f, new Color(210, 60, 45) * ((0.16f + glow * 0.1f) * alpha));
                     break;
             }
             UITheme.DrawPixelIconFit(spriteBatch, sprite, center, 150f, Color.White * alpha);

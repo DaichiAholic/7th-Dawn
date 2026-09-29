@@ -64,8 +64,7 @@ namespace DuskAndDawn
         public Texture2D GetDistrictIcon(District district) =>
             _districtIcons.TryGetValue(district, out var icon) ? icon : null;
 
-        // 128x128 portraits for the enemy kinds that have art (the Wretch doesn't yet - its
-        // panel draws a glyph instead).
+        // 128x128 portraits for the enemy kinds (a kind without art draws a glyph instead).
         private readonly Dictionary<EnemyKind, Texture2D> _enemySprites = new Dictionary<EnemyKind, Texture2D>();
 
         /// <summary>An enemy kind's portrait, or null if it has no art yet.</summary>
@@ -178,6 +177,7 @@ namespace DuskAndDawn
             _enemySprites[EnemyKind.Herald] = Content.Load<Texture2D>("SunHerald");
             _enemySprites[EnemyKind.Penitent] = Content.Load<Texture2D>("Penitent");
             _enemySprites[EnemyKind.Knight] = Content.Load<Texture2D>("Knight");
+            _enemySprites[EnemyKind.Wretch] = Content.Load<Texture2D>("Wretch");
             foreach (var (room, artName) in RoomArtNames)
             {
                 for (int tier = 1; tier <= RoomArtTiers; tier++)
