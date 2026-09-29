@@ -76,6 +76,16 @@ macOS or Linux, add it from `7th-Dawn/DuskAndDawn` with
 
 ## Sharing the game with players
 
+**Every push builds the game automatically.** GitHub Actions
+(`.github/workflows/windows-build.yml`) builds it on a clean Windows machine.
+For `main`, `master` and the `*-Updates` branches it also puts a ready-to-play
+zip on the repo's **Releases** page, e.g. "Latest build: 1.5-Updates". Players
+download `7th-Dawn-win64.zip`, unzip it and run `DuskAndDawn.exe`, with
+nothing to install. If a build fails there (a red X on the commit), the
+problem is in the code, not on anyone's computer.
+
+To make the same build by hand:
+
 The GitHub repo holds the source code only. The `bin` and `obj` folders, where a
 build puts the finished game, are left out on purpose (`.gitignore`), so
 downloading the repo always means building it. Players shouldn't have to:
