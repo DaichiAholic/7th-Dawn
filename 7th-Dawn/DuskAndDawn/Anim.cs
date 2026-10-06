@@ -6,15 +6,9 @@ using System.Collections.Generic;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// Small timing helpers shared by every screen's entrance and idle animation. Everything
-    /// here is rendering-only: it reads a screen's own elapsed time and returns 0-1 amounts,
-    /// offsets or scales - nothing touches game state.
-    /// </summary>
     public static class Anim
     {
-        /// <summary>0 -> 1 over `duration` seconds, starting `delay` seconds in, eased out.
-        /// The standard "slide/fade in" curve for anything appearing on a screen.</summary>
+
         public static float Intro(float elapsed, float delay = 0f, float duration = 0.45f) =>
             UITheme.EaseOutCubic((elapsed - delay) / duration);
 
@@ -74,10 +68,7 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>
-    /// A number that counts up (or down) to its target instead of jumping - for totals on
-    /// the dawn screen and similar. Call Update every frame with the real value.
-    /// </summary>
+    ///AnimeSpeedForEffects and Animations
     public class CountUp
     {
         private float _shown;
@@ -99,10 +90,7 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>
-    /// Drifting motes - ash, dust, embers, dawn sparkles. Each screen configures one or two
-    /// and they recycle forever. Rendering only.
-    /// </summary>
+    ///placeHolderForEffects
     public class ParticleField
     {
         private class Mote
@@ -119,8 +107,7 @@ namespace DuskAndDawn
         private readonly Color _core, _glow;
         private readonly bool _spawnAtBottom;
 
-        /// <param name="area">Where motes live; they respawn inside it (at its bottom edge if spawnAtBottom).</param>
-        /// <param name="glow">Soft halo colour; transparent for plain dots.</param>
+
         public ParticleField(int count, RectangleF area, Vector2 velocityMin, Vector2 velocityMax,
             float sizeMin, float sizeMax, float lifeMin, float lifeMax, Color core, Color glow,
             float wobble = 6f, bool spawnAtBottom = false, int seed = 0)
@@ -183,13 +170,10 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>
-    /// Procedural backdrop pieces, standing in for painted art: a ruined skyline with a
-    /// church spire and castle towers, a filled triangle, and light rays.
-    /// </summary>
+
     public static class Backdrop
     {
-        /// <summary>Fills a triangle with horizontal strips - for roofs and spires.</summary>
+
         public static void FillTriangle(SpriteBatch spriteBatch, Vector2 apex, float baseY, float halfWidth, Color color)
         {
             float height = baseY - apex.Y;
@@ -201,11 +185,7 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>
-        /// A ruined town silhouette along the bottom of the screen: broken rooftops, a leaning
-        /// church spire and a castle keep. `seed` picks the layout; `drift` shifts it sideways
-        /// (pass a slow sine, a few pixels either way, for a parallax sway).
-        /// </summary>
+        ///PlaceHolderForBG
         public static void DrawSkyline(SpriteBatch spriteBatch, float groundY, float maxHeight, Color color, int seed, float drift = 0f)
         {
             var random = new Random(seed);
@@ -220,13 +200,13 @@ namespace DuskAndDawn
 
                 if (kind < 4)
                 {
-                    // Pitched roof, sometimes broken off.
+
                     float roofHeight = width * 0.45f;
                     FillTriangle(spriteBatch, new Vector2(x + width / 2f + (kind == 0 ? width * 0.2f : 0f), body.Y - roofHeight), body.Y + 1f, width / 2f, color);
                 }
                 else if (kind == 4)
                 {
-                    // Church: a tall spire.
+
                     float towerWidth = width * 0.35f;
                     var tower = new RectangleF(x + width * 0.3f, body.Y - maxHeight * 0.45f, towerWidth, maxHeight * 0.45f + 1f);
                     spriteBatch.FillRectangle(tower, color);
@@ -234,7 +214,7 @@ namespace DuskAndDawn
                 }
                 else if (kind == 5)
                 {
-                    // Castle: towers with crenellations.
+
                     for (int c = 0; c < 4; c++)
                     {
                         if (c % 2 == 0) spriteBatch.FillRectangle(new RectangleF(x + c * width / 4f, body.Y - 8f, width / 4f, 9f), color);
@@ -243,7 +223,7 @@ namespace DuskAndDawn
                 }
                 else if (kind == 6)
                 {
-                    // A jagged broken top.
+
                     for (int j = 0; j < 4; j++)
                     {
                         float h = 6f + (float)random.NextDouble() * 18f;
@@ -282,7 +262,7 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Soft rays fanning out from a point, slowly turning - dawn light.</summary>
+
         public static void DrawRays(SpriteBatch spriteBatch, Vector2 origin, float length, Color color, float time, int count = 9)
         {
             for (int i = 0; i < count; i++)
