@@ -8,17 +8,13 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: the last night. No maze, no scavenging - the Castle's doors close behind
-    // you and there is one hall, one throne, and the Sun Herald on it. A few lines set the
-    // scene, then you walk up to him. Win and the seventh dawn is yours; fall and the run ends.
     public partial class NightScavengingScreen
     {
         private bool _throneRoom;
         private float _throneTime;
-        private bool _throneRevealed;   // skipped ahead: every line shown at once
+        private bool _throneRevealed;
         private Button _approachButton;
 
-        // Set by the Herald's defeat: the collapse beat plays in gold, then dawn.
         private bool _collapseIsVictory;
 
         private static readonly string[] ThroneLines =
@@ -28,10 +24,9 @@ namespace DuskAndDawn
             "It has waited seven days for you."
         };
 
-        private const float ThroneTypeSpeed = 32f;   // characters per second
+        private const float ThroneTypeSpeed = 32f;
         private const float ThroneLinePause = 0.7f;
 
-        /// <summary>When each line starts typing, and when the whole intro is done.</summary>
         private (float[] starts, float done) ThroneTimeline()
         {
             var starts = new float[ThroneLines.Length];
@@ -64,7 +59,6 @@ namespace DuskAndDawn
 
             if (!ready)
             {
-                // First press shows everything; the next one walks up to him.
                 _throneRevealed = true;
                 return;
             }
@@ -76,7 +70,6 @@ namespace DuskAndDawn
             StartEncounter(_map.Hoard);
         }
 
-        /// <summary>The Herald falls: a golden beat, then the seventh dawn.</summary>
         private void WinThrone()
         {
             _collapseIsVictory = true;
@@ -85,11 +78,6 @@ namespace DuskAndDawn
             _state = ExplorationState.Map;
         }
 
-        // ---------- Drawing ----------
-
-        /// <summary>The throne hall: pillars marching toward a blinding far wall, a red runner
-        /// up the steps, his Knights standing guard and his choir kneeling. `herald` puts him
-        /// on the throne (before the fight); during it the throne stands empty and blazing.</summary>
         private void DrawThroneHall(SpriteBatch spriteBatch, float totalSeconds, bool herald)
         {
             var center = new Vector2(640, 300);
@@ -100,7 +88,6 @@ namespace DuskAndDawn
             UITheme.DrawGlow(spriteBatch, center, 520f, new Color(255, 190, 100) * ((0.28f + pulse * 0.06f) * introLight));
             Backdrop.DrawRays(spriteBatch, center + new Vector2(0, 40), 760f, new Color(255, 214, 150) * (0.5f * introLight), totalSeconds * 0.6f, 13);
 
-            // The runner, widening toward you.
             for (float y = 400; y < 720; y += 4)
             {
                 float t = (y - 400) / 320f;
@@ -108,7 +95,6 @@ namespace DuskAndDawn
                 spriteBatch.FillRectangle(new RectangleF(640 - half, y, half * 2, 4.5f), Color.Lerp(new Color(110, 26, 30), new Color(52, 10, 14), t));
             }
 
-            // The throne: a tall back with a sunburst crest, on three steps.
             for (int step = 0; step < 3; step++)
             {
                 float w = 240 + step * 70, y = 382 + step * 12;
@@ -119,7 +105,6 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, new Vector2(640, 168), 30f, new Color(230, 190, 110));
             UITheme.FillCircle(spriteBatch, new Vector2(640, 168), 22f, new Color(255, 230, 170));
 
-            // Pillars, near ones bigger and darker, lit on the side facing the throne.
             for (int i = 3; i >= 0; i--)
             {
                 float offset = 150 + i * 125, width = 26 + i * 16;
@@ -134,7 +119,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // His guard: Knights either side of the steps, the choir kneeling below.
             var knight = Game1.GetEnemySprite(EnemyKind.Knight);
             var penitent = Game1.GetEnemySprite(EnemyKind.Penitent);
             Color silhouette = new Color(70, 55, 50);
@@ -162,13 +146,10 @@ namespace DuskAndDawn
             Backdrop.Vignette(spriteBatch, Color.Black, 1.2f);
         }
 
-        /// <summary>Before the fight: the lines type out one by one, his name comes up, then the
-        /// only way forward.</summary>
         private void DrawThroneIntro(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
             var (starts, done) = ThroneTimeline();
 
-            // A dark band behind the text so it reads over the light.
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 470, 1280, 250), Color.Black * 0f, Color.Black * 0.85f, 10);
 
             float y = 480;
@@ -182,7 +163,6 @@ namespace DuskAndDawn
                 y += 34;
             }
 
-            // His name, burned in over the throne once the lines are done.
             float title = _throneRevealed ? 1f : Anim.Intro(_throneTime, done - 0.2f, 1f);
             if (title > 0.001f)
             {

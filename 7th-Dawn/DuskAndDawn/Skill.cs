@@ -8,9 +8,7 @@ namespace DuskAndDawn
 {
     public enum SkillType
     {
-
         PowerStrike,
-
 
         Guard
     }

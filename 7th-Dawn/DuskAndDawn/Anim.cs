@@ -8,40 +8,28 @@ namespace DuskAndDawn
 {
     public static class Anim
     {
-
         public static float Intro(float elapsed, float delay = 0f, float duration = 0.45f) =>
             UITheme.EaseOutCubic((elapsed - delay) / duration);
 
-        /// <summary>Like Intro, but for the i-th item of a list, each a little after the last.</summary>
         public static float Stagger(float elapsed, int index, float step = 0.06f, float baseDelay = 0.1f, float duration = 0.4f) =>
             Intro(elapsed, baseDelay + index * step, duration);
 
-        /// <summary>A pop: overshoots slightly, then settles at 1 - for things being placed.</summary>
         public static float Pop(float elapsed, float delay = 0f, float duration = 0.35f) =>
             UITheme.EaseOutBack(MathHelper.Clamp((elapsed - delay) / duration, 0f, 1f));
 
-        /// <summary>Shifts a rectangle for a slide-in: at t = 0 it sits `offset` away, at 1 in place.</summary>
         public static RectangleF Slide(RectangleF bounds, float t, Vector2 offset) =>
             new RectangleF(bounds.X + offset.X * (1f - t), bounds.Y + offset.Y * (1f - t), bounds.Width, bounds.Height);
 
-        /// <summary>Scales a rectangle about its centre.</summary>
         public static RectangleF Scale(RectangleF bounds, float scale)
         {
             float w = bounds.Width * scale, h = bounds.Height * scale;
             return new RectangleF(bounds.X + (bounds.Width - w) / 2f, bounds.Y + (bounds.Height - h) / 2f, w, h);
         }
 
-        /// <summary>A 0-1 pulse that fades from 1 to 0 over `duration` after being triggered
-        /// at `triggeredAt` (e.g. a flash when a value changes). 0 before and after.</summary>
         public static float Flash(float now, float triggeredAt, float duration) =>
             triggeredAt < 0f || now < triggeredAt ? 0f : MathHelper.Clamp(1f - (now - triggeredAt) / duration, 0f, 1f);
     }
 
-    /// <summary>
-    /// The game's standard ember-bordered button, with an entrance (`intro` 0-1: slides up
-    /// and fades in), a hover lift and glow, and a press squash. Used by screens outside the
-    /// menu system; MenuScreen draws its own variant with the armed/confirm state.
-    /// </summary>
     public static class EmberButton
     {
         public static void Draw(SpriteBatch spriteBatch, SpriteFont font, Button button, float intro = 1f, float textScale = 1f, bool primary = false)
@@ -68,7 +56,6 @@ namespace DuskAndDawn
         }
     }
 
-    ///AnimeSpeedForEffects and Animations
     public class CountUp
     {
         private float _shown;
@@ -84,13 +71,11 @@ namespace DuskAndDawn
 
         public void Update(float dt, float target)
         {
-            // Big gaps close faster, so large numbers don't take forever.
             float step = Math.Max(_speed, Math.Abs(target - _shown) * 3f) * dt;
             _shown = UITheme.MoveTowards(_shown, target, step);
         }
     }
 
-    ///placeHolderForEffects
     public class ParticleField
     {
         private class Mote
@@ -106,7 +91,6 @@ namespace DuskAndDawn
         private readonly float _sizeMin, _sizeMax, _lifeMin, _lifeMax, _wobble;
         private readonly Color _core, _glow;
         private readonly bool _spawnAtBottom;
-
 
         public ParticleField(int count, RectangleF area, Vector2 velocityMin, Vector2 velocityMax,
             float sizeMin, float sizeMax, float lifeMin, float lifeMax, Color core, Color glow,
@@ -162,7 +146,6 @@ namespace DuskAndDawn
         {
             foreach (var m in _motes)
             {
-                // Fade in and out over each mote's life so none pop.
                 float fade = MathHelper.Clamp(MathF.Sin(m.Life / m.MaxLife * MathF.PI), 0f, 1f) * alpha;
                 if (_glow.A > 0) UITheme.DrawGlow(spriteBatch, m.Position, m.Size * 3.2f, _glow * (0.3f * fade));
                 UITheme.FillCircle(spriteBatch, m.Position, m.Size * 0.6f, _core * (0.8f * fade));
@@ -170,10 +153,8 @@ namespace DuskAndDawn
         }
     }
 
-
     public static class Backdrop
     {
-
         public static void FillTriangle(SpriteBatch spriteBatch, Vector2 apex, float baseY, float halfWidth, Color color)
         {
             float height = baseY - apex.Y;
@@ -185,7 +166,6 @@ namespace DuskAndDawn
             }
         }
 
-        ///PlaceHolderForBG
         public static void DrawSkyline(SpriteBatch spriteBatch, float groundY, float maxHeight, Color color, int seed, float drift = 0f)
         {
             var random = new Random(seed);
@@ -200,13 +180,11 @@ namespace DuskAndDawn
 
                 if (kind < 4)
                 {
-
                     float roofHeight = width * 0.45f;
                     FillTriangle(spriteBatch, new Vector2(x + width / 2f + (kind == 0 ? width * 0.2f : 0f), body.Y - roofHeight), body.Y + 1f, width / 2f, color);
                 }
                 else if (kind == 4)
                 {
-
                     float towerWidth = width * 0.35f;
                     var tower = new RectangleF(x + width * 0.3f, body.Y - maxHeight * 0.45f, towerWidth, maxHeight * 0.45f + 1f);
                     spriteBatch.FillRectangle(tower, color);
@@ -214,7 +192,6 @@ namespace DuskAndDawn
                 }
                 else if (kind == 5)
                 {
-
                     for (int c = 0; c < 4; c++)
                     {
                         if (c % 2 == 0) spriteBatch.FillRectangle(new RectangleF(x + c * width / 4f, body.Y - 8f, width / 4f, 9f), color);
@@ -223,7 +200,6 @@ namespace DuskAndDawn
                 }
                 else if (kind == 6)
                 {
-
                     for (int j = 0; j < 4; j++)
                     {
                         float h = 6f + (float)random.NextDouble() * 18f;
@@ -235,7 +211,6 @@ namespace DuskAndDawn
             spriteBatch.FillRectangle(new RectangleF(0, groundY, 1280, 720 - groundY), color);
         }
 
-        /// <summary>A full-screen vertical gradient in thin strips, so big skies don't band.</summary>
         public static void Sky(SpriteBatch spriteBatch, Color top, Color bottom, float height = 720f)
         {
             const float strip = 6f;
@@ -245,8 +220,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Darkens the screen's edges - draws the eye inward. `color` tints the
-        /// shadow (black for gloom, red for danger).</summary>
         public static void Vignette(SpriteBatch spriteBatch, Color color, float strength)
         {
             if (strength <= 0.001f) return;
@@ -261,7 +234,6 @@ namespace DuskAndDawn
                 spriteBatch.FillRectangle(new RectangleF(1280 - inset - 9f, 0, 9f, 720), color * alpha);
             }
         }
-
 
         public static void DrawRays(SpriteBatch spriteBatch, Vector2 origin, float length, Color color, float time, int count = 9)
         {

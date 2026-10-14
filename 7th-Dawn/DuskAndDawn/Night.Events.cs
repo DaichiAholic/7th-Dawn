@@ -6,9 +6,6 @@ using System.Collections.Generic;
 
 namespace DuskAndDawn
 {
-    // Night screen: Strange Rooms - a small story with a choice, themed by district
-    // (see NightEventPool). Laid out like a supply cache: the story on the left, the
-    // options on the right with their time cost.
     public partial class NightScavengingScreen
     {
         private NightEvent _event;
@@ -38,7 +35,6 @@ namespace DuskAndDawn
         {
             for (int i = 0; i < _eventButtons.Count; i++)
             {
-                // Button.Contains is already false for blocked options.
                 if (!_eventButtons[i].Contains(x, y)) continue;
 
                 _eventButtons[i].TriggerPress();
@@ -54,7 +50,6 @@ namespace DuskAndDawn
             _textLog.Push(result.Text);
             WarnOfDawn();
 
-            // Some choices go wrong loudly - the fight decides whether the room counts as cleared.
             if (result.StartsFight)
             {
                 StartEncounter(_current);
@@ -75,8 +70,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, "A strange room.", new Vector2(60 - (1f - headIn) * 20f, 220), Color.White * headIn);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Choose what to do here.", new Vector2(60 - (1f - headIn) * 20f, 250), Color.LightGray * headIn, 0.8f);
 
-            // The story card, with the same breathing sparkle Strange Rooms have on the map.
-            // It rises into place with a violet haze behind it.
             float cardIn = Anim.Intro(_stateTime, 0.05f, 0.45f);
             if (cardIn <= 0.001f) return;
             var card = Anim.Slide(new RectangleF(60, 280, 320, 300), cardIn, new Vector2(0, 24));
@@ -127,7 +120,6 @@ namespace DuskAndDawn
 
             UITheme.DrawTextWithShadow(spriteBatch, font, option.Label, new Vector2(draw.X + 14, draw.Y + 8), (enabled ? Color.White : new Color(140, 140, 150)) * intro, 0.95f);
 
-            // Time cost (and what the clock will read after), or why it's unavailable.
             string blocked = option.BlockedReason(_playerState, _dawnTimer);
             string right = blocked
                 ?? (option.Minutes == 0 ? "No time" : $"{DawnTimer.FormatDuration(option.Minutes)}  ->  {_dawnTimer.ClockLabelAfter(option.Minutes)}");

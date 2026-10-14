@@ -8,20 +8,8 @@ using System.Collections.Generic;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// Marks the screens that make up a run (day, preparation, night, dawn). Only these can
-    /// be paused, and a run counts as "in progress" while one is on the screen stack.
-    /// </summary>
     public interface IGameplayScreen { }
 
-    /// <summary>
-    /// Shared behaviour for the main, pause and settings menus: a vertical stack of buttons
-    /// driven by mouse or keyboard (Up/Down/Enter, Esc for back).
-    ///
-    /// Buttons fire on mouse *release*, not press. When a menu closes, the screen underneath
-    /// resumes with the mouse-state it had before the menu opened, so a button still held
-    /// down would read there as a fresh click on whatever sits under the cursor.
-    /// </summary>
     public abstract class MenuScreen : GameScreen
     {
         protected Game1 Game1 => (Game1)Game;
@@ -32,7 +20,6 @@ namespace DuskAndDawn
             public Func<string> Label;
             public Action OnSelect;
 
-            // Destructive entries (abandon run, quit) ask for a second click while this is true.
             public Func<bool> NeedsConfirm;
             public string ConfirmLabel;
         }
@@ -56,20 +43,15 @@ namespace DuskAndDawn
         private MenuEntry _armedEntry;
         private float _armedTimer;
 
-        /// <param name="isOverlay">Overlays keep the screen beneath them drawn (dimmed) behind
-        /// their panel, like the pause menu over the night map.</param>
         protected MenuScreen(Game game, bool isOverlay) : base(game)
         {
             _isOverlay = isOverlay;
         }
 
-        /// <summary>Top edge of the button column.</summary>
         protected abstract float EntriesTop { get; }
 
-        /// <summary>Called once from Initialize - add entries with AddEntry.</summary>
         protected abstract void BuildEntries();
 
-        /// <summary>Esc. Default does nothing.</summary>
         protected virtual void OnBack() { }
 
         protected abstract void DrawContent(SpriteBatch spriteBatch, SpriteFont font);
@@ -93,14 +75,12 @@ namespace DuskAndDawn
             });
         }
 
-        /// <summary>Bottom edge of the button column, for laying out anything below it.</summary>
         protected float EntriesBottom => EntriesTop + Entries.Count * (EntryHeight + EntryGap) - EntryGap;
 
         public override void Initialize()
         {
             base.Initialize();
 
-            // Not pushed yet at this point, so ActiveScreen is still the screen underneath.
             if (_isOverlay && ScreenManager.ActiveScreen != null)
             {
                 _beneath = ScreenManager.ActiveScreen;
@@ -147,8 +127,6 @@ namespace DuskAndDawn
                 entry.Button.UpdateAnimation(dt, hovered || i == _focusIndex);
             }
 
-            // Input waits while a fade plays: the fade is already taking us somewhere, and a
-            // second screen change requested now would be refused or land in the wrong place.
             if (!ScreenTransitions.IsTransitioning)
             {
                 HandleMouse(mouse);
@@ -203,7 +181,6 @@ namespace DuskAndDawn
             {
                 _focusIndex = _focusIndex <= 0 ? Entries.Count - 1 : _focusIndex - 1;
             }
-            // Alt+Enter is the fullscreen toggle (see Game1), not a menu selection.
             bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
             if (((Pressed(Keys.Enter) && !alt) || Pressed(Keys.Space)) && _focusIndex >= 0)
             {
@@ -230,7 +207,6 @@ namespace DuskAndDawn
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
 
-            // Full-screen menus clear; overlays draw on top of the (inactive) screen beneath.
             if (!_isOverlay) GraphicsDevice.Clear(Color.Black);
 
             UITheme.BeginCanvas(spriteBatch);
@@ -242,8 +218,6 @@ namespace DuskAndDawn
             spriteBatch.End();
         }
 
-        /// <summary>When the menu's buttons start sliding in - full-screen menus wait for their
-        /// title, overlays come in almost at once.</summary>
         protected virtual float EntriesIntroDelay => _isOverlay ? 0.08f : 0.55f;
 
         private void DrawEntry(SpriteBatch spriteBatch, SpriteFont font, MenuEntry entry, int index)
@@ -252,11 +226,9 @@ namespace DuskAndDawn
             float hover = button.HoverAmount;
             bool armed = entry == _armedEntry;
 
-            // Buttons rise into place one after another, fading in as they come.
             float intro = Anim.Stagger(Elapsed, index, step: 0.07f, baseDelay: EntriesIntroDelay, duration: 0.45f);
             if (intro <= 0.001f) return;
 
-            // Same ember language as the base's Prepare button; armed (confirm) entries go red.
             Color top = armed ? new Color(120, 40, 36) : Color.Lerp(new Color(58, 46, 42), new Color(84, 64, 52), hover);
             Color bottom = armed ? new Color(80, 24, 22) : Color.Lerp(new Color(36, 28, 26), new Color(54, 40, 34), hover);
             Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), armed ? 1f : hover);
@@ -264,7 +236,6 @@ namespace DuskAndDawn
 
             float squash = button.PressAmount * 4f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(0, 26));
-            // Hovered buttons lift a touch and widen, like they're being pulled toward you.
             float grow = hover * 6f;
             var drawBounds = new RectangleF(bounds.X + squash - grow, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f + grow * 2f, bounds.Height - squash);
 
@@ -281,16 +252,12 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White * intro, 1f, shadowAlpha: 0.45f * intro);
         }
 
-        // ---------- Shared drawing helpers ----------
-
         protected static void DrawCenteredText(SpriteBatch spriteBatch, SpriteFont font, string text, float y, Color color, float scale = 1f)
         {
             var size = UITheme.MeasureString(font, text) * scale;
             UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(640 - size.X / 2f, y), color, scale);
         }
 
-        /// <summary>Dims whatever is underneath and draws the central panel overlays sit on.
-        /// The dim fades in and the panel pops up from slightly smaller.</summary>
         protected void DrawOverlayPanel(SpriteBatch spriteBatch, RectangleF panel)
         {
             float fade = Anim.Intro(Elapsed, 0f, 0.25f);
@@ -302,7 +269,6 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>The title screen: Continue (when a run is in progress), New Game, Settings, Exit.</summary>
     public class MainMenuScreen : MenuScreen
     {
         public MainMenuScreen(Game game) : base(game, isOverlay: false) { }
@@ -314,7 +280,6 @@ namespace DuskAndDawn
             int? savedDay = SaveGame.SavedDay;
             if (Game1.HasRunInProgress)
             {
-                // The paused run sits right under this menu on the screen stack.
                 AddEntry("Continue", () => ScreenManager.CloseScreen(ScreenTransitions.FadeTransition(GraphicsDevice)));
             }
             else if (savedDay.HasValue)
@@ -325,12 +290,10 @@ namespace DuskAndDawn
             AddEntry("New Game", () => Game1.StartNewRun(withIntro: true),
                 needsConfirm: () => Game1.HasRunInProgress || SaveGame.Exists, confirmLabel: "Abandon your run?");
             AddEntry("Settings", () => ScreenManager.ShowScreen(new SettingsScreen(Game)));
-            // Runs save at the base each morning, so quitting only loses the current night.
             AddEntry("Exit", Game.Exit,
                 needsConfirm: () => Game1.HasRunInProgress, confirmLabel: "Quit to desktop?");
         }
 
-        // Ash drifting down over the ruins, and embers rising off them.
         private readonly ParticleField _ash = new ParticleField(40, new RectangleF(0, -20, 1280, 760),
             new Vector2(-8, 10), new Vector2(8, 26), 1f, 2.2f, 8f, 14f, new Color(190, 180, 185), Color.Transparent, wobble: 10f);
         private readonly ParticleField _embers = new ParticleField(26, new RectangleF(0, 420, 1280, 300),
@@ -346,10 +309,8 @@ namespace DuskAndDawn
 
         protected override void DrawContent(SpriteBatch spriteBatch, SpriteFont font)
         {
-            // Night sky that warms toward the horizon.
             Backdrop.Sky(spriteBatch, new Color(22, 12, 26), new Color(70, 26, 26));
 
-            // The seventh dawn, waiting just under the horizon: a slow-breathing sun glow.
             float glow = UITheme.PulseSine(Elapsed, 0.8f);
             float rise = Anim.Intro(Elapsed, 0f, 3f);
             var sun = new Vector2(640, 600 - rise * 30f);
@@ -357,13 +318,11 @@ namespace DuskAndDawn
             UITheme.DrawGlow(spriteBatch, sun, 240f, new Color(255, 160, 90) * (0.35f + glow * 0.15f));
             Backdrop.DrawRays(spriteBatch, sun, 700f, new Color(255, 170, 110) * 0.35f, Elapsed);
 
-            // Two layers of ruined town, the far one paler, swaying a little for depth.
             Backdrop.DrawSkyline(spriteBatch, 610, 170, new Color(46, 24, 34), seed: 7, drift: MathF.Sin(Elapsed * 0.08f) * 10f);
             _embers.Draw(spriteBatch);
             Backdrop.DrawSkyline(spriteBatch, 650, 120, new Color(14, 8, 14), seed: 21, drift: MathF.Sin(Elapsed * 0.08f) * 22f);
             _ash.Draw(spriteBatch, 0.7f);
 
-            // Title drops in and settles, then floats; the subtitle follows.
             float titleIn = Anim.Intro(Elapsed, 0.1f, 0.9f);
             float titleY = 130 - (1f - titleIn) * 30f + MathF.Sin(Elapsed * 1.1f) * 3f;
             var titleSize = UITheme.MeasureString(font, "7th Dawn") * 3f;
@@ -379,7 +338,6 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>In-run pause overlay, opened with Esc or the Menu button.</summary>
     public class PauseMenuScreen : MenuScreen
     {
         private static readonly RectangleF Panel = new RectangleF(420, 150, 440, 430);
@@ -392,7 +350,6 @@ namespace DuskAndDawn
         {
             AddEntry("Resume", Resume);
             AddEntry("Settings", () => ScreenManager.ShowScreen(new SettingsScreen(Game)));
-            // The run stays on the stack under the main menu, so Continue picks it back up.
             AddEntry("Main Menu", () => ScreenManager.ReplaceScreen(new MainMenuScreen(Game), ScreenTransitions.FadeTransition(GraphicsDevice)));
             AddEntry("Exit Game", Game.Exit, needsConfirm: () => true, confirmLabel: "Quit? (resume at the base)");
         }
@@ -408,8 +365,6 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>Options screen, usable from the main menu or the pause menu. Changes apply
-    /// and save immediately.</summary>
     public class SettingsScreen : MenuScreen
     {
         private static readonly RectangleF Panel = new RectangleF(400, 130, 480, 470);

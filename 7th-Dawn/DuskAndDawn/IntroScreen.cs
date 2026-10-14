@@ -8,20 +8,13 @@ using System.Collections.Generic;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// The story so far, told before a new run: a framed picture over black, the text typing
-    /// out beneath it, one slide fading into the next - then the title. Each picture is drawn
-    /// small (320x180) and scaled up without smoothing, so it reads as old pixel art, and
-    /// toned sepia like a faded photograph.
-    /// Space / Enter / click finishes the line or moves on; Esc skips the whole thing.
-    /// </summary>
     public class IntroScreen : GameScreen
     {
         private Game1 Game1 => (Game1)Game;
 
         private const int SceneWidth = 320, SceneHeight = 180;
-        private const float TypeSpeed = 26f;     // characters per second
-        private const float TypeDelay = 0.6f;    // after the picture starts fading in
+        private const float TypeSpeed = 26f;
+        private const float TypeDelay = 0.6f;
         private const float FadeIn = 0.8f, FadeOut = 0.7f, Hold = 2.6f;
         private static readonly Rectangle PictureBox = new Rectangle(320, 48, 640, 360);
 
@@ -43,7 +36,7 @@ namespace DuskAndDawn
         private RenderTarget2D _scene;
         private int _index;
         private float _slideTime;
-        private float _titleTime = -1f;   // >= 0 once the slides are done and the title is up
+        private float _titleTime = -1f;
         private bool _finished;
         private KeyboardState _previousKeyboard;
         private MouseState _previousMouse;
@@ -71,7 +64,6 @@ namespace DuskAndDawn
         public override void Initialize()
         {
             base.Initialize();
-            // A key or click still held from the menu shouldn't skip the first slide.
             _previousKeyboard = Keyboard.GetState();
             _previousMouse = InputChecker.GetMouse();
         }
@@ -81,8 +73,6 @@ namespace DuskAndDawn
             _scene?.Dispose();
             base.UnloadContent();
         }
-
-        // ---------- Timing ----------
 
         private float TypingDone(Slide slide) => TypeDelay + slide.Text.Length / TypeSpeed;
         private float SlideEnd(Slide slide) => TypingDone(slide) + Hold;
@@ -117,7 +107,6 @@ namespace DuskAndDawn
             _slideTime += dt;
             if (advance)
             {
-                // First press finishes the line; the next one moves on.
                 if (_slideTime < TypingDone(slide)) _slideTime = TypingDone(slide);
                 else if (_slideTime < SlideEnd(slide)) _slideTime = SlideEnd(slide);
             }
@@ -141,8 +130,6 @@ namespace DuskAndDawn
             Game1.BeginRunAfterIntro();
         }
 
-        // ---------- Drawing ----------
-
         public override void Draw(GameTime gameTime)
         {
             var device = GraphicsDevice;
@@ -151,7 +138,6 @@ namespace DuskAndDawn
             var slide = _slides[_index];
             bool onTitle = _titleTime >= 0f;
 
-            // 1. The picture, drawn small into its own target.
             if (!onTitle)
             {
                 _scene ??= new RenderTarget2D(device, SceneWidth, SceneHeight);
@@ -161,14 +147,12 @@ namespace DuskAndDawn
                 spriteBatch.Begin(samplerState: SamplerState.PointClamp, transformMatrix: Matrix.CreateScale(SceneWidth / 1280f));
                 slide.Draw(spriteBatch, _slideTime);
                 spriteBatch.End();
-                // Sepia, like a photograph left in the sun.
                 spriteBatch.Begin(blendState: Multiply);
                 spriteBatch.FillRectangle(new RectangleF(0, 0, SceneWidth, SceneHeight), new Color(255, 226, 186));
                 spriteBatch.End();
                 device.SetRenderTargets(previous);
             }
 
-            // 2. Black, the picture scaled up crisp, the words beneath it.
             device.Clear(Color.Black);
             if (!onTitle)
             {
@@ -228,8 +212,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, prompt, new Vector2(640 - promptSize.X / 2f, 470), Color.White * promptIn);
         }
 
-        // ---------- The pictures (drawn in 1280x720 space, shrunk into 320x180) ----------
-
         private void DrawSprite(SpriteBatch spriteBatch, Texture2D texture, Vector2 center, float scale, Color color)
         {
             if (texture == null) return;
@@ -287,7 +269,6 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, new Vector2(1010, 150), 56f, new Color(225, 228, 240));
             Backdrop.DrawSkyline(spriteBatch, 560, 190, new Color(34, 34, 56), seed: 11, drift: 0f);
             Backdrop.DrawSkyline(spriteBatch, 630, 110, new Color(14, 14, 24), seed: 29, drift: 0f);
-            // A lantern picking its way through the ruins.
             var lantern = new Vector2(180 + t * 70f, 640 + MathF.Sin(t * 3f) * 4f);
             UITheme.DrawGlow(spriteBatch, lantern, 120f, new Color(255, 190, 110) * 0.6f);
             UITheme.FillCircle(spriteBatch, lantern, 10f, new Color(255, 225, 160));
@@ -298,7 +279,6 @@ namespace DuskAndDawn
             Backdrop.Sky(spriteBatch, new Color(28, 26, 48), new Color(10, 9, 18));
             DrawStars(spriteBatch, t, 0.6f);
             spriteBatch.FillRectangle(new RectangleF(0, 620, 1280, 100), new Color(18, 14, 18));
-            // The house: timber walls, a pitched roof, a chimney, and two windows still lit.
             spriteBatch.FillRectangle(new RectangleF(760, 190, 50, 110), new Color(40, 28, 26));
             Backdrop.FillTriangle(spriteBatch, new Vector2(640, 200), 360, 290, new Color(58, 38, 36));
             spriteBatch.FillRectangle(new RectangleF(420, 358, 440, 262), new Color(70, 50, 44));
@@ -314,7 +294,6 @@ namespace DuskAndDawn
 
         private void DrawTally(SpriteBatch spriteBatch, float t)
         {
-            // Seven marks scratched into the wall, one after another.
             Backdrop.Sky(spriteBatch, new Color(80, 60, 50), new Color(40, 28, 24));
             UITheme.DrawGlow(spriteBatch, new Vector2(640, 640), 400f, new Color(255, 180, 100) * 0.35f);
             Color mark = new Color(235, 220, 200);
@@ -329,7 +308,6 @@ namespace DuskAndDawn
                 float x = i < 4 ? 360 + i * 80 : 760 + (i - 5) * 80;
                 spriteBatch.DrawLine(new Vector2(x, 210), new Vector2(x + 8, 510), mark, 12f);
             }
-            // A candle below the marks.
             float flame = MathF.Sin(t * 9f) * 3f;
             spriteBatch.FillRectangle(new RectangleF(1000, 520, 30, 90), new Color(230, 220, 200));
             UITheme.DrawGlow(spriteBatch, new Vector2(1015, 500 + flame), 90f, new Color(255, 200, 120) * 0.8f);
@@ -338,7 +316,6 @@ namespace DuskAndDawn
 
         private void DrawCastle(SpriteBatch spriteBatch, float t)
         {
-            // The camera drifts up as a second sun rises behind the Castle.
             float rise = Anim.Intro(t, 0f, 5f);
             Backdrop.Sky(spriteBatch, Color.Lerp(new Color(30, 20, 40), new Color(120, 60, 50), rise), Color.Lerp(new Color(80, 40, 40), new Color(250, 170, 100), rise));
             var sun = new Vector2(640, 520 - rise * 200f);

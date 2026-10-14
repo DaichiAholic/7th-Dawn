@@ -9,33 +9,25 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: supply caches - every way of dealing with one trades time, loot, risk and health.
     public partial class NightScavengingScreen
     {
-        // Supplies sub-state. Every cache's contents are rolled up front and shown, and each
-        // way of dealing with it trades time, loot, risk and health differently.
         private enum SupplyAction { Grab, Thorough, Quiet, Rest, Leave }
 
         private const int GrabMinutes = 15;
         private const int ThoroughMinutes = 45;
         private const int QuietMinutes = 90;
         private const int RestMinutes = 40;
-        private const int ThoroughNoiseChance = 35;   // % chance the noise starts a fight
-        private const int ThoroughRemedyChance = 30;  // % chance of a bonus item
+        private const int ThoroughNoiseChance = 35;
+        private const int ThoroughRemedyChance = 30;
         private const int RestHeal = 30;
 
         private ResourceDelta _cache;
         private readonly List<SupplyAction> _supplyActions = new List<SupplyAction>();
         private readonly List<Button> _suppliesButtons = new List<Button>();
 
-        // ---------- Supplies ----------
-
         private void StartSupplies()
         {
-            // Two finds' worth of this district's materials, rolled up front so every choice
-            // below can say exactly what it gets you.
             var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 2);
-            // Storage Lv 5 supply runs: every cache holds a quarter more.
             float bonus = _playerState.SupplyCacheMultiplier;
             _cache = new ResourceDelta((int)MathF.Round(food * bonus), (int)MathF.Round(planks * bonus), (int)MathF.Round(scraps * bonus));
 
@@ -74,8 +66,6 @@ namespace DuskAndDawn
             _ => "Leave it"
         };
 
-        // Half of each pile, rounded up.
-        // Half of each pile, rounded up - or all of it with Storage Lv 3 packframes.
         private ResourceDelta HalfCache => _playerState.StoragePackframes
             ? _cache
             : new ResourceDelta((_cache.Food + 1) / 2, (_cache.Planks + 1) / 2, (_cache.Scraps + 1) / 2);
@@ -93,8 +83,6 @@ namespace DuskAndDawn
             _ => "Take nothing and lose no time."
         };
 
-        /// <summary>Why an option can't be picked right now, or null if it can. Grabbing an
-        /// armful is always allowed, so the last room before dawn is never wasted.</summary>
         private string SupplyBlockedReason(SupplyAction action)
         {
             if (action == SupplyAction.Rest && RestHealAmount <= 0) return "You're unhurt";
@@ -106,7 +94,6 @@ namespace DuskAndDawn
         {
             for (int i = 0; i < _suppliesButtons.Count; i++)
             {
-                // Button.Contains is already false for blocked options.
                 if (!_suppliesButtons[i].Contains(x, y)) continue;
 
                 _suppliesButtons[i].TriggerPress();
@@ -165,7 +152,6 @@ namespace DuskAndDawn
             _textLog.Push(text);
             WarnOfDawn();
 
-            // A fight drawn by the noise decides whether this room counts as cleared.
             if (drewAFight)
             {
                 StartEncounter(_current);
@@ -179,6 +165,5 @@ namespace DuskAndDawn
                 GoToDawnReturn();
             }
         }
-
     }
 }

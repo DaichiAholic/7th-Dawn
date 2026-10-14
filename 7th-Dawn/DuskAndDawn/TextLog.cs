@@ -6,23 +6,17 @@ using System.Text;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// A 2-message action log. The newest message shows bright. When another arrives, the
-    /// old one slides up above it and dims - but stays put and readable until the *next*
-    /// message comes in, at which point it fades out and the cycle repeats. So the log always
-    /// holds exactly what just happened and what happened right before it.
-    /// </summary>
     public class TextLog
     {
-        private const float LineHeight = 24f;     // vertical spacing between wrapped lines
-        private const float ShiftSpeed = 5f;      // the slide/dim after a push takes ~0.2s
-        private const float PreviousAlpha = 0.5f; // how dim the older message settles
-        private const float OutgoingRise = 10f;   // pixels the pushed-out message drifts as it fades
+        private const float LineHeight = 24f;
+        private const float ShiftSpeed = 5f;
+        private const float PreviousAlpha = 0.5f;
+        private const float OutgoingRise = 10f;
 
         private string _current = "";
         private string _previous = "";
-        private string _outgoing = ""; // the message being pushed out - only visible mid-shift
-        private float _shift = 1f;     // 0 right after a push, eases to 1
+        private string _outgoing = "";
+        private float _shift = 1f;
 
         public void Push(string message)
         {
@@ -40,14 +34,10 @@ namespace DuskAndDawn
             _shift = Math.Min(1f, _shift + ShiftSpeed * dt);
         }
 
-        /// <summary>Draws the newest message at basePosition (wrapping downward), the previous
-        /// one dimmed directly above it, and - only while a push is animating - the message
-        /// that just got pushed out, fading away above that. Long messages wrap to maxWidth.</summary>
         public void Draw(SpriteBatch spriteBatch, SpriteFont font, Vector2 basePosition, float maxWidth)
         {
             float t = UITheme.EaseOutCubic(_shift);
 
-            // Previous: slides up from the bright slot into the slot above it, dimming as it goes.
             float previousTop = basePosition.Y;
             if (!string.IsNullOrEmpty(_previous))
             {
@@ -57,7 +47,6 @@ namespace DuskAndDawn
                 DrawLines(spriteBatch, font, lines, new Vector2(basePosition.X, previousTop), new Color(200, 196, 214) * alpha, alpha);
             }
 
-            // Outgoing: the one before that, fading out above the previous as it arrives.
             if (_shift < 1f && !string.IsNullOrEmpty(_outgoing))
             {
                 var lines = WrapText(font, _outgoing, maxWidth);
@@ -66,7 +55,6 @@ namespace DuskAndDawn
                 DrawLines(spriteBatch, font, lines, new Vector2(basePosition.X, top), new Color(200, 196, 214) * alpha, alpha);
             }
 
-            // Current: eases in from just below.
             if (!string.IsNullOrEmpty(_current))
             {
                 var lines = WrapText(font, _current, maxWidth);
@@ -82,8 +70,6 @@ namespace DuskAndDawn
             }
         }
 
-        // Splits on spaces and greedily packs words onto each line up to maxWidth, so a long
-        // combat message wraps instead of running past the edge of the screen.
         internal static List<string> WrapText(SpriteFont font, string text, float maxWidth)
         {
             var words = text.Split(' ');

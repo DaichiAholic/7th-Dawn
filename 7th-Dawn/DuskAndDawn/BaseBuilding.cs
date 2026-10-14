@@ -11,11 +11,6 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// Something a room can make: a weapon, an item, or (for the Feast) an action.
-    /// RequiredLevel is the room level that unlocks it. BlockedReason lets a recipe refuse
-    /// for reasons other than cost (e.g. Feast already held today) - null means allowed.
-    /// </summary>
     public class Recipe
     {
         public string Name { get; }
@@ -26,20 +21,15 @@ namespace DuskAndDawn
         public int Planks { get; }
         public int Scraps { get; }
 
-        // Set for Workshop recipes so the panel can show the weapon's icon. null for items.
         public Weapon SampleWeapon { get; }
 
-        // Set for item recipes, so craft feedback can draw the right vial. null otherwise.
         public Item SampleItem { get; }
 
-        // True for Reinforce Weapon, which upgrades the equipped weapon instead of making one.
         public bool IsReinforce { get; }
 
         private readonly Func<PlayerState, string> _craft;
         private readonly Func<PlayerState, string> _blockedReason;
 
-        // Optional overrides for recipes whose cost/text depend on the player's state
-        // (Reinforce Weapon works on whatever is equipped). null = use the fixed values.
         private readonly Func<PlayerState, (int food, int planks, int scraps)> _dynamicCost;
         private readonly Func<PlayerState, string> _dynamicDetail;
 
@@ -80,15 +70,11 @@ namespace DuskAndDawn
 
         public string GetDetail(PlayerState state) => _dynamicDetail?.Invoke(state) ?? Detail;
 
-        /// <summary>The weapon whose icon this recipe shows: the one it makes, or for
-        /// Reinforce the one it upgrades. null for item recipes.</summary>
         public Weapon IconWeapon(PlayerState state) => IsReinforce ? state.EquippedWeapon : SampleWeapon;
 
         public string BlockedReason(PlayerState state) => _blockedReason?.Invoke(state);
 
         public string Craft(PlayerState state) => _craft(state);
-
-        // ---- Factories so the recipe table below stays one line per entry ----
 
         public static Recipe ForWeapon(BaseRoomType room, int level, int food, int planks, int scraps, Func<Weapon> make)
         {
@@ -112,9 +98,6 @@ namespace DuskAndDawn
             }, sampleItem: sample);
         }
 
-        /// <summary>Workshop upgrade for the equipped weapon: +1 damage per roll per level,
-        /// capped by the Workshop level. The price climbs steeply, so Scraps from fights
-        /// always have somewhere to go once the weapon rack is full.</summary>
         public static Recipe ReinforceEquipped()
         {
             return new Recipe("Reinforce Weapon", "", BaseRoomType.Workshop, 1, 0, 0, 0,
@@ -151,8 +134,6 @@ namespace DuskAndDawn
         private const int MaxRoomLevel = PlayerState.MaxRoomLevel;
         private const int FeastFoodCost = 14;
 
-        // Grouped into two rows so the house layout reads as two floors, like a real
-        // building cutaway - purely a visual grouping, doesn't change any game logic.
         private static readonly BaseRoomType[] UpperFloorRooms =
         {
             BaseRoomType.Infirmary, BaseRoomType.Barrack, BaseRoomType.Archive
@@ -165,12 +146,8 @@ namespace DuskAndDawn
 
         private static IEnumerable<BaseRoomType> AllRooms => UpperFloorRooms.Concat(GroundFloorRooms);
 
-        // Everything the base can make, in display order.
         private static readonly List<Recipe> Recipes = new List<Recipe>
         {
-            // Workshop - weapons. Good metal is rare, so the better the weapon, the more Scraps.
-            // Each tier is a clear jump in damage and costs a few nights of the district it's
-            // built for; Tier 3 is a full Lv 1 Storage of Scraps.
             Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 5, 1, Weapon.WoodenClub),
             Recipe.ForWeapon(BaseRoomType.Workshop, 1, 0, 3, 6, Weapon.ScrapClub),
             Recipe.ForWeapon(BaseRoomType.Workshop, 2, 2, 5, 12, Weapon.IronSword),
@@ -181,7 +158,6 @@ namespace DuskAndDawn
             Recipe.ForWeapon(BaseRoomType.Workshop, 5, 6, 16, 40, Weapon.Dawnbreaker),
             Recipe.ReinforceEquipped(),
 
-            // Infirmary - remedies, brewed from food stores and scavenged glass and cloth
             Recipe.ForItem(BaseRoomType.Infirmary, 1, 3, 0, 2, Item.Bandage),
             Recipe.ForItem(BaseRoomType.Infirmary, 2, 5, 0, 5, Item.Tonic),
             Recipe.ForItem(BaseRoomType.Infirmary, 2, 0, 2, 6, Item.SmokeFlask),
@@ -189,7 +165,6 @@ namespace DuskAndDawn
             Recipe.ForItem(BaseRoomType.Infirmary, 3, 6, 0, 8, Item.DawnTincture),
             Recipe.ForItem(BaseRoomType.Infirmary, 4, 3, 0, 9, Item.HolyWater),
 
-            // Kitchen
             Recipe.ForItem(BaseRoomType.Kitchen, 2, 6, 0, 0, Item.Rations),
             new Recipe("Feast", "", BaseRoomType.Kitchen, 3, FeastFoodCost, 0, 0,
                 state =>
@@ -213,27 +188,19 @@ namespace DuskAndDawn
         private bool _statusIsError;
         private MouseState _previousMouse;
 
-        // ---- Hover state (UI feedback only, no game-logic effect) ----
         private BaseRoomType? _hoveredRoom;
         private bool _isEndDayHovered;
 
-        // ---- Room detail panel (opens when a room is clicked) ----
         private BaseRoomType? _openRoom;
         private Button _upgradeButton;
         private Button _closeButton;
         private readonly List<(Button button, Recipe recipe)> _recipeButtons = new List<(Button, Recipe)>();
-        // Tall enough for the room's five-level ladder above the upgrade button, and five
-        // rows of recipes (the Workshop's nine) under it.
         private static readonly RectangleF DetailPanel = new RectangleF(240, 110, 800, 600);
         private const float LadderTop = 94f;
         private const float UpgradeTop = 200f;
         private const float RecipeTop = 286f;
         private const float RecipeHeight = 50f;
 
-        // ---- Craft feedback ----
-        // A successful craft gets a "Crafted!" card up top with the thing's icon, a burst of
-        // sparks and a flash on the recipe button, a "+1" rising off it, and the spent
-        // resources floating off their counters - so it can't be missed.
         private const float CraftToastDuration = 2.4f;
         private const float CraftFlashDuration = 0.8f;
         private float _craftToastTimer;
@@ -243,9 +210,6 @@ namespace DuskAndDawn
         private float _craftFlashTimer;
         private readonly Random _fxRandom = new Random();
 
-        // ---- Ambient animation (rendering only) ----
-        // Seconds since this screen appeared: drives the room tiles popping in one by one, the
-        // detail panel fading up, and every idle loop (flickering windows, chimney smoke).
         private float _elapsed;
         private float _panelOpenedAt = -1f;
         private readonly ParticleField _dust = new ParticleField(34, new RectangleF(150, 236, 980, 380),
@@ -272,17 +236,10 @@ namespace DuskAndDawn
         private const float FloaterDuration = 1.3f;
         private readonly List<Floater> _floaters = new List<Floater>();
 
-        // ---- Resource "pop" animation state ----
-        // Tracks the last-seen value of each resource so a change (from an upgrade)
-        // can trigger a brief pop-then-settle animation on that resource's count.
         private int _lastFood, _lastPlanks, _lastScraps;
         private float _foodPopTimer, _planksPopTimer, _scrapsPopTimer;
         private const float ResourcePopDuration = 0.25f;
 
-        // Each room is its cutaway art at 2 screen pixels per art pixel (4/3 layout units on
-        // the 1080p canvas), so the pixel art stays crisp. A row is its rooms side by side,
-        // RoomGap apart and centred; the rows are sized from the art, so the Archive's wider
-        // map room makes the upper floor the wider one. The row Ys are whole screen pixels.
         private const float RoomArtScale = 2f / Game1.RenderScale;
         private const float RoomGap = 24f;
         private const float UpperRowY = 246f;
@@ -298,11 +255,8 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
-            // Every morning at the base is a save point (SaveGame skips a run that's over).
             SaveGame.Save(_playerState);
 
-            // Seeds with the real current mouse state instead of a blank default, so a click
-            // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
             LayOutRow(UpperFloorRooms, UpperRowY);
@@ -313,8 +267,6 @@ namespace DuskAndDawn
             _upgradeButton = new Button(new RectangleF(DetailPanel.X + 30, DetailPanel.Y + UpgradeTop, 360, 50), "Upgrade");
             _closeButton = new Button(new RectangleF(DetailPanel.X + DetailPanel.Width - 150, DetailPanel.Y + 20, 120, 42), "Close");
 
-            // Snapshot starting resource values so the first frame never reads as a "change"
-            // and fires a false pop animation.
             _lastFood = _playerState.Food;
             _lastPlanks = _playerState.Planks;
             _lastScraps = _playerState.Scraps;
@@ -322,8 +274,6 @@ namespace DuskAndDawn
 
         private void LayOutRow(BaseRoomType[] rooms, float y)
         {
-            // Sized from the Lv 1 art (every tier of a room is the same size); 192x128 if a
-            // room has none.
             var sizes = rooms.Select(room =>
             {
                 var art = Game1.GetRoomSprite(room, 1);
@@ -359,9 +309,6 @@ namespace DuskAndDawn
             bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
             bool panelOpen = _openRoom.HasValue;
 
-            // Hover state is recomputed every frame (not just on click) so panels can
-            // react as soon as the mouse enters them, not only when clicked. The house
-            // behind the detail panel stops reacting while the panel is open.
             _hoveredRoom = null;
             if (!panelOpen)
             {
@@ -376,9 +323,6 @@ namespace DuskAndDawn
             }
             _isEndDayHovered = !panelOpen && _endDayButton.Contains(mouse.X, mouse.Y);
 
-            // Every button eases its own hover/press animation forward each frame, so the
-            // panels fade smoothly between states instead of snapping the instant the mouse
-            // crosses their bounds.
             foreach (var room in AllRooms)
             {
                 _roomButtons[room].UpdateAnimation(dt, room == _hoveredRoom);
@@ -413,15 +357,12 @@ namespace DuskAndDawn
                     if (_endDayButton.Contains(mouse.X, mouse.Y))
                     {
                         _endDayButton.TriggerPress();
-                        SaveGame.Save(_playerState); // keep today's crafting and upgrades
-                        // Prepare is a free round trip - its Back to Base button returns here.
+                        SaveGame.Save(_playerState);
                         ScreenManager.ReplaceScreen(new PreparationScreen(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
                     }
                 }
             }
 
-            // Any resource change this frame (from an upgrade or craft) triggers that
-            // resource's pop animation.
             if (_playerState.Food != _lastFood)
             {
                 _foodPopTimer = ResourcePopDuration;
@@ -441,19 +382,14 @@ namespace DuskAndDawn
             _previousMouse = mouse;
         }
 
-        // ---------- Room detail panel ----------
-
         private void OpenRoom(BaseRoomType room)
         {
             _openRoom = room;
             _panelOpenedAt = _elapsed;
             _statusLog = "";
 
-            // Two columns of recipe buttons under the upgrade button - every recipe for the
-            // room is listed, locked ones included, so players can see what's coming.
             _recipeButtons.Clear();
             var roomRecipes = Recipes.Where(r => r.Room == room).ToList();
-            // Sized so four rows (the Workshop's eight recipes) fit above the status line.
             const float width = 360f, height = RecipeHeight, rowGap = 5f;
             for (int i = 0; i < roomRecipes.Count; i++)
             {
@@ -550,12 +486,9 @@ namespace DuskAndDawn
             CelebrateCraft(recipe, button);
         }
 
-        // ---------- Craft feedback ----------
-
         private void CelebrateCraft(Recipe recipe, Button button)
         {
             _craftToastRecipe = recipe;
-            // One short line that fits the card: where it went, or what it did.
             var equipped = _playerState.EquippedWeapon;
             _craftToastDetail = recipe.IsReinforce ? $"{equipped.DisplayName} now rolls {equipped.DiceLabel}"
                 : recipe.SampleWeapon != null ? "Equip it on the Prepare screen"
@@ -590,7 +523,6 @@ namespace DuskAndDawn
             });
         }
 
-        /// <summary>"-3" readouts rising off whichever resource counters just paid for something.</summary>
         private void SpawnSpendFloaters(int food, int planks, int scraps)
         {
             void Spawn(int amount, float centerX)
@@ -618,8 +550,8 @@ namespace DuskAndDawn
             {
                 var spark = _sparks[i];
                 spark.Life += dt;
-                spark.Velocity += new Vector2(0f, 520f) * dt; // gravity
-                spark.Velocity *= 1f - 1.5f * dt;             // drag
+                spark.Velocity += new Vector2(0f, 520f) * dt;
+                spark.Velocity *= 1f - 1.5f * dt;
                 spark.Position += spark.Velocity * dt;
                 if (spark.Life >= spark.MaxLife) _sparks.RemoveAt(i);
             }
@@ -641,12 +573,9 @@ namespace DuskAndDawn
 
         private (int food, int planks, int scraps) GetUpgradeCost(BaseRoomType room, int currentLevel)
         {
-            // Nothing is cheap after the end of the world: every upgrade needs Food for the
-            // builders plus a real pile of salvage, and the price climbs steeply with each level.
             int tier = currentLevel;
             return room switch
             {
-                // (tier 1-4: the level you're upgrading from - Lv 4 -> 5 costs four times Lv 1 -> 2)
                 BaseRoomType.Storage => (5 * tier, 6 * tier, 5 * tier),
                 BaseRoomType.Workshop => (5 * tier, 4 * tier, 7 * tier),
                 BaseRoomType.Infirmary => (7 * tier, 2 * tier, 6 * tier),
@@ -665,8 +594,6 @@ namespace DuskAndDawn
             if (scraps > 0) parts.Add($"{scraps}S");
             return parts.Count > 0 ? string.Join(" ", parts) : "Free";
         }
-
-        // ---------- Room text ----------
 
         private static string RoomRole(BaseRoomType room) => room switch
         {
@@ -720,7 +647,6 @@ namespace DuskAndDawn
             _ => ""
         };
 
-        // Short line shown on each room tile so the house reads at a glance.
         private string TileSummary(BaseRoomType room) => room switch
         {
             BaseRoomType.Storage => $"Holds {_playerState.StorageCap}, belt {_playerState.BeltSlots}",
@@ -756,11 +682,9 @@ namespace DuskAndDawn
             _ => ""
         };
 
-        // ---------- Draw ----------
-
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(new Color(32, 28, 34)); // Day stays safe, but the light is bleak rather than cheerful - the lore's holy light is a threat, not a comfort
+            GraphicsDevice.Clear(new Color(32, 28, 34));
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
@@ -778,19 +702,13 @@ namespace DuskAndDawn
                 DrawDetailPanel(spriteBatch, font, _openRoom.Value);
             }
 
-            // Over everything, including the detail panel's dimming.
             DrawCraftEffects(spriteBatch, font);
 
             spriteBatch.End();
         }
 
-        // Until there's painted house art, the house is drawn from shapes: a bleak daytime
-        // sky (the holy light outside is a threat, not a comfort), the ruined town beyond,
-        // and a timber house cut away to show its two floors. Drop a real sprite in here
-        // later in place of DrawHouse.
         private void DrawBackground(SpriteBatch spriteBatch)
         {
-            // Pale, washed-out sky with a harsh white glare high up - the light that burns.
             Backdrop.Sky(spriteBatch, new Color(92, 84, 96), new Color(40, 34, 40));
             float glare = UITheme.PulseSine(_elapsed, 0.5f);
             UITheme.DrawGlow(spriteBatch, new Vector2(1010, -40), 420f, new Color(255, 250, 230) * (0.18f + glare * 0.05f));
@@ -807,24 +725,19 @@ namespace DuskAndDawn
             Color timber = new Color(58, 42, 36);
             Color timberDark = new Color(34, 24, 22);
 
-            // Chimney (behind the roof) with smoke curling out of it.
             spriteBatch.FillRectangle(new RectangleF(334, 140, 40, 70), timberDark);
             spriteBatch.FillRectangle(new RectangleF(328, 134, 52, 10), new Color(46, 34, 30));
             _smoke.Draw(spriteBatch, 0.55f);
 
-            // Roof: a dark pitched roof with a lighter ridge line and eaves overhang.
             Backdrop.FillTriangle(spriteBatch, new Vector2(640, 118), 238, 560, new Color(44, 30, 30));
             Backdrop.FillTriangle(spriteBatch, new Vector2(640, 132), 238, 520, new Color(60, 40, 38));
             spriteBatch.DrawLine(new Vector2(80, 238), new Vector2(640, 118), new Color(90, 62, 50), 5f);
             spriteBatch.DrawLine(new Vector2(640, 118), new Vector2(1200, 238), new Color(90, 62, 50), 5f);
-            // Attic window, lit when the Archive has been worked.
             float attic = 0.35f + 0.1f * _playerState.Level(BaseRoomType.Archive) + UITheme.PulseSine(_elapsed, 1.3f) * 0.08f;
             UITheme.DrawGlow(spriteBatch, new Vector2(640, 190), 60f, new Color(255, 190, 110) * (attic * 0.5f));
             UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 18f, timberDark);
             UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 13f, new Color(255, 190, 110) * attic);
 
-            // Walls: dark timber, corner posts, a post between each pair of rooms, and a floor
-            // beam between the storeys.
             UITheme.FillGradientRect(spriteBatch, wall, new Color(52, 40, 38), new Color(34, 26, 26), 8);
             spriteBatch.FillRectangle(new RectangleF(wall.X - 5, wall.Y, 10, wall.Height), timber);
             spriteBatch.FillRectangle(new RectangleF(wall.Right - 5, wall.Y, 10, wall.Height), timber);
@@ -842,7 +755,6 @@ namespace DuskAndDawn
             spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Y - 6, wall.Width + 20, 8), timber);
             spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Bottom - 6, wall.Width + 20, 14), timberDark);
 
-            // Motes of dust drifting in whatever light gets in.
             _dust.Draw(spriteBatch, 0.8f);
         }
 
@@ -861,8 +773,6 @@ namespace DuskAndDawn
             bool maxed = level >= MaxRoomLevel;
             float hover = button.HoverAmount;
 
-            // Rooms pop into place one after another when the screen opens, and lift toward
-            // you on hover.
             int index = Array.IndexOf(UpperFloorRooms, room) >= 0 ? Array.IndexOf(UpperFloorRooms, room) : 3 + Array.IndexOf(GroundFloorRooms, room);
             float intro = Anim.Stagger(_elapsed, index, step: 0.07f, baseDelay: 0.05f, duration: 0.4f);
             if (intro <= 0.001f) return;
@@ -870,15 +780,10 @@ namespace DuskAndDawn
             var bounds = Anim.Scale(button.Bounds, pop);
             bounds = new RectangleF(bounds.X, bounds.Y - hover * 4f, bounds.Width, bounds.Height);
 
-            // Lamplight behind the pane: the better the room, the warmer and brighter it burns.
             float flicker = 1f + 0.06f * MathF.Sin(_elapsed * 6.1f + index) + 0.04f * MathF.Sin(_elapsed * 11.3f + index * 2f);
             var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
             UITheme.DrawGlow(spriteBatch, center, bounds.Width * (0.55f + level * 0.05f), new Color(255, 170, 90) * ((0.06f + level * 0.035f) * flicker * intro));
 
-            // The room's cutaway art in a timber frame. Hover eases the frame to an ember glow
-            // - the corruption-glow language used for room "tells" at night - and warms the
-            // room a touch. Maxed rooms keep a green frame, and glow too on hover since
-            // they're still clickable for crafting.
             Color frameColor = maxed ? new Color(60, 110, 75) : new Color(24, 20, 22);
             frameColor = Color.Lerp(frameColor, new Color(230, 110, 55), hover);
             float frame = MathHelper.Lerp(3f, 4f, hover);
@@ -896,13 +801,11 @@ namespace DuskAndDawn
             }
             spriteBatch.FillRectangle(bounds, new Color(255, 190, 120) * (0.07f * hover));
 
-            // Darkened across the top so the name and summary read over the brickwork.
             UITheme.FillGradientRect(spriteBatch, new RectangleF(bounds.X, bounds.Y, bounds.Width, 66f), Color.Black * 0.6f, Color.Transparent, 22);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, room.ToString(), new Vector2(bounds.X + 12, bounds.Y + 10), Color.White);
             UITheme.DrawTextWithShadow(spriteBatch, font, TileSummary(room), new Vector2(bounds.X + 12, bounds.Y + 38), new Color(235, 200, 160), 0.8f);
 
-            // Level pips in the top-right corner: one lit per level reached.
             for (int pip = 0; pip < MaxRoomLevel; pip++)
             {
                 var pipCenter = new Vector2(bounds.Right - 18 - (MaxRoomLevel - 1 - pip) * 14, bounds.Y + 20);
@@ -913,13 +816,11 @@ namespace DuskAndDawn
                 }
                 else
                 {
-                    // A dim socket, ringed in black so it shows against the dark brickwork.
                     UITheme.FillCircle(spriteBatch, pipCenter, 5.5f, Color.Black * 0.6f);
                     UITheme.FillCircle(spriteBatch, pipCenter, 3.5f, new Color(110, 100, 96));
                 }
             }
 
-            // Level and upgrade cost on a dark chip in the bottom-left corner, over the floor.
             var chipText = new List<(string text, Color color)>();
             if (maxed)
             {
@@ -929,8 +830,6 @@ namespace DuskAndDawn
             {
                 var (food, planks, scraps) = GetUpgradeCost(room, level);
                 bool canAfford = _playerState.CanAfford(food, planks, scraps);
-                // Green when the player can afford the upgrade right now, red when they can't -
-                // turns a mental subtraction into an instant glance.
                 Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
                 chipText.Add(($"Lv {level}/{MaxRoomLevel}", new Color(220, 215, 210)));
                 chipText.Add((FormatCost(food, planks, scraps), costColor));
@@ -953,7 +852,6 @@ namespace DuskAndDawn
             bool maxed = level >= MaxRoomLevel;
             var panel = DetailPanel;
 
-            // Dim the house behind so the panel reads as the focus.
             float dim = 0.55f * Anim.Intro(_elapsed, _panelOpenedAt, 0.2f);
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * dim, Color.Black * dim, 1);
             UITheme.DrawPanel(spriteBatch, panel, new Color(62, 54, 58), new Color(34, 30, 34), new Color(200, 100, 55), 3f, 18f, shadowStrength: 0.9f);
@@ -961,8 +859,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, $"{room}   Lv {level}/{MaxRoomLevel}", new Vector2(panel.X + 30, panel.Y + 24), Color.White, 1.2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, RoomRole(room), new Vector2(panel.X + 30, panel.Y + 62), new Color(200, 190, 195));
 
-            // The whole ladder, so a build can be planned: reached levels lit, the next one
-            // highlighted, the rest dim.
             for (int lv = 1; lv <= MaxRoomLevel; lv++)
             {
                 bool reached = lv <= level;
@@ -972,7 +868,6 @@ namespace DuskAndDawn
                 UITheme.DrawTextWithShadow(spriteBatch, font, $"{marker} Lv {lv}:  {LevelDescription(room, lv)}", new Vector2(panel.X + 30, panel.Y + LadderTop + (lv - 1) * 20), color, 0.72f);
             }
 
-            // Upgrade button
             if (maxed)
             {
                 _upgradeButton.Label = "Max level";
@@ -986,7 +881,6 @@ namespace DuskAndDawn
                 Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
                 DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(110, 70, 45), new Color(78, 48, 30), FormatCost(food, planks, scraps), costColor, enabled: true);
 
-                // Every level is another mouth to feed - say so before the player commits.
                 int upkeep = _playerState.DailyUpkeep;
                 int upkeepAfter = _playerState.UpkeepIfUpgraded(room);
                 float noteX = _upgradeButton.Bounds.X + _upgradeButton.Bounds.Width + 24;
@@ -995,7 +889,6 @@ namespace DuskAndDawn
                 UITheme.DrawTextWithShadow(spriteBatch, font, upkeepNote, new Vector2(noteX, _upgradeButton.Bounds.Y + 28), new Color(170, 165, 160), 0.7f);
             }
 
-            // Recipes
             if (_recipeButtons.Count > 0)
             {
                 UITheme.DrawTextWithShadow(spriteBatch, font, "Craft", new Vector2(panel.X + 30, panel.Y + RecipeTop - 30), Color.White);
@@ -1024,7 +917,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // Status line inside the panel
             if (!string.IsNullOrEmpty(_statusLog))
             {
                 Color statusColor = _statusIsError ? new Color(255, 170, 160) : new Color(170, 235, 180);
@@ -1080,7 +972,6 @@ namespace DuskAndDawn
             Color nameColor = available ? Color.White : new Color(150, 145, 145);
             Color detailColor = available ? new Color(200, 195, 190) : new Color(120, 115, 115);
 
-            // The recipe's icon at native 32px on the left; text shifts over.
             float textX = drawBounds.X + 12;
             var icon = RecipeIcon(recipe);
             if (icon != null)
@@ -1091,8 +982,6 @@ namespace DuskAndDawn
 
             UITheme.DrawTextWithShadow(spriteBatch, font, recipe.Name, new Vector2(textX, drawBounds.Y + 4), nameColor, 0.95f);
 
-            // How many you already have, right beside the name - amber for a weapon you'd be
-            // duplicating (reinforce the one you have instead), green for stackable remedies.
             int owned = OwnedCount(recipe);
             if (owned > 0)
             {
@@ -1107,7 +996,6 @@ namespace DuskAndDawn
             var rightSize = UITheme.MeasureString(font, rightText) * 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, rightText, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 12, drawBounds.Y + 5), rightColor, 0.85f);
 
-            // Just crafted: a bright green flash that fades out.
             if (button == _craftFlashButton && _craftFlashTimer > 0f)
             {
                 float flash = _craftFlashTimer / CraftFlashDuration;
@@ -1144,8 +1032,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>The "Crafted!" card between the Hope bar and the resource counters: drops in
-        /// with a little overshoot, holds, then fades.</summary>
         private void DrawCraftToast(SpriteBatch spriteBatch, SpriteFont font)
         {
             float elapsed = CraftToastDuration - _craftToastTimer;
@@ -1157,7 +1043,6 @@ namespace DuskAndDawn
             UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 230f, gold * (0.3f * alpha));
             UITheme.DrawPanel(spriteBatch, card, new Color(72, 96, 62) * alpha, new Color(40, 58, 36) * alpha, gold * alpha, 3f, 14f, shadowStrength: 0.8f * alpha);
 
-            // Icon on the left: the recipe's pixel art at 2x, or a vial for anything without art.
             var iconCenter = new Vector2(card.X + 44, card.Y + card.Height / 2f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 34, iconCenter.Y - 34, 68, 68), Color.Black * (0.35f * alpha), 10f);
             var recipe = _craftToastRecipe;
@@ -1178,8 +1063,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, _craftToastDetail, new Vector2(textX, card.Y + 60), new Color(210, 230, 200) * alpha, 0.62f, shadowAlpha: 0.45f * alpha);
         }
 
-        /// <summary>The weapon a recipe makes (or reinforces), the item it makes, or bread for the
-        /// Feast. null if that has no art.</summary>
         private Texture2D RecipeIcon(Recipe recipe)
         {
             var weapon = recipe.IconWeapon(_playerState);
@@ -1197,12 +1080,11 @@ namespace DuskAndDawn
             _ => new Color(150, 220, 160)
         };
 
-        // For an item without art - a little glass vial stands in, tinted by what it does.
         private static void DrawVial(SpriteBatch spriteBatch, Vector2 center, Color liquid, float alpha)
         {
             var glass = new Color(220, 230, 240);
-            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 6, center.Y - 24, 12, 14), glass * (0.8f * alpha), 3f);        // neck
-            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 7, center.Y - 28, 14, 6), new Color(150, 105, 60) * alpha, 2f); // cork
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 6, center.Y - 24, 12, 14), glass * (0.8f * alpha), 3f);
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - 7, center.Y - 28, 14, 6), new Color(150, 105, 60) * alpha, 2f);
             UITheme.FillCircle(spriteBatch, center + new Vector2(0, 6), 19f, glass * (0.8f * alpha));
             UITheme.FillCircle(spriteBatch, center + new Vector2(0, 8), 15f, liquid * alpha);
             UITheme.FillCircle(spriteBatch, center + new Vector2(-6, 0), 4f, Color.White * (0.6f * alpha));
@@ -1230,13 +1112,10 @@ namespace DuskAndDawn
             Color border = Color.Lerp(new Color(200, 90, 45), new Color(255, 140, 70), hover);
             float borderThickness = MathHelper.Lerp(3f, 4f, hover);
 
-            // A brief inward "squash" while the press pulse decays, so a click reads as a
-            // physical push rather than an instant color swap.
             float squash = button.PressAmount * 4f;
             var bounds = button.Bounds;
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            // A slow ember breath around the button - the way out of the day is always calling.
             float breathe = UITheme.PulseSine(_elapsed, 1.6f);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 120, 50) * (0.1f + breathe * 0.08f + hover * 0.12f));
             UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 12f, shadowStrength: 0.8f);
@@ -1248,16 +1127,12 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White);
         }
 
-        // The 128x32 Hope bar art at 5 screen pixels per art pixel: its sparkle sits on art
-        // rows 5-12 over the left end, the bar itself on rows 12-20.
         private const int HopeBarScreenScale = 5;
         private static readonly Vector2 HopeBarPosition = new Vector2(56, 4);
 
         private void DrawHopeBar(SpriteBatch spriteBatch, SpriteFont font, GameTime gameTime)
         {
             float ratio = _playerState.Hope / (float)PlayerState.MaxHope;
-            // Slow reddish warning pulse once Hope runs low - purely cosmetic, doesn't touch
-            // the actual game-over threshold or value.
             Color gaugeTint = Color.White;
             if (ratio < 0.25f)
             {
@@ -1266,7 +1141,6 @@ namespace DuskAndDawn
             }
             UITheme.DrawPixelBar(spriteBatch, Game1.HopeBarFrame, Game1.HopeBarGauge, HopeBarPosition, HopeBarScreenScale, ratio, gaugeTint);
 
-            // "Hope 80/100" just right of the sparkle, above the bar.
             float art = HopeBarScreenScale / UITheme.RenderScale;
             var labelPos = new Vector2(HopeBarPosition.X + 16 * art, HopeBarPosition.Y + 14);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hope", labelPos, Color.White);
@@ -1274,7 +1148,6 @@ namespace DuskAndDawn
             float hopeWidth = UITheme.MeasureString(font, "Hope ").X;
             UITheme.DrawTextWithShadow(spriteBatch, font, value, labelPos + new Vector2(hopeWidth + 4, 2), new Color(255, 215, 120), 0.85f);
 
-            // The goal, always in view: which day this is, out of seven.
             string day = DayInfo.IsFinalNight(_playerState.Day) ? $"{DayInfo.Label(_playerState.Day)} - the last night" : DayInfo.Label(_playerState.Day);
             var daySize = UITheme.MeasureString(font, day) * 0.85f;
             float barRight = HopeBarPosition.X + (Game1.HopeBarFrame?.Width ?? 128) * art;
@@ -1287,13 +1160,10 @@ namespace DuskAndDawn
             DrawResourceSlot(spriteBatch, font, 1010, "Planks", _playerState.Planks, DrawPlanksIcon, _planksPopTimer, new Color(120, 85, 50));
             DrawResourceSlot(spriteBatch, font, 1120, "Scraps", _playerState.Scraps, DrawScrapsIcon, _scrapsPopTimer, new Color(90, 90, 100));
 
-            // Storage cap under the resource row, so the limit is always in view.
             string capText = $"Storage: max {_playerState.StorageCap} each";
             var capSize = UITheme.MeasureString(font, capText) * 0.8f;
             UITheme.DrawTextWithShadow(spriteBatch, font, capText, new Vector2(1010 - capSize.X / 2f, 116), new Color(200, 190, 195), 0.8f);
 
-            // Tomorrow's food bill, next to the Kitchen's contribution - red when the Kitchen
-            // plus the larder won't cover it and hunger will eat into Hope.
             int upkeep = _playerState.DailyUpkeep;
             int cooked = _playerState.KitchenDailyFood;
             bool shortTomorrow = _playerState.Food + cooked < upkeep;
@@ -1304,7 +1174,6 @@ namespace DuskAndDawn
 
             if (shortTomorrow)
             {
-                // Spell out the price - hunger is steep enough that it should never be a surprise.
                 string warning = $"Bring back food tonight or hunger costs {_playerState.ProjectedHungerCost()} Hope";
                 var warningSize = UITheme.MeasureString(font, warning) * 0.7f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, warning, new Vector2(1010 - warningSize.X / 2f, 162), new Color(255, 120, 100), 0.7f);
@@ -1318,14 +1187,10 @@ namespace DuskAndDawn
 
             drawIcon(spriteBatch, centerX);
 
-            // Pop-then-settle: scale jumps up the instant the resource changes, then eases
-            // back down to normal over ResourcePopDuration. At rest (popTimer == 0) this is
-            // a no-op and renders exactly as before.
             float elapsedRatio = 1f - (popTimer / ResourcePopDuration);
             float decay = 1f - UITheme.EaseOutCubic(elapsedRatio);
             float popScale = 1f + decay * 0.4f;
 
-            // Count turns amber once it's sitting at the Storage cap - a nudge to upgrade.
             Color countColor = value >= _playerState.StorageCap ? new Color(255, 190, 90) : Color.White;
 
             var countText = value.ToString();
@@ -1352,13 +1217,10 @@ namespace DuskAndDawn
             DrawResourceSprite(spriteBatch, Game1.ScrapsTexture, centerX);
         }
 
-        // Sprites are 320x320 source canvases - scaled down and drawn from their own center so
-        // they sit centered in the icon area of each 96x96 resource slot regardless of how
-        // much transparent padding the source image has around the actual art.
         private void DrawResourceSprite(SpriteBatch spriteBatch, Texture2D texture, float centerX)
         {
             if (texture == null) return;
-            const float scale = 0.2f; // 320px source -> 64px on screen, fits the slot with margin
+            const float scale = 0.2f;
             var origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
             spriteBatch.Draw(texture, new Vector2(centerX, 40f), null, Color.White, 0f, origin, scale, SpriteEffects.None, 0f);
         }

@@ -9,16 +9,11 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: everything drawn - HUD, clock, maze, tooltips, combat and supply panels.
     public partial class NightScavengingScreen
     {
-        // HUD cards
         private static readonly RectangleF StatusCard = new RectangleF(18, 12, 400, 198);
         private static readonly RectangleF InfoCard = new RectangleF(434, 12, 548, 112);
 
-        // The fight's palette: near-black, umber and ash greys, and a pale mist for text - the
-        // colour drains out of the night once something finds you. The signal colours (red
-        // threats, violet spells, the Herald's gold, health red) stay, so a glance still reads.
         private static class FightPalette
         {
             public static readonly Color Black = new Color(0x04, 0x04, 0x05);
@@ -26,23 +21,17 @@ namespace DuskAndDawn
             public static readonly Color Ash = new Color(0x4F, 0x4B, 0x4A);
             public static readonly Color Slate = new Color(0x5B, 0x5B, 0x5D);
             public static readonly Color Mist = new Color(0xAD, 0xB5, 0xBE);
-            // Umber most of the way to black, for the bottom of a panel.
             public static readonly Color Deep = new Color(0x1A, 0x17, 0x16);
-            // Between Slate and Mist, for small print.
             public static readonly Color Dim = new Color(0x84, 0x88, 0x8D);
         }
 
-        // 0 away from a fight, easing up to 1 as one opens: how far the parts shared with the
-        // map (backdrop, HUD cards, mini-map) have gone over to the fight's palette.
         private float CombatDark => _state == ExplorationState.Encounter ? UITheme.EaseOutCubic(Anim.Intro(_stateTime, 0f, 0.6f)) : 0f;
 
         private Color Themed(Color map, Color fight) => Color.Lerp(map, fight, CombatDark);
 
-        // ---------- Draw ----------
-
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.Clear(new Color(8, 8, 14)); // night: dark and safe by design
+            GraphicsDevice.Clear(new Color(8, 8, 14));
 
             var spriteBatch = Game1.SpriteBatch;
             var font = Game1.Font;
@@ -55,11 +44,8 @@ namespace DuskAndDawn
                 _stateTime = 0f;
             }
 
-            // Subtle gradient instead of a flat fill - just enough depth to read as a night
-            // sky rather than a solid color swatch, while staying dark and calm by design.
             if (_throneRoom)
             {
-                // The throne hall; dimmed once the fight is on so the panels read over it.
                 bool fighting = _state == ExplorationState.Encounter;
                 DrawThroneHall(spriteBatch, totalSeconds, herald: !fighting && _collapseTimer < 0f);
                 if (fighting) spriteBatch.FillRectangle(new RectangleF(0, 0, 1280, 720), FightPalette.Black * 0.7f);
@@ -87,7 +73,6 @@ namespace DuskAndDawn
                     break;
                 case ExplorationState.Encounter:
                     DrawCombat(spriteBatch, font, totalSeconds);
-                    // A long Items list needs the space the mini-map uses; the throne hall has no map.
                     if (_combatMenu != CombatMenu.Items && !_throneRoom) DrawMapFragment(spriteBatch, font);
                     break;
                 case ExplorationState.Supplies:
@@ -100,12 +85,8 @@ namespace DuskAndDawn
                     break;
             }
 
-            // Combat animations go on top of everything, centered on the screen - only while
-            // a fight is actually on (EndCombat also stops them).
             if (_state == ExplorationState.Encounter)
             {
-                // A red pulse at the screen's edges while a HEAVY or STUN is wound up - a
-                // warning you feel before you read it.
                 if (_activeCombat.Enemies.Any(e => !e.IsDefeated && e.IntentIsThreat))
                 {
                     float alarm = 0.55f + 0.45f * UITheme.PulseSine(totalSeconds, 3f);
@@ -129,7 +110,6 @@ namespace DuskAndDawn
             float fade = MathHelper.Clamp((total - _collapseTimer) / 0.6f, 0f, 1f);
             if (_collapseIsVictory)
             {
-                // The Herald's light going out: a warm fade rather than a red one.
                 UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), new Color(60, 40, 20) * (0.7f * fade), Color.Black * (0.85f * fade), 40);
                 UITheme.DrawGlow(spriteBatch, new Vector2(640, 360), 500f, new Color(255, 210, 140) * (0.12f * fade));
             }
@@ -152,18 +132,13 @@ namespace DuskAndDawn
             foreach (var ember in _embers)
             {
                 float alpha = ember.Alpha;
-                // In a fight the embers cool to drifting ash.
                 UITheme.DrawGlow(spriteBatch, ember.Position, ember.Size * 3f, Themed(new Color(255, 120, 50), FightPalette.Slate) * (0.25f * alpha));
                 UITheme.FillCircle(spriteBatch, ember.Position, ember.Size * 0.6f, Themed(new Color(255, 190, 120), FightPalette.Mist) * (MathHelper.Lerp(0.7f, 0.45f, CombatDark) * alpha));
             }
         }
 
-        // ---------- HUD ----------
-
         private void DrawHud(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            // Two frosted cards instead of loose text on the background: your own status on
-            // the left, where you are / what you're carrying in the middle.
             Color cardTop = Themed(new Color(26, 24, 38), FightPalette.Umber) * 0.92f;
             Color cardBottom = Themed(new Color(16, 15, 24), FightPalette.Deep) * 0.92f;
             Color cardBorder = Themed(new Color(80, 72, 100), FightPalette.Ash);
@@ -173,13 +148,10 @@ namespace DuskAndDawn
             DrawClock(spriteBatch, font, totalSeconds);
             string weaponLine = $"Weapon: {_playerState.EquippedWeapon.DisplayName} ({_playerState.EquippedWeapon.DiceLabel})";
             UITheme.DrawTextWithShadow(spriteBatch, font, weaponLine, new Vector2(40, 100), Color.LightGray);
-            // 1x icon just after the weapon line - small, but crisp at native size.
             float weaponLineWidth = UITheme.MeasureString(font, weaponLine).X;
             UITheme.DrawPixelIcon(spriteBatch, Game1.GetWeaponIcon(_playerState.EquippedWeapon), new Vector2(40 + weaponLineWidth + 8, 94), 1);
             DrawPlayerHealthBar(spriteBatch, font);
 
-            // District + corruption, with a pip per corruption tier that glows like embers. The
-            // district's landmark icon leads the line when it has one.
             var infoX = InfoCard.X + 18;
             float nameX = infoX;
             var landmark = Game1.GetDistrictIcon(_district);
@@ -211,7 +183,6 @@ namespace DuskAndDawn
             }
             UITheme.DrawTextWithShadow(spriteBatch, font, "Corruption", new Vector2(pipX + 20 * DistrictInfo.MaxCorruption + 4, InfoCard.Y + 14), new Color(200, 170, 150), 0.8f);
 
-            // Tonight's haul so far - icons from the existing resource art.
             float resourceY = InfoCard.Y + 48;
             float x = infoX;
             x = DrawResourceCounter(spriteBatch, font, Game1.BreadTexture, _playerState.Food, "Food", x, resourceY);
@@ -238,9 +209,6 @@ namespace DuskAndDawn
             return x + iconSize + 6 + UITheme.MeasureString(font, text).X * 0.9f + 26f;
         }
 
-        // Analog clock face in the status card: the night's arc runs from dusk at 8 o'clock,
-        // clockwise over midnight, to dawn at 6 o'clock. The part already spent is dim; the
-        // part left glows like lamplight and pulses once dawn is under an hour away.
         private static readonly Vector2 ClockCenter = new Vector2(62, 50);
         private const float ClockRadius = 34f;
 
@@ -255,7 +223,6 @@ namespace DuskAndDawn
             bool nearDawn = left <= 60;
             float pulse = UITheme.PulseSine(totalSeconds, 4f);
 
-            // Dawn light creeping up behind the clock over the last two hours.
             float dawnGlow = MathHelper.Clamp(1f - left / 120f, 0f, 1f);
             if (dawnGlow > 0f)
             {
@@ -266,7 +233,6 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, center, r + 3f, new Color(150, 120, 90));
             UITheme.FillCircle(spriteBatch, center, r, new Color(22, 22, 36));
 
-            // The night's arc, 8 o'clock round to 6 o'clock (10 of the face's 12 hours).
             float duskTurn = (DawnTimer.DuskHour % 12) / 12f;
             float nightTurns = _dawnTimer.MaxMinutes / 720f;
             float progress = MathHelper.Clamp(_displayedElapsed / _dawnTimer.MaxMinutes, 0f, 1f);
@@ -284,7 +250,6 @@ namespace DuskAndDawn
                 spriteBatch.DrawLine(a, b, color, 4f);
             }
 
-            // Hour marks - longer at 12, 3, 6 and 9.
             for (int h = 0; h < 12; h++)
             {
                 var dir = ClockDirection(h / 12f);
@@ -292,12 +257,10 @@ namespace DuskAndDawn
                 spriteBatch.DrawLine(center + dir * inner, center + dir * (r - 9f), Color.White * (h % 3 == 0 ? 0.7f : 0.35f), h % 3 == 0 ? 2f : 1f);
             }
 
-            // Dawn marker: a little sun where the arc ends.
             var sun = center + ClockDirection(duskTurn + nightTurns) * arcRadius;
             UITheme.DrawGlow(spriteBatch, sun, 14f, new Color(255, 200, 120) * 0.8f);
             UITheme.FillCircle(spriteBatch, sun, 4f, new Color(255, 230, 170));
 
-            // Hands, from the animated time so they sweep rather than jump.
             int clockMinutes = DawnTimer.ClockMinutesAt(_displayedElapsed);
             float minuteTurn = (clockMinutes % 60) / 60f;
             float hourTurn = (clockMinutes / 60f % 12f) / 12f;
@@ -305,7 +268,6 @@ namespace DuskAndDawn
             spriteBatch.DrawLine(center, center + ClockDirection(minuteTurn) * (r * 0.72f), new Color(235, 225, 210), 2f);
             UITheme.FillCircle(spriteBatch, center, 3.5f, new Color(255, 200, 120));
 
-            // Readout beside the face.
             float textX = center.X + r + 18f;
             UITheme.DrawTextWithShadow(spriteBatch, font, _dawnTimer.ClockLabel, new Vector2(textX, 14), Color.White, 1.25f);
             string untilDawn = left > 0 ? $"{DawnTimer.FormatDuration(left)} until dawn" : "Dawn is breaking";
@@ -329,8 +291,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, label, labelPos, Color.White);
         }
 
-        // ---------- Maze ----------
-
         private static Color RoomTop(RoomType type) => type switch
         {
             RoomType.Supplies => new Color(52, 116, 78),
@@ -353,19 +313,15 @@ namespace DuskAndDawn
 
         private void DrawMaze(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            // The ruins' footprint: a dark slab the corridors are cut into.
             var slab = new RectangleF(MapArea.X - 12, MapArea.Y - 10, MapArea.Width + 24, MapArea.Height + 20);
             UITheme.DrawPanel(spriteBatch, slab, new Color(18, 17, 27), new Color(9, 9, 14), new Color(52, 48, 66), 1.5f, 18f, shadowStrength: 0.8f);
 
-            // A far-off glimmer where the Hoard lies, even through the fog - something to aim for.
             if (!_map.Hoard.Visited)
             {
                 float glimmer = UITheme.PulseSine(totalSeconds, 1.4f);
                 UITheme.DrawGlow(spriteBatch, _map.Hoard.Center, 70f + glimmer * 12f, new Color(255, 200, 90) * (0.16f + glimmer * 0.10f));
             }
 
-            // Faint marks where the fog still hides the grid - hints at how much is left
-            // out there without giving away the layout (rubble cells get a mark too).
             float pitchX = MapArea.Width / _map.Columns;
             float pitchY = MapArea.Height / _map.Rows;
             for (int col = 0; col < _map.Columns; col++)
@@ -379,8 +335,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // Lantern light: a warm, gently flickering pool around you, drawn under the
-            // corridors so the stone near you reads as lit.
             float flicker = 1f + 0.04f * MathF.Sin(totalSeconds * 7.3f) + 0.03f * MathF.Sin(totalSeconds * 13.1f);
             UITheme.DrawGlow(spriteBatch, _tokenPosition, 260f * flicker, new Color(255, 160, 80) * 0.18f);
             UITheme.DrawGlow(spriteBatch, _tokenPosition, 120f * flicker, new Color(255, 180, 100) * 0.16f);
@@ -398,7 +352,6 @@ namespace DuskAndDawn
             DrawBottomBar(spriteBatch, font);
             DrawStyledButton(spriteBatch, font, _headBackButton, new Color(120, 78, 64), new Color(84, 52, 44));
 
-            // Last, so it's never covered by the bottom bar.
             if (_hoveredNode != null)
             {
                 DrawRoomTooltip(spriteBatch, font, _hoveredNode);
@@ -408,7 +361,6 @@ namespace DuskAndDawn
 
         private void DrawCorridors(SpriteBatch spriteBatch, float totalSeconds)
         {
-            // Which corridors the hovered route would walk, so they can be lit up.
             var routeEdges = new HashSet<(MapNode, MapNode)>();
             if (_hoverPath != null)
             {
@@ -425,7 +377,6 @@ namespace DuskAndDawn
             {
                 foreach (var b in a.Links)
                 {
-                    // Each corridor once.
                     if (a.Column * 100 + a.Row > b.Column * 100 + b.Row) continue;
                     if (!a.Discovered && !b.Discovered) continue;
 
@@ -439,8 +390,6 @@ namespace DuskAndDawn
                     }
                     else
                     {
-                        // Only one end is known: draw a stub trailing off into the fog, so
-                        // unexplored exits read as "this way goes somewhere".
                         if (!a.Discovered) (from, to) = (to, from);
                         to = Vector2.Lerp(from, to, 0.62f);
                         alpha = (a.Discovered ? a.RevealAmount : b.RevealAmount) * 0.55f;
@@ -475,7 +424,6 @@ namespace DuskAndDawn
             bool reachable = _reachable.Contains(node);
             bool frontier = reachable && !node.Visited;
 
-            // Hovered rooms lift slightly; newly found rooms pop up out of the fog.
             float grow = hover * 5f;
             var bounds = new RectangleF(node.ScreenBounds.X - grow, node.ScreenBounds.Y - grow - hover * 2f, node.ScreenBounds.Width + grow * 2f, node.ScreenBounds.Height + grow * 2f);
             if (alpha < 0.999f) bounds = Anim.Scale(bounds, MathHelper.Lerp(0.6f, 1f, UITheme.EaseOutBack(alpha)));
@@ -493,7 +441,6 @@ namespace DuskAndDawn
                 bottom = RoomBottom(node.Type);
                 if (node.Visited && node != _current)
                 {
-                    // Explored: drained of color, so the map shows at a glance what's left.
                     top = Color.Lerp(top, new Color(52, 52, 58), 0.7f);
                     bottom = Color.Lerp(bottom, new Color(34, 34, 40), 0.7f);
                 }
@@ -505,7 +452,6 @@ namespace DuskAndDawn
                 bottom = UITheme.Brighten(bottom, hover * 0.22f);
             }
 
-            // Frontier rooms breathe with a faint ember edge so the next choices stand out.
             Color border = new Color(120, 116, 140) * 0.6f;
             float borderThickness = 1.5f;
             if (frontier)
@@ -547,7 +493,6 @@ namespace DuskAndDawn
                 DrawRoomIcon(spriteBatch, node, center, iconAlpha, totalSeconds);
             }
 
-            // Ripple when a creature moves in or out.
             if (node.StirAmount > 0.01f)
             {
                 float t = 1f - node.StirAmount;
@@ -557,14 +502,12 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>A tiny primitive-drawn glyph per room type - no extra art needed.</summary>
         private void DrawRoomIcon(SpriteBatch spriteBatch, MapNode node, Vector2 c, float alpha, float totalSeconds)
         {
             switch (node.Type)
             {
                 case RoomType.Supplies:
                     {
-                        // A crate: planked box with a cross brace.
                         var box = new RectangleF(c.X - 15, c.Y - 12, 30, 24);
                         UITheme.FillRoundedRect(spriteBatch, box, new Color(170, 124, 70) * alpha, 3f);
                         spriteBatch.DrawRectangle(box, new Color(90, 60, 30) * alpha, 2f);
@@ -575,7 +518,6 @@ namespace DuskAndDawn
 
                 case RoomType.Encounter:
                     {
-                        // Two eyes in the dark that blink now and then.
                         float cycle = (totalSeconds + node.Phase * 1.7f) % 4.2f;
                         bool blinking = cycle < 0.14f;
                         var eyeColor = new Color(255, 80, 60) * alpha;
@@ -593,7 +535,6 @@ namespace DuskAndDawn
 
                 case RoomType.Special:
                     {
-                        // A four-point sparkle that slowly breathes.
                         float s = 12f + UITheme.PulseSine(totalSeconds + node.Phase, 2.5f) * 4f;
                         var sparkle = new Color(230, 200, 255) * alpha;
                         UITheme.DrawGlow(spriteBatch, c, 28f, new Color(170, 110, 255) * (0.8f * alpha));
@@ -605,7 +546,6 @@ namespace DuskAndDawn
 
                 case RoomType.Hoard when node.HasBoss:
                     {
-                        // The last night's Hoard: the Sun Herald, a small burning sun.
                         float glow = UITheme.PulseSine(totalSeconds + node.Phase, 2f);
                         UITheme.DrawGlow(spriteBatch, c, 34f, new Color(255, 220, 120) * ((0.55f + glow * 0.35f) * alpha));
                         for (int ray = 0; ray < 8; ray++)
@@ -621,7 +561,6 @@ namespace DuskAndDawn
 
                 case RoomType.Hoard:
                     {
-                        // A treasure chest.
                         var chest = new RectangleF(c.X - 16, c.Y - 8, 32, 20);
                         var lid = new RectangleF(c.X - 16, c.Y - 16, 32, 10);
                         UITheme.FillRoundedRect(spriteBatch, lid, new Color(150, 96, 40) * alpha, 5f);
@@ -633,7 +572,6 @@ namespace DuskAndDawn
 
                 case RoomType.Entrance:
                     {
-                        // An arched doorway.
                         var door = new RectangleF(c.X - 10, c.Y - 6, 20, 20);
                         UITheme.FillCircle(spriteBatch, c + new Vector2(0, -6), 10f, new Color(12, 12, 18) * alpha);
                         spriteBatch.FillRectangle(door, new Color(12, 12, 18) * alpha);
@@ -643,7 +581,6 @@ namespace DuskAndDawn
 
                 default:
                     {
-                        // Quiet hall: a few scattered stones.
                         var stone = new Color(120, 120, 135) * alpha;
                         UITheme.FillCircle(spriteBatch, c + new Vector2(-9, 5), 3.5f, stone);
                         UITheme.FillCircle(spriteBatch, c + new Vector2(4, 8), 2.5f, stone);
@@ -655,9 +592,7 @@ namespace DuskAndDawn
 
         private void DrawToken(SpriteBatch spriteBatch, float totalSeconds)
         {
-            // You: a small lantern-bearer bobbing as it walks (or idles).
             float bob = MathF.Sin(totalSeconds * (IsWalking ? 12f : 3f)) * (IsWalking ? 3f : 1.5f);
-            // Stands in the room's lower-right corner so the room's icon stays readable.
             var pos = _tokenPosition + new Vector2(RoomSize * 0.38f, RoomSize * 0.38f + bob);
 
             UITheme.FillCircle(spriteBatch, pos + new Vector2(0, 10), 10f, Color.Black * 0.35f);
@@ -669,8 +604,6 @@ namespace DuskAndDawn
             UITheme.FillCircle(spriteBatch, pos + new Vector2(0, -1), flame, new Color(255, 250, 225));
         }
 
-        /// <summary>Tooltip line for enemies known to be in a room - ones you ran from, or
-        /// ones the Archive's bestiary identified - e.g. "2 Penitents, 22 HP each".</summary>
         private static string DescribeWaiting(List<Enemy> enemies)
         {
             var living = enemies.Where(e => !e.IsDefeated).ToList();
@@ -742,12 +675,10 @@ namespace DuskAndDawn
 
         private void DrawBottomBar(SpriteBatch spriteBatch, SpriteFont font)
         {
-            // Journal: what just happened.
             var journal = new RectangleF(40, 616, 836, 88);
             UITheme.DrawPanel(spriteBatch, journal, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 12f, shadowStrength: 0.5f);
             _textLog.Draw(spriteBatch, font, new Vector2(journal.X + 16, journal.Y + 56), maxWidth: journal.Width - 32f);
 
-            // Legend.
             var legend = new RectangleF(892, 616, 348, 88);
             UITheme.DrawPanel(spriteBatch, legend, new Color(26, 24, 38) * 0.92f, new Color(16, 15, 24) * 0.92f, new Color(80, 72, 100), 1.5f, 12f, shadowStrength: 0.5f);
             var entries = new (RoomType type, string label)[]
@@ -765,8 +696,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>A shrunk-down copy of tonight's maze, shown while you're busy in a room
-        /// (combat or a supply cache) so you never lose track of where you are.</summary>
         private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
         {
             var box = new RectangleF(40, 604, 232, 100);
@@ -806,7 +735,6 @@ namespace DuskAndDawn
 
         private void DrawCombat(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            // Round info where the Head Back button sits on the map.
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Turn {_combatTurn + 1}", new Vector2(1000, 24), FightPalette.Mist);
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Rerolls: {_activeCombat.RerollsLeft}", new Vector2(1000, 54), FightPalette.Dim, 0.85f);
             float statusY = 82;
@@ -825,7 +753,6 @@ namespace DuskAndDawn
                 UITheme.DrawTextWithShadow(spriteBatch, font, "A healing remedy puts it out", new Vector2(1000, statusY + 24), new Color(220, 190, 170), 0.6f);
             }
 
-            // Enemies drop in one after another as the fight opens.
             var panels = EnemyPanels();
             for (int i = 0; i < panels.Count; i++)
             {
@@ -835,8 +762,6 @@ namespace DuskAndDawn
                 DrawEnemyPanel(spriteBatch, font, panels[i].enemy, bounds, totalSeconds, intro);
             }
 
-            // Roll readout over the target. The slash / hit animations are drawn last in
-            // Draw(), centered on the screen, so they sit on top of everything.
             _diceRollPopup.Draw(spriteBatch, font);
 
             _textLog.Draw(spriteBatch, font, new Vector2(300, 575), maxWidth: 940f);
@@ -846,8 +771,6 @@ namespace DuskAndDawn
                 var button = _combatButtons[i];
                 bool isItem = _combatMenu == CombatMenu.Items && i < _itemButtonNames.Count;
 
-                // Dimmed while locked, so it's clear the next action isn't ready yet.
-                // The action buttons slide in from the left edge.
                 float intro = Anim.Stagger(_stateTime, i, step: 0.06f, baseDelay: 0.15f, duration: 0.35f);
                 if (isItem)
                 {
@@ -872,7 +795,6 @@ namespace DuskAndDawn
             DrawItemTooltip(spriteBatch, font);
         }
 
-        /// <summary>A small key-cap on a button's right edge showing its number key.</summary>
         private static void DrawKeyBadge(SpriteBatch spriteBatch, SpriteFont font, RectangleF button, string key, float alpha)
         {
             if (alpha <= 0.001f) return;
@@ -883,8 +805,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, key, new Vector2(cap.X + (cap.Width - size.X) / 2f, cap.Y + (cap.Height - size.Y) / 2f), Color.White * (0.8f * alpha), 0.6f);
         }
 
-        /// <summary>An item in the combat Items menu: its name (and how many you carry) on
-        /// top, and what it does underneath - so a choice mid-fight never means guessing.</summary>
         private void DrawItemButton(SpriteBatch spriteBatch, SpriteFont font, Button button, string itemName)
         {
             var item = _playerState.Belt.Find(it => it.Name == itemName);
@@ -898,7 +818,6 @@ namespace DuskAndDawn
             var draw = new RectangleF(b.X + squash, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
             UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.5f);
 
-            // The item's icon on the left when it has one; text shifts over.
             float textX = draw.X + 12;
             var icon = Game1.GetItemIcon(itemName);
             if (icon != null)
@@ -913,7 +832,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>The full description of the hovered item, in a card beside the list.</summary>
         private void DrawItemTooltip(SpriteBatch spriteBatch, SpriteFont font)
         {
             if (_combatMenu != CombatMenu.Items || IsActionLocked) return;
@@ -943,11 +861,8 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>A few small lines under the action buttons explaining how to answer
-        /// what the enemies are showing - the rules the intent chips rely on.</summary>
         private void DrawCombatHints(SpriteBatch spriteBatch, SpriteFont font)
         {
-            // The Items list can run long enough to reach the mini-map - no room for hints there.
             if (_combatButtons.Count == 0 || _combatMenu == CombatMenu.Items) return;
             float y = _combatButtons[_combatButtons.Count - 1].Bounds.Bottom + 14;
 
@@ -972,8 +887,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, keys, new Vector2(42, y + 4), FightPalette.Dim, 0.58f);
         }
 
-        // Umber panels with a hint of each kind in them: old blood for a Wretch, candle-wax
-        // for a Penitent, cold steel for a Knight. The Herald keeps his own light.
         private static (Color top, Color bottom, Color border) EnemyPalette(EnemyKind kind) => kind switch
         {
             EnemyKind.Penitent => (new Color(56, 48, 42), new Color(24, 20, 17), new Color(150, 128, 96)),
@@ -995,7 +908,6 @@ namespace DuskAndDawn
             float glow = UITheme.PulseSine(totalSeconds, 2.5f);
             var (top, bottom, border) = EnemyPalette(enemy.Kind);
 
-            // Another living enemy under the cursor lifts a little: click to target it.
             var mouse = InputChecker.GetMouse();
             bool pickable = !fallen && !targeted && _activeCombat.Enemies.Count(e => !e.IsDefeated) > 1 && InputChecker.Contains(bounds, mouse.X, mouse.Y);
             if (pickable)
@@ -1003,19 +915,16 @@ namespace DuskAndDawn
                 bounds = new RectangleF(bounds.X, bounds.Y - 4f, bounds.Width, bounds.Height);
                 border = Color.Lerp(border, FightPalette.Mist, 0.6f);
             }
-            // The fallen sink a little as they fade.
             if (fallen) bounds = new RectangleF(bounds.X, bounds.Y + 10f, bounds.Width, bounds.Height);
 
             if (targeted)
             {
-                // The target: picked out in pale moonlight.
                 UITheme.DrawGlow(spriteBatch, new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f), bounds.Width * 0.7f, FightPalette.Mist * ((0.1f + glow * 0.06f) * intro));
                 border = Color.Lerp(FightPalette.Mist, Color.White, glow * 0.5f);
             }
             float alpha = (fallen ? 0.35f : 1f) * intro;
             UITheme.DrawPanel(spriteBatch, bounds, top * alpha, bottom * alpha, border * alpha, targeted ? 3.5f : 2f, 14f, shadowStrength: 0.6f * alpha);
 
-            // Name, and a tag for the boss / current target.
             float scale = UITheme.MeasureString(font, enemy.Name).X * 0.85f > bounds.Width - 24 ? 0.72f : 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.Name, new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * alpha, scale);
             string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : enemy.IsElite ? "ELITE" : targeted ? "TARGET" : null;
@@ -1026,7 +935,6 @@ namespace DuskAndDawn
                 UITheme.DrawTextWithShadow(spriteBatch, font, tag, new Vector2(bounds.Right - tagSize.X - 12, bounds.Y + 36), tagColor * intro, 0.62f);
             }
 
-            // Health bar.
             var track = new RectangleF(bounds.X + 12, bounds.Y + 56, bounds.Width - 24, 16);
             float ratio = _enemyBars.TryGetValue(enemy, out var bar) ? bar.Ratio : enemy.Health / (float)enemy.MaxHealth;
             UITheme.FillRoundedRect(spriteBatch, track, Color.Black * (0.55f * alpha), 8f);
@@ -1038,7 +946,6 @@ namespace DuskAndDawn
             var hpSize = UITheme.MeasureString(font, hp) * 0.62f;
             UITheme.DrawTextWithShadow(spriteBatch, font, hp, new Vector2(track.X + (track.Width - hpSize.X) / 2f, track.Y - 1), Color.White * alpha, 0.62f);
 
-            // Portrait: the kind's art where there is some, a glyph otherwise - breathing gently.
             float breathe = fallen ? 0f : MathF.Sin(totalSeconds * 1.6f + enemy.MaxHealth) * 3f;
             var sprite = Game1.GetEnemySprite(enemy.Kind);
             if (sprite != null)
@@ -1052,7 +959,6 @@ namespace DuskAndDawn
 
             if (fallen) return;
 
-            // Intent chip: what it will do next, and how to answer it.
             var chip = new RectangleF(bounds.X + 12, bounds.Bottom - 96, bounds.Width - 24, 84);
             Color chipTop, chipBottom, chipBorder;
             if (enemy.Intent == IntentType.Spell)
@@ -1086,9 +992,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.IntentHint, new Vector2(chip.X + (chip.Width - hintSize.X) / 2f, chip.Y + 56), FightPalette.Mist * intro, 0.66f);
         }
 
-        /// <summary>An enemy's portrait art, with a little light behind it: the Herald burns
-        /// (redder once he ascends), Knights catch a cold gleam, Penitents a candle glow, and a
-        /// Wretch's dark shape stands out against a low red smoulder.</summary>
         private static void DrawEnemySprite(SpriteBatch spriteBatch, Enemy enemy, Texture2D sprite, Vector2 center, float alpha, float totalSeconds)
         {
             float glow = UITheme.PulseSine(totalSeconds + enemy.MaxHealth * 0.1f, 2f);
@@ -1099,7 +1002,6 @@ namespace DuskAndDawn
                         bool ascended = enemy.Ascended;
                         var head = center + new Vector2(0, -40);
                         UITheme.DrawGlow(spriteBatch, head, ascended ? 150f : 120f, (ascended ? new Color(255, 110, 40) : new Color(255, 210, 120)) * ((0.35f + glow * 0.25f) * alpha));
-                        // Short rays from his head, kept below the health bar.
                         Backdrop.DrawRays(spriteBatch, head + new Vector2(0, 30), ascended ? 95f : 80f, (ascended ? new Color(255, 140, 70) : new Color(255, 225, 150)) * (0.8f * alpha), totalSeconds * (ascended ? 3f : 1.5f), 9);
                         break;
                     }
@@ -1116,8 +1018,6 @@ namespace DuskAndDawn
             UITheme.DrawPixelIconFit(spriteBatch, sprite, center, 150f, Color.White * alpha);
         }
 
-        /// <summary>Primitive-drawn stand-ins for enemy art: a Wretch's red eyes, a hooded
-        /// Penitent under a halo, the Knight's visored helm, the Sun Herald's masked sun.</summary>
         private static void DrawEnemyGlyph(SpriteBatch spriteBatch, Enemy enemy, Vector2 c, float alpha, float totalSeconds)
         {
             float glow = UITheme.PulseSine(totalSeconds + enemy.MaxHealth * 0.1f, 2.5f);
@@ -1127,7 +1027,6 @@ namespace DuskAndDawn
             {
                 case EnemyKind.Penitent:
                     {
-                        // Halo, hood, and two pale eyes.
                         spriteBatch.DrawCircle(c + new Vector2(0, -58), 26f, 32, new Color(255, 220, 140) * ((0.5f + glow * 0.4f) * alpha), 3f);
                         UITheme.DrawGlow(spriteBatch, c + new Vector2(0, -58), 44f, new Color(255, 210, 120) * (0.25f * alpha));
                         UITheme.FillCircle(spriteBatch, c, 46f, new Color(20, 16, 14) * alpha);
@@ -1143,8 +1042,6 @@ namespace DuskAndDawn
 
                 case EnemyKind.Herald:
                     {
-                        // A burning sun with a masked face. Ascended, it flares redder and
-                        // its rays reach further and turn faster.
                         bool ascended = enemy.Ascended;
                         Color rayColor = ascended ? new Color(255, 150, 70) : new Color(255, 225, 140);
                         float spin = totalSeconds * (ascended ? 0.9f : 0.35f);
@@ -1159,7 +1056,6 @@ namespace DuskAndDawn
                         }
                         UITheme.FillCircle(spriteBatch, c, 44f, new Color(255, 236, 180) * alpha);
                         UITheme.FillCircle(spriteBatch, c, 36f, new Color(255, 214, 130) * alpha);
-                        // The mask: a dark band with two white-hot eyes.
                         UITheme.FillRoundedRect(spriteBatch, new RectangleF(c.X - 30, c.Y - 9, 60, 18), new Color(70, 40, 20) * alpha, 9f);
                         foreach (float offset in new[] { -13f, 13f })
                         {
@@ -1172,7 +1068,6 @@ namespace DuskAndDawn
 
                 case EnemyKind.Knight:
                     {
-                        // Helm with a glowing visor slit, under a three-point crown.
                         var helm = new RectangleF(c.X - 46, c.Y - 44, 92, 96);
                         UITheme.FillRoundedRectGradient(spriteBatch, helm, new Color(140, 140, 156) * alpha, new Color(60, 60, 74) * alpha, 20f, 8);
                         var visor = new RectangleF(c.X - 34, c.Y - 4, 68, 10);
@@ -1187,7 +1082,6 @@ namespace DuskAndDawn
 
                 default:
                     {
-                        // A Wretch: two blinking red eyes in the dark.
                         foreach (float offset in new[] { -34f, 34f })
                         {
                             var eye = c + new Vector2(offset, 0);
@@ -1208,8 +1102,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, "You find a supply cache.", new Vector2(60 - (1f - headIn) * 20f, 220), Color.White * headIn);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Every choice here costs time.", new Vector2(60 - (1f - headIn) * 20f, 250), Color.LightGray * headIn, 0.8f);
 
-            // What's actually inside - the same numbers every option below is working from.
-            // The box pops open, then its contents rise into view one by one.
             float boxIn = Anim.Intro(_stateTime, 0.05f, 0.4f);
             var lootBox = Anim.Scale(new RectangleF(60, 280, 320, 240), MathHelper.Lerp(0.9f, 1f, UITheme.EaseOutBack(boxIn)));
             float shine = 0.12f + 0.05f * UITheme.PulseSine(totalSeconds, 1.5f);
@@ -1263,7 +1155,6 @@ namespace DuskAndDawn
             Color titleColor = (enabled ? Color.White : new Color(140, 140, 150)) * intro;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, drawBounds.Y + 8), titleColor, 0.95f);
 
-            // Time cost (and what the clock will read after), or why it's unavailable.
             int minutes = SupplyMinutes(action);
             string right;
             Color rightColor;
@@ -1300,12 +1191,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Shared look for every clickable menu button on this screen: rounded
-        /// gradient panel, hover-eased tint and border, and a small press-squash on click.
-        /// Pass description to render a two-line button (title + a smaller detail line)
-        /// like the supplies options use; omit it for a simple centered label.</summary>
-        /// <param name="border">The resting border (brightening to white on hover); white by default.</param>
-        /// <param name="accent">The hover bar's colour; warm lamplight by default.</param>
         private void DrawStyledButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom, string description = null, float intro = 1f,
             Color? border = null, Color? accent = null)
         {
@@ -1316,11 +1201,8 @@ namespace DuskAndDawn
             Color borderColor = Color.Lerp(border ?? Color.White * 0.7f, Color.White, hover);
             float borderThickness = MathHelper.Lerp(2f, 3f, hover);
 
-            // A brief inward squash while the press pulse decays, so a click reads as a
-            // physical push rather than an instant color swap.
             float squash = button.PressAmount * 3f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(-40, 0));
-            // Hovered buttons nudge right, text following, with a bright bar on the left edge.
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
             float textShift = hover * 6f;
 
@@ -1339,7 +1221,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>A short glowing bar inside a hovered button's left edge.</summary>
         private static void DrawHoverAccent(SpriteBatch spriteBatch, RectangleF bounds, float hover, Color color)
         {
             if (hover <= 0.01f) return;

@@ -8,11 +8,11 @@ namespace DuskAndDawn
 {
     public enum ItemEffect
     {
-        Heal,        // restore Amount health
-        FullHeal,    // restore to max health
-        Smoke,       // every enemy misses this turn
-        RestoreDawn, // turn the night clock back Amount minutes
-        HolyWater    // Amount damage to every enemy in the fight
+        Heal,
+        FullHeal,
+        Smoke,
+        RestoreDawn,
+        HolyWater
     }
 
     public class Item
@@ -30,7 +30,6 @@ namespace DuskAndDawn
             Amount = amount;
         }
 
-        // Infirmary
         public static Item Bandage() => new Item("Bandage", "Restores 20 health.", ItemEffect.Heal, 20);
         public static Item Tonic() => new Item("Tonic", "Restores 45 health.", ItemEffect.Heal, 45);
         public static Item SmokeFlask() => new Item("Smoke Flask", "Every enemy misses this turn - even spells and heavy blows.", ItemEffect.Smoke);
@@ -38,13 +37,10 @@ namespace DuskAndDawn
         public static Item HolyWater() => new Item("Holy Water", "Splashes every enemy in the fight for 14 damage. Made for groups.", ItemEffect.HolyWater, 14);
         public static Item DawnTincture() => new Item("Dawn Tincture", "Turns the night clock back 90 minutes.", ItemEffect.RestoreDawn, 90);
 
-        // Kitchen
         public static Item Rations() => new Item("Rations", "Restores 30 health.", ItemEffect.Heal, 30);
 
         private static readonly Func<Item>[] AllFactories = { Bandage, Tonic, SmokeFlask, Elixir, DawnTincture, HolyWater, Rations };
 
-        /// <summary>A few words on what it does, for the combat Items menu. Heals show what
-        /// they'll actually restore, including the Infirmary's Lv 5 bonus.</summary>
         public string ShortEffect(PlayerState state) => Effect switch
         {
             ItemEffect.Heal => $"Heal {HealAmount(state)} health",
@@ -57,11 +53,8 @@ namespace DuskAndDawn
 
         public int HealAmount(PlayerState state) => (int)MathF.Round(Amount * state.RemedyPotency);
 
-        /// <summary>Remedies you can take between rooms; Smoke and Holy Water need enemies.</summary>
         public bool UsableOutsideFight => Effect is ItemEffect.Heal or ItemEffect.FullHeal or ItemEffect.RestoreDawn;
 
-        /// <summary>Why using this right now would be wasted (full health, the night has
-        /// barely started), or null if it's worth using. Fights skip this check.</summary>
         public string WastedReason(PlayerState state, DawnTimer timer) => Effect switch
         {
             ItemEffect.Heal or ItemEffect.FullHeal when state.Health >= state.MaxHealth => "You're unhurt",
@@ -70,9 +63,6 @@ namespace DuskAndDawn
             _ => null
         };
 
-        /// <summary>Applies a remedy's effect - healing or turning the clock back - and
-        /// returns the log line. Shared by fights and the night map's Pack. Returns null for
-        /// items that only work against enemies. Does not remove the item.</summary>
         public string ApplyRemedy(PlayerState state, DawnTimer timer)
         {
             switch (Effect)
@@ -97,7 +87,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Rebuilds a saved item by name, or null if it no longer exists.</summary>
         public static Item Create(string name) =>
             AllFactories.Select(make => make()).FirstOrDefault(item => item.Name == name);
     }

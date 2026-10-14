@@ -7,16 +7,11 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Prepare screen: the belt. Only what's on the belt comes into the night, and it only
-    // holds so much - so each night starts with a choice of what to carry. Remedies wait in
-    // the stash at home; click one to pack it, click a belt slot to unpack. Upgrading the
-    // Storage room adds a slot per level.
     public partial class PreparationScreen
     {
         private readonly List<Button> _beltSlotButtons = new List<Button>();
         private readonly List<(Button button, string itemName)> _stashChips = new List<(Button, string)>();
         private string _beltMessage = "";
-        // When each belt slot last had something packed into it, for a little pop.
         private readonly float[] _slotPackedAt = { -1f, -1f, -1f, -1f, -1f, -1f };
         private float _beltMessageAt = -1f;
 
@@ -35,7 +30,6 @@ namespace DuskAndDawn
             LayoutStash();
         }
 
-        /// <summary>One chip per kind of item in the stash, flowing left to right over two rows.</summary>
         private void LayoutStash()
         {
             _stashChips.Clear();
@@ -50,7 +44,7 @@ namespace DuskAndDawn
                 {
                     x = LoadoutPanel.X + 20;
                     y += 30;
-                    if (y > StashTop + 22 + 30) break; // two rows is all there's room for
+                    if (y > StashTop + 22 + 30) break;
                 }
                 _stashChips.Add((new Button(new RectangleF(x, y, width, 26), label), group.Key));
                 x += width + 6;
@@ -72,7 +66,6 @@ namespace DuskAndDawn
 
         private void HandleBeltClick(int x, int y)
         {
-            // Unpack: a filled belt slot goes back to the stash.
             for (int i = 0; i < _playerState.Belt.Count && i < _beltSlotButtons.Count; i++)
             {
                 if (!_beltSlotButtons[i].Contains(x, y)) continue;
@@ -86,7 +79,6 @@ namespace DuskAndDawn
                 return;
             }
 
-            // Pack: a stash item goes onto the belt, if there's room.
             foreach (var (button, itemName) in _stashChips)
             {
                 if (!button.Contains(x, y)) continue;
@@ -106,7 +98,6 @@ namespace DuskAndDawn
                 LayoutStash();
                 return;
             }
-
         }
 
         private void DrawBelt(SpriteBatch spriteBatch, SpriteFont font)
@@ -116,7 +107,6 @@ namespace DuskAndDawn
             float x = LoadoutPanel.X + 20;
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Belt  {_playerState.Belt.Count}/{_playerState.BeltSlots}", new Vector2(x, BeltTop), Color.White * sectionIn, 0.9f);
 
-            // Where more slots come from.
             string slotHint = _playerState.BeltSlots < PlayerState.MaxBeltSlots
                 ? $"Storage Lv {_playerState.Level(BaseRoomType.Storage) + 1} adds a slot"
                 : "Belt fully expanded";
@@ -128,7 +118,6 @@ namespace DuskAndDawn
                 var button = _beltSlotButtons[i];
                 bool unlocked = i < _playerState.BeltSlots;
                 bool filled = i < _playerState.Belt.Count;
-                // Slots pop in left to right, and again when something is packed into one.
                 float intro = Anim.Stagger(_elapsed, i, step: 0.05f, baseDelay: 0.35f, duration: 0.3f);
                 if (intro <= 0.001f) continue;
                 float pop = MathHelper.Lerp(0.8f, 1f, UITheme.EaseOutBack(intro));
@@ -138,7 +127,6 @@ namespace DuskAndDawn
 
                 if (!unlocked)
                 {
-                    // A slot you could buy: faint outline only.
                     UITheme.DrawRoundedRectBorder(spriteBatch, b, Color.White * 0.12f, 1.5f, 8f);
                     continue;
                 }
@@ -166,14 +154,12 @@ namespace DuskAndDawn
                 var icon = Game1.GetItemIcon(itemName);
                 if (icon != null)
                 {
-                    // The item's icon, with its name small underneath.
                     UITheme.DrawPixelIcon(spriteBatch, icon, new Vector2(b.X + (b.Width - 32) / 2f, b.Y + 2), 1);
                     var nameSize = UITheme.MeasureString(font, itemName) * 0.5f;
                     UITheme.DrawTextWithShadow(spriteBatch, font, itemName, new Vector2(b.X + (b.Width - nameSize.X) / 2f, b.Bottom - nameSize.Y - 3), Color.White, 0.5f);
                     continue;
                 }
 
-                // No art: the item name, wrapped to fit the slot.
                 var lines = TextLog.WrapText(font, itemName, (b.Width - 8) / 0.6f);
                 float lineY = b.Y + (b.Height - lines.Count * 16) / 2f;
                 foreach (var line in lines)
@@ -184,7 +170,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // The stash.
             string stashTitle = _playerState.Items.Count == 0
                 ? "Stash: empty"
                 : "Stash - click to pack";
@@ -206,14 +191,12 @@ namespace DuskAndDawn
 
             if (!string.IsNullOrEmpty(_beltMessage))
             {
-                // Each new message slides in and settles.
                 float t = Anim.Intro(_elapsed, _beltMessageAt, 0.25f);
                 var size = UITheme.MeasureString(font, _beltMessage) * 0.62f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, _beltMessage, new Vector2(LoadoutPanel.Right - 20 - size.X + (1f - t) * 12f, StashTop), new Color(255, 205, 150) * t, 0.62f);
             }
         }
 
-        /// <summary>A compact button for paging and buying slots.</summary>
         private static void DrawSmallButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color? textColor = null)
         {
             float hover = button.HoverAmount;

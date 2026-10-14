@@ -7,12 +7,6 @@ using System.Text.Json.Serialization;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// The run on disk. Saved whenever you arrive at the base and again when you leave it for
-    /// the Prepare screen, so quitting at any point resumes from the base on that day (a night in
-    /// progress is replayed from the start). Deleted when the run ends, win or lose.
-    /// Lives next to settings.json in the user's app-data folder.
-    /// </summary>
     public static class SaveGame
     {
         private const int CurrentVersion = 1;
@@ -38,14 +32,11 @@ namespace DuskAndDawn
             }
             catch (Exception)
             {
-                // Read-only or missing app-data folder: the run just isn't saved.
             }
         }
 
-        /// <summary>The saved run, or null if there isn't one or it can't be read.</summary>
         public static PlayerState Load() => Read()?.ToPlayerState();
 
-        /// <summary>Just the day of the saved run, for the main menu's Continue label.</summary>
         public static int? SavedDay => Read()?.Day;
 
         public static void Delete()
@@ -56,7 +47,6 @@ namespace DuskAndDawn
             }
             catch (Exception)
             {
-                // Nothing useful to do - worst case, Continue offers a finished run once more.
             }
         }
 
@@ -73,8 +63,6 @@ namespace DuskAndDawn
                 return null;
             }
         }
-
-        // ---- File format ----
 
         public class SavedWeapon
         {
@@ -146,8 +134,6 @@ namespace DuskAndDawn
                     state.RoomLevels[room] = Math.Clamp(level, 1, PlayerState.MaxRoomLevel);
                 }
 
-                // The constructor hands out a starter kit - replace it with what was saved,
-                // skipping anything this version of the game doesn't know.
                 var weapons = new List<Weapon>();
                 Weapon equipped = null;
                 for (int i = 0; i < Weapons.Count; i++)
@@ -167,12 +153,8 @@ namespace DuskAndDawn
                 state.Items.Clear();
                 state.Items.AddRange(Items.Select(Item.Create).Where(item => item != null));
 
-                // Saves from before the run summary have no night records - the summary just
-                // starts from where this version picked the run up.
                 state.Nights.AddRange((Nights ?? new List<NightRecord>()).Where(n => n != null));
 
-                // Saves from before the belt have none - everything starts in the stash. Slot
-                // count comes from the Storage level restored above.
                 state.Belt.Clear();
                 foreach (var item in (Belt ?? new List<string>()).Select(Item.Create).Where(item => item != null))
                 {

@@ -16,39 +16,30 @@ namespace DuskAndDawn
         private Game1 Game1 => (Game1)Game;
         private readonly PlayerState _playerState;
 
-        // One landmark per district. The button is only used for its hover/press animation
-        // and square hitbox - it stays Enabled even for locked districts, so they can still
-        // be hovered and scouted; the lock is checked on click instead.
         private readonly List<Button> _landmarkButtons = new List<Button>();
         private readonly List<Button> _weaponButtons = new List<Button>();
-        // Which Inventory entry each weapon card shows (cards are paged).
         private readonly List<int> _weaponIndices = new List<int>();
         private int _weaponPage;
         private Button _prevPageButton, _nextPageButton;
         private Button _startButton;
-        private Button _backButton; // back to the base - to reinforce the weapon you just equipped
+        private Button _backButton;
         private bool _leaving;
         private MouseState _previousMouse;
 
-        // Entrance timing: the road is walked out from the shelter, landmarks pop up along
-        // it, and the loadout cards deal in on the right.
         private float _elapsed;
         private const float RoadAt = 0.15f, RoadStep = 0.28f;
 
-        // ---- Layout ----
         private static readonly RectangleF MapPanel = new RectangleF(40, 64, 660, 632);
         private static readonly RectangleF LoadoutPanel = new RectangleF(720, 64, 520, 632);
 
         private static readonly Vector2 ShelterPoint = new Vector2(130, 610);
 
-        // Landmark centers, in DistrictInfo.All order - a road winding from the shelter up
-        // toward the Keep and on to the Castle, so distance on the map reads as danger.
         private static readonly Vector2[] LandmarkPoints =
         {
-            new Vector2(240, 470), // Village Outskirts
-            new Vector2(410, 335), // Church Ruins
-            new Vector2(520, 225), // Castle Keep
-            new Vector2(620, 134)  // The Castle
+            new Vector2(240, 470),
+            new Vector2(410, 335),
+            new Vector2(520, 225),
+            new Vector2(620, 134)
         };
 
         private const float LandmarkRadius = 30f;
@@ -56,7 +47,6 @@ namespace DuskAndDawn
         private const float TooltipWidth = 340f;
         private const float TooltipPadding = 14f;
 
-        // Purely decorative scenery for the map.
         private static readonly Vector2[] RiverPoints =
         {
             new Vector2(330, 64), new Vector2(310, 160), new Vector2(350, 250), new Vector2(300, 380),
@@ -71,12 +61,10 @@ namespace DuskAndDawn
             new Vector2(500, 450), new Vector2(230, 640)
         };
 
-        // Weapon cards: 2 per row, 3 rows a page. The Workshop can fill more than one page
-        // over a long run - the arrows page through, so every weapon can be equipped.
         private const int WeaponsPerRow = 2;
         private const float WeaponCardWidth = 232f;
         private const float WeaponCardHeight = 76f;
-        private const int IconScale = 2; // 32px icons drawn at 64px
+        private const int IconScale = 2;
         private const int MaxWeaponRows = 3;
         private const int WeaponsPerPage = WeaponsPerRow * MaxWeaponRows;
         private int WeaponPageCount => Math.Max(1, (_playerState.Inventory.Count + WeaponsPerPage - 1) / WeaponsPerPage);
@@ -90,12 +78,8 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
-            // Seeds with the real current mouse state instead of a blank default, so a click
-            // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
-            // The last night can only be spent in The Castle. Any other night, a choice that's
-            // locked falls back to the Outskirts.
             if (DayInfo.IsFinalNight(_playerState.Day))
             {
                 _playerState.SelectedDistrict = District.Castle;
@@ -113,7 +97,6 @@ namespace DuskAndDawn
                 _landmarkButtons.Add(new Button(bounds, DistrictInfo.Name(DistrictInfo.All[i])));
             }
 
-            // Open on the page with the equipped weapon.
             _weaponPage = Math.Max(0, _playerState.Inventory.IndexOf(_playerState.EquippedWeapon)) / WeaponsPerPage;
             _prevPageButton = new Button(new RectangleF(LoadoutPanel.X + 20, 360, 90, 22), "< Prev");
             _nextPageButton = new Button(new RectangleF(LoadoutPanel.Right - 110, 360, 90, 22), "Next >");
@@ -208,8 +191,6 @@ namespace DuskAndDawn
                 }
                 else if (hitBack)
                 {
-                    // Nothing here costs anything, so going back is free - equip a weapon here,
-                    // reinforce it in the Workshop, and come back.
                     _backButton.TriggerPress();
                     _leaving = true;
                     ScreenManager.ReplaceScreen(new BaseBuilding(Game, _playerState), ScreenTransitions.FadeTransition(GraphicsDevice));
@@ -228,7 +209,6 @@ namespace DuskAndDawn
             float totalSeconds = (float)gameTime.TotalGameTime.TotalSeconds;
             UITheme.BeginCanvas(spriteBatch);
 
-            // Dusk falling: the sky behind the panels, with the last light low on the horizon.
             Backdrop.Sky(spriteBatch, new Color(22, 20, 36), new Color(40, 24, 30));
             UITheme.DrawGlow(spriteBatch, new Vector2(640, 760), 700f, new Color(255, 120, 60) * (0.12f + 0.03f * UITheme.PulseSine(totalSeconds, 0.6f)));
             int day = _playerState.Day;
@@ -250,25 +230,16 @@ namespace DuskAndDawn
             DrawDestination(spriteBatch, font);
             DrawStartButton(spriteBatch, font);
 
-            // Last, so it sits over the loadout panel when a landmark near the edge is hovered.
             DrawLandmarkTooltip(spriteBatch, font);
 
             spriteBatch.End();
         }
-
-        // =====================================================================
-        // Map
-        // =====================================================================
 
         private void DrawMap(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
             UITheme.DrawPanel(spriteBatch, MapPanel, new Color(30, 38, 44), new Color(16, 20, 26), new Color(150, 120, 70) * 0.7f, 2f, 16f, shadowStrength: 0.6f);
             DrawScenery(spriteBatch, totalSeconds);
 
-            // Road from the shelter through every district in order, drawn out stretch by
-            // stretch as the screen opens. Stretches leading to a locked district stay dim, so
-            // how far you can reach tonight is readable at a glance; the road to tonight's
-            // target marches toward it.
             var previous = ShelterPoint;
             int selectedIndex = Array.IndexOf(DistrictInfo.All, _playerState.SelectedDistrict);
             for (int i = 0; i < LandmarkPoints.Length; i++)
@@ -276,7 +247,6 @@ namespace DuskAndDawn
                 float t = MathHelper.Clamp((_elapsed - RoadAt - i * RoadStep) / RoadStep, 0f, 1f);
                 if (t <= 0f) break;
                 bool onRoute = i <= selectedIndex;
-                // The road to tonight's target is open even through districts sealed tonight.
                 bool reachable = onRoute || _playerState.IsDistrictUnlocked(DistrictInfo.All[i]);
                 Color roadColor = !reachable ? Color.White * 0.15f
                     : onRoute ? new Color(255, 205, 140) * 0.9f
@@ -295,7 +265,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, "Scavenging map", new Vector2(MapPanel.X + 18, MapPanel.Y + 14), new Color(225, 205, 165));
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hover a landmark to scout it, click to choose.", new Vector2(MapPanel.X + 18, MapPanel.Y + MapPanel.Height - 30), new Color(190, 180, 165), 0.65f);
 
-            // A little compass rose in the corner.
             var compass = new Vector2(MapPanel.X + MapPanel.Width - 40, MapPanel.Y + MapPanel.Height - 70);
             spriteBatch.DrawLine(compass + new Vector2(0, -18), compass + new Vector2(0, 18), new Color(225, 205, 165) * 0.6f, 2f);
             spriteBatch.DrawLine(compass + new Vector2(-12, 0), compass + new Vector2(12, 0), new Color(225, 205, 165) * 0.4f, 2f);
@@ -304,7 +273,6 @@ namespace DuskAndDawn
 
         private void DrawScenery(SpriteBatch spriteBatch, float totalSeconds)
         {
-            // Faint survey grid.
             for (float x = MapPanel.X + 60; x < MapPanel.X + MapPanel.Width; x += 60)
             {
                 spriteBatch.DrawLine(new Vector2(x, MapPanel.Y + 4), new Vector2(x, MapPanel.Y + MapPanel.Height - 4), Color.White * 0.03f, 1f);
@@ -314,12 +282,10 @@ namespace DuskAndDawn
                 spriteBatch.DrawLine(new Vector2(MapPanel.X + 4, y), new Vector2(MapPanel.X + MapPanel.Width - 4, y), Color.White * 0.03f, 1f);
             }
 
-            // River - a wide dark band with a lighter current down the middle.
             for (int i = 0; i < RiverPoints.Length - 1; i++)
             {
                 spriteBatch.DrawLine(RiverPoints[i], RiverPoints[i + 1], new Color(26, 44, 66), 12f);
             }
-            // Round off the bends so the segments don't show notches at the joins.
             for (int i = 1; i < RiverPoints.Length - 1; i++)
             {
                 FillCircle(spriteBatch, RiverPoints[i], 6f, new Color(26, 44, 66));
@@ -328,7 +294,6 @@ namespace DuskAndDawn
             {
                 spriteBatch.DrawLine(RiverPoints[i], RiverPoints[i + 1], new Color(70, 110, 150) * 0.35f, 4f);
             }
-            // Glints drifting down the current.
             for (int g = 0; g < 6; g++)
             {
                 float along = ((totalSeconds * 0.05f + g / 6f) % 1f) * (RiverPoints.Length - 1);
@@ -347,7 +312,6 @@ namespace DuskAndDawn
 
         private void DrawShelter(SpriteBatch spriteBatch, SpriteFont font)
         {
-            // Warm lit window - home base, where every road starts.
             var house = new RectangleF(ShelterPoint.X - 18, ShelterPoint.Y - 14, 36, 28);
             UITheme.DrawPanel(spriteBatch, house, new Color(120, 86, 52), new Color(84, 58, 34), new Color(235, 200, 140), 2f, 5f, shadowStrength: 0.5f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(ShelterPoint.X - 6, ShelterPoint.Y - 6, 12, 12), new Color(255, 215, 130), 2f);
@@ -364,13 +328,11 @@ namespace DuskAndDawn
             bool selected = unlocked && district == _playerState.SelectedDistrict;
             float hover = button.HoverAmount;
 
-            // Pops up as the road reaches it; press squash, then a slight grow on hover.
             float arrive = Anim.Pop(_elapsed, RoadAt + (index + 0.7f) * RoadStep, 0.4f);
             if (arrive <= 0.001f) return;
             float radius = LandmarkRadius * arrive * (1f + hover * 0.12f - button.PressAmount * 0.1f);
             if (radius < 1f) return;
 
-            // Selected: a slow ember halo, the same "corruption glow" tell used on the night map.
             if (selected)
             {
                 float pulse = UITheme.PulseSine(totalSeconds, 2.5f);
@@ -392,9 +354,6 @@ namespace DuskAndDawn
             FillCircle(spriteBatch, center, radius, UITheme.Brighten(fill, hover * 0.15f));
             FillCircle(spriteBatch, center + new Vector2(0, -radius * 0.25f), radius * 0.7f, Color.White * 0.06f);
 
-            // The district's landmark art sits in the circle, with its signature material in a
-            // small badge, so the map itself says what each place is good for before you even
-            // hover it. Districts without art yet show the material large instead.
             Color iconTint = unlocked ? Color.White : new Color(130, 125, 135);
             var material = MaterialIcon(DistrictInfo.SpecialtyMaterial(district));
             var landmark = Game1.GetDistrictIcon(district);
@@ -416,7 +375,6 @@ namespace DuskAndDawn
                 DrawCenteredText(spriteBatch, font, "TONIGHT", new Vector2(center.X, center.Y - radius - 30), new Color(255, 215, 150), 0.65f);
             }
 
-            // Dark plate behind the name so the road never cuts through the text.
             string name = DistrictInfo.Name(district);
             var nameSize = UITheme.MeasureString(font, name) * 0.8f;
             var namePos = new Vector2(center.X, center.Y + radius + 8);
@@ -427,7 +385,6 @@ namespace DuskAndDawn
 
             if (unlocked)
             {
-                // Corruption tier as ember pips under the name.
                 int tier = DistrictInfo.Corruption(district);
                 const int maxTier = DistrictInfo.MaxCorruption;
                 const float pip = 5f, gap = 6f;
@@ -445,14 +402,8 @@ namespace DuskAndDawn
             }
         }
 
-        // =====================================================================
-        // Landmark tooltip
-        // =====================================================================
-
         private void DrawLandmarkTooltip(SpriteBatch spriteBatch, SpriteFont font)
         {
-            // Whichever landmark is most hovered owns the tooltip, faded by its hover amount -
-            // so moving between landmarks cross-fades instead of popping.
             int index = -1;
             float best = 0f;
             for (int i = 0; i < _landmarkButtons.Count; i++)
@@ -469,8 +420,6 @@ namespace DuskAndDawn
             var district = DistrictInfo.All[index];
             var center = LandmarkPoints[index];
 
-            // Measure first, then place it beside the landmark, flipped to the left if it
-            // would run off the right edge, and clamped vertically to the screen.
             float height = LayoutTooltip(spriteBatch, font, district, Vector2.Zero, 0f, 0f, draw: false);
             float x = center.X + LandmarkRadius + 22f;
             if (x + TooltipWidth > 1260f)
@@ -483,8 +432,6 @@ namespace DuskAndDawn
             LayoutTooltip(spriteBatch, font, district, topLeft, height, alpha, draw: true);
         }
 
-        /// <summary>Lays out the district tooltip top-down. With draw = false it only measures
-        /// and returns the height, so the caller can size and position the panel first.</summary>
         private float LayoutTooltip(SpriteBatch spriteBatch, SpriteFont font, District district, Vector2 topLeft, float panelHeight, float alpha, bool draw)
         {
             bool unlocked = _playerState.IsDistrictUnlocked(district);
@@ -505,7 +452,6 @@ namespace DuskAndDawn
                 if (draw) UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(lineX, y), color * alpha, scale);
             }
 
-            // Word-wrapped paragraph, advancing y by one line per wrapped row.
             void Wrapped(string text, Color color, float scale)
             {
                 foreach (var line in TextLog.WrapText(font, text, innerWidth / scale))
@@ -522,7 +468,6 @@ namespace DuskAndDawn
                 y += 8f;
             }
 
-            // ---- Header ----
             Text(DistrictInfo.Name(district), left, Color.White, 1f);
             string corruption = $"Corruption {DistrictInfo.Corruption(district)}";
             float corruptionWidth = UITheme.MeasureString(font, corruption).X * 0.7f;
@@ -534,7 +479,6 @@ namespace DuskAndDawn
 
             if (district == District.Castle)
             {
-                // No scavenging here: one hall, one throne, one fight.
                 Wrapped("No rooms to search tonight - one hall, and the throne at the end of it.", new Color(225, 205, 165), 0.66f);
                 y += 4f;
                 Wrapped($"The Sun Herald: {EnemyRoster.SunHeraldHealth} health.", new Color(255, 225, 150), 0.66f);
@@ -551,7 +495,6 @@ namespace DuskAndDawn
                 return y + TooltipPadding - topLeft.Y;
             }
 
-            // ---- Materials ----
             Text("Materials per find", left, new Color(225, 205, 165), 0.75f);
             y += 24f;
 
@@ -589,7 +532,6 @@ namespace DuskAndDawn
             Wrapped("Thorough searches roll twice. The Hoard rolls three times.", new Color(175, 175, 185), 0.65f);
             Divider();
 
-            // ---- Rooms & enemies ----
             var (supplies, encounter, special, empty) = RoomGenerator.Odds(district, 0, day: _playerState.Day);
             Wrapped($"Near the entrance: {Percent(supplies)} supplies, {Percent(encounter)} fights, {Percent(special)} strange, {Percent(empty)} quiet", new Color(210, 210, 220), 0.62f);
 
@@ -611,7 +553,6 @@ namespace DuskAndDawn
             }
             Divider();
 
-            // ---- Footer ----
             if (!unlocked)
             {
                 Wrapped(LockReason(district), new Color(235, 130, 115), 0.7f);
@@ -630,10 +571,6 @@ namespace DuskAndDawn
 
         private static string Percent(float ratio) => $"{(int)MathF.Round(ratio * 100f)}%";
 
-        // =====================================================================
-        // Loadout
-        // =====================================================================
-
         private void DrawWeapons(SpriteBatch spriteBatch, SpriteFont font)
         {
             UITheme.DrawTextWithShadow(spriteBatch, font, "Choose your weapon", new Vector2(LoadoutPanel.X + 20, 78), Color.White * Anim.Intro(_elapsed, 0.1f, 0.4f));
@@ -644,7 +581,6 @@ namespace DuskAndDawn
                 var button = _weaponButtons[i];
                 bool equipped = weapon == _playerState.EquippedWeapon;
                 float hover = button.HoverAmount;
-                // Cards deal in one after another.
                 float intro = Anim.Stagger(_elapsed, i, step: 0.06f, baseDelay: 0.15f, duration: 0.35f);
                 if (intro <= 0.001f) continue;
 
@@ -665,13 +601,11 @@ namespace DuskAndDawn
 
                 if (equipped)
                 {
-                    // The equipped weapon glows like it's catching the lamplight.
                     float shine = UITheme.PulseSine(_elapsed, 1.5f);
                     UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 200, 90) * ((0.12f + shine * 0.08f) * intro));
                 }
                 UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 12f, shadowStrength: 0.6f * intro);
 
-                // Icon on the left (empty slot if the weapon has no art yet), text beside it.
                 float iconSize = 32 * IconScale;
                 var iconPos = new Vector2(drawBounds.X + 10, drawBounds.Y + (drawBounds.Height - iconSize) / 2f);
                 UITheme.DrawIconSlot(spriteBatch, Game1.GetWeaponIcon(weapon), iconPos, IconScale);
@@ -682,7 +616,6 @@ namespace DuskAndDawn
                 string stats = weapon.IsHoly ? $"{weapon.DiceLabel}  +{weapon.CorruptionBonus}/corr" : $"{weapon.DiceLabel}  avg {weapon.AverageDamage:0.#}";
                 UITheme.DrawTextWithShadow(spriteBatch, font, stats, new Vector2(textX, drawBounds.Y + 32), new Color(215, 215, 215) * intro, 0.75f);
 
-                // Bottom line: the trait on the left, "Equipped" tucked in on the right.
                 if (weapon.TraitLabel.Length > 0)
                 {
                     UITheme.DrawTextWithShadow(spriteBatch, font, weapon.TraitLabel, new Vector2(textX, drawBounds.Y + drawBounds.Height - 22), TraitColor(weapon.Trait) * intro, 0.68f);
@@ -695,8 +628,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // What the hovered weapon's trait does (or the equipped one's), in the space under
-            // the cards - when there's room for it.
             if (WeaponPageCount == 1 && _weaponButtons.Count <= WeaponsPerRow * 2)
             {
                 int shown = -1;
@@ -761,7 +692,6 @@ namespace DuskAndDawn
             var bounds = Anim.Slide(_startButton.Bounds, intro, new Vector2(0, 20));
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            // Breathes gently: this is the way forward once you're ready.
             float breathe = UITheme.PulseSine(_elapsed, 1.6f);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(120, 230, 140) * ((0.1f + breathe * 0.08f + hover * 0.1f) * intro));
             UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 14f, shadowStrength: 0.7f * intro);
@@ -789,16 +719,12 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White * intro, 0.9f);
         }
 
-        // =====================================================================
-        // Helpers
-        // =====================================================================
-
         private static Color LandmarkColor(District district) => district switch
         {
-            District.VillageOutskirts => new Color(104, 132, 64),  // mossy fields
-            District.ChurchRuins => new Color(112, 78, 150),       // stained-glass violet
-            District.CastleKeep => new Color(150, 56, 48),         // banner crimson
-            District.Castle => new Color(176, 140, 60),            // the Herald's gold
+            District.VillageOutskirts => new Color(104, 132, 64),
+            District.ChurchRuins => new Color(112, 78, 150),
+            District.CastleKeep => new Color(150, 56, 48),
+            District.Castle => new Color(176, 140, 60),
             _ => new Color(80, 80, 90)
         };
 
@@ -811,13 +737,11 @@ namespace DuskAndDawn
             _ => Color.White
         };
 
-        /// <summary>Short lock tag under a landmark.</summary>
         private string LockLabel(District district) =>
             district == District.Castle ? "Opens on the last night"
             : DayInfo.IsFinalNight(_playerState.Day) ? "Sealed tonight"
             : $"Locked - Archive Lv {DistrictInfo.RequiredArchiveLevel(district)}";
 
-        /// <summary>Why a district can't be chosen tonight, for its tooltip.</summary>
         private string LockReason(District district) =>
             district == District.Castle ? $"Opens only on the last night ({DayInfo.Label(DayInfo.FinalDay)}) - and then it's the only way in."
             : DayInfo.IsFinalNight(_playerState.Day) ? "Sealed tonight - the last night belongs to the Castle."
@@ -831,8 +755,6 @@ namespace DuskAndDawn
             _ => null
         };
 
-        // The material sprites are 320x320 canvases - scaled to fit `size` and drawn from
-        // their own center, the same way the base screen's resource slots draw them.
         private static void DrawMaterialIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 center, float size, Color tint)
         {
             if (texture == null) return;
@@ -841,13 +763,11 @@ namespace DuskAndDawn
             spriteBatch.Draw(texture, center, null, tint, 0f, origin, scale, SpriteEffects.None, 0f);
         }
 
-        // A circle is just a rounded rect whose corner radius is half its size.
         private static void FillCircle(SpriteBatch spriteBatch, Vector2 center, float radius, Color color)
         {
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(center.X - radius, center.Y - radius, radius * 2f, radius * 2f), color, radius);
         }
 
-        /// <param name="phase">How far the dashes have marched along the line, in pixels.</param>
         private static void DrawDashedLine(SpriteBatch spriteBatch, Vector2 from, Vector2 to, Color color, float thickness, float phase = 0f)
         {
             const float dash = 10f, gap = 8f;

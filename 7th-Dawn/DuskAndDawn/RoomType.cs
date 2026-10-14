@@ -11,9 +11,9 @@ namespace DuskAndDawn
         Supplies,
         Encounter,
         Special,
-        Empty,     // quiet hall - flavor, maybe a stray scrap
-        Entrance,  // where the night starts; nothing to resolve
-        Hoard      // the farthest room from the entrance - the night's big prize
+        Empty,
+        Entrance,
+        Hoard
     }
 
     public static class RoomTypeInfo

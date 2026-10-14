@@ -4,13 +4,6 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// One fight: the player against one or more enemies. Each round the player acts, then
-    /// every living enemy carries out the intent it showed, then picks its next one - so the
-    /// player always sees what's coming before choosing. Guard halves normal hits and fully
-    /// blocks Heavy blows, Stuns and the Herald's Brand; spells and Solar Flares ignore it;
-    /// smoke makes everything miss.
-    /// </summary>
     public class CombatEncounter
     {
         private readonly PlayerState _playerState;
@@ -22,27 +15,18 @@ namespace DuskAndDawn
         private bool _guardActive;
         private bool _smokeActive;
 
-        // The round spent shaking off a stun can't be stunned again - otherwise a group of
-        // Penitents could chain chants and lock the player out of the fight.
         private bool _stunImmune;
 
-        // Combat doesn't cost dawn time, so Power Strike's price is risk instead: every hit
-        // next round lands this much harder while you're open.
         public const float PowerStrikeExposure = 1.5f;
         private bool _exposed;
 
-        // Barracks rerolls left in this fight. When a roll comes in below the weapon's
-        // average, one charge is spent automatically and the better of the two rolls is kept.
         private int _rerollsLeft;
 
         public List<Enemy> Enemies { get; }
         public IEnumerable<Enemy> Living => Enemies.Where(e => !e.IsDefeated);
 
-        /// <summary>Who Attack and Power Strike hit. Click an enemy to change it; it moves on
-        /// by itself when the target falls.</summary>
         public Enemy Target { get; private set; }
 
-        /// <summary>Hit by an unguarded Stun: the next action can only be Recover.</summary>
         public bool PlayerStunned { get; private set; }
 
         public bool IsOver => Enemies.All(e => e.IsDefeated) || _playerState.Health <= 0;
@@ -51,28 +35,19 @@ namespace DuskAndDawn
 
         public int RerollsLeft => _rerollsLeft;
 
-        // Searing Brand: this much damage at the end of each of the next BurnTurns rounds.
-        // Guard stops the brand landing; a healing remedy puts it out.
         public int BurnDamage { get; private set; }
         public int BurnTurns { get; private set; }
 
-        /// <summary>There's no running from the Sun Herald - the doors seal behind you.</summary>
         public bool CanFlee => !HasBoss;
 
-        // ---- Last-action results, for the UI to react to (dice popup, hit flashes) ----
-        // Reset at the top of every action, then set as applicable.
         public int LastPlayerRoll { get; private set; }
         public bool LastRollWasAttack { get; private set; }
         public Enemy LastTarget { get; private set; }
         public bool PlayerWasHit { get; private set; }
         public int LastIncomingDamage { get; private set; }
 
-        // The enemies' side of the round ("X hits back for 6. Y begins a chant."), kept
-        // separate from the player's line so the screen can show it a beat later.
         public string LastEnemyReplyText { get; private set; } = "";
 
-        /// <param name="day">Scales how often Wretches wind up heavy blows.</param>
-        /// <param name="summonAid">Makes the ally a boss calls in. null = nobody answers.</param>
         public CombatEncounter(List<Enemy> enemies, PlayerState playerState, DawnTimer dawnTimer, Random random, int day, Func<Enemy> summonAid)
         {
             Enemies = enemies;
@@ -143,7 +118,6 @@ namespace DuskAndDawn
         {
             ResetLastActionEffects();
 
-            // Heals and the Dawn Tincture work the same in or out of a fight.
             string log = item.ApplyRemedy(_playerState, _dawnTimer);
             switch (item.Effect)
             {
@@ -182,7 +156,6 @@ namespace DuskAndDawn
             return log;
         }
 
-        /// <summary>The only action while stunned: the turn is lost, and the enemies act.</summary>
         public string Recover()
         {
             ResetLastActionEffects();
@@ -192,8 +165,6 @@ namespace DuskAndDawn
             return "The binding holds you a moment longer - then you shake it off.";
         }
 
-        /// <summary>Running costs no time, so it costs blood: the hardest hitter gets a
-        /// parting swing at half strength (smoke still covers you). Never knocks you out.</summary>
         public string Flee()
         {
             ResetLastActionEffects();
@@ -217,8 +188,6 @@ namespace DuskAndDawn
             return $"You break off and flee - {chaser.Name} catches you for {parting} on the way out.";
         }
 
-        /// <summary>Applies damage to the target and moves the target on if it falls.
-        /// Returns any extra log text.</summary>
         private string HitTarget(Enemy target, int damage)
         {
             target.TakeDamage(damage);
@@ -233,7 +202,6 @@ namespace DuskAndDawn
             return extra + (Target != null ? $" {target.Name} falls." : "");
         }
 
-        /// <summary>The equipped weapon's trait, after a hit lands. Returns log text.</summary>
         private string ApplyTrait(Enemy target, int damage)
         {
             var weapon = _playerState.EquippedWeapon;
@@ -251,7 +219,6 @@ namespace DuskAndDawn
                     return " It bleeds.";
                 case WeaponTrait.Stagger when !target.IsDefeated:
                     {
-                        // Bosses keep their feet more easily.
                         int chance = target.IsBoss ? weapon.TraitPower / 2 : weapon.TraitPower;
                         if (_random.Next(100) >= chance) return "";
                         target.Stagger();
@@ -262,8 +229,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>One weapon roll with every Barracks modifier and holy-weapon bonus
-        /// applied. Spends a reroll charge automatically on a below-average roll.</summary>
         private int RollWeapon(Enemy target, out bool rerolled)
         {
             var weapon = _playerState.EquippedWeapon;
@@ -288,8 +253,6 @@ namespace DuskAndDawn
             return total;
         }
 
-        /// <summary>Barracks Lv 4: a blocked HEAVY or STUN opens the attacker up for one
-        /// free weapon roll (no reroll spent).</summary>
         private void Riposte(Enemy enemy, List<string> lines)
         {
             if (!_playerState.BarracksRiposte || enemy.IsDefeated) return;
@@ -310,7 +273,6 @@ namespace DuskAndDawn
             LastEnemyReplyText = "";
         }
 
-        /// <summary>Every living enemy carries out its intent, then plans the next one.</summary>
         private void ResolveEnemyTurn()
         {
             if (Enemies.All(e => e.IsDefeated))
@@ -324,7 +286,6 @@ namespace DuskAndDawn
             var joined = new List<Enemy>();
             int totalDamage = 0;
 
-            // Open wounds bleed before anyone moves - a bleeding enemy can fall before it acts.
             foreach (var enemy in Living.ToList())
             {
                 int bled = enemy.TickBleed();
@@ -339,8 +300,6 @@ namespace DuskAndDawn
                 return;
             }
 
-            // Half health breaks the Herald's composure: he ascends, and starts gathering
-            // the light at once (his move this turn becomes the gather).
             foreach (var enemy in Living)
             {
                 if (enemy.TryAscend())
@@ -395,8 +354,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // The brand burns at the end of the round - Guard and smoke don't help against a
-            // fire that's already on you.
             if (BurnTurns > 0 && _playerState.Health > 0)
             {
                 int burn = Math.Min(BurnDamage, _playerState.Health);
@@ -412,8 +369,6 @@ namespace DuskAndDawn
             int summoned = Living.Count(e => e.IsSummoned);
             foreach (var enemy in Living)
             {
-                // Newcomers already picked their opening move - re-planning now would skip a
-                // wind-up's warning turn.
                 if (!joined.Contains(enemy)) enemy.PlanNextAction(_random, _day, summoned);
             }
 
@@ -424,7 +379,6 @@ namespace DuskAndDawn
             LastEnemyReplyText = string.Join(" ", lines);
         }
 
-        /// <summary>One damaging intent against the player. Returns the damage dealt.</summary>
         private int ResolveHit(Enemy enemy, List<string> lines)
         {
             var intent = enemy.Intent;
@@ -456,7 +410,6 @@ namespace DuskAndDawn
                     case IntentType.Attack:
                         damage /= 2;
                         break;
-                    // Spells and Solar Flares ignore Guard.
                 }
             }
 

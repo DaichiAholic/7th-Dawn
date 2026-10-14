@@ -6,8 +6,6 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    /// <summary>A signed change to the three resources and Hope: positive is a gain,
-    /// negative a loss.</summary>
     public readonly struct ResourceDelta
     {
         public int Food { get; }
@@ -30,8 +28,6 @@ namespace DuskAndDawn
         public static ResourceDelta operator +(ResourceDelta a, ResourceDelta b) =>
             new ResourceDelta(a.Food + b.Food, a.Planks + b.Planks, a.Scraps + b.Scraps, a.Hope + b.Hope);
 
-        /// <summary>Each non-zero entry as ("+8 Food", isGain), in a fixed order - screens
-        /// use this to color gains and losses separately.</summary>
         public IEnumerable<(string text, bool gain)> Parts()
         {
             if (Food != 0) yield return (Signed(Food) + " Food", Food > 0);
@@ -45,18 +41,13 @@ namespace DuskAndDawn
         private static string Signed(int value) => value > 0 ? $"+{value}" : value.ToString();
     }
 
-    /// <summary>
-    /// One choice in a morning event. Cost is paid up front and gates the option (you can't
-    /// pick it without the materials, or without Hope to spare). Then Outcome is applied -
-    /// or, for a gamble (Chance under 100), FailOutcome on a miss.
-    /// </summary>
     public class EventOption
     {
         public string Label { get; }
-        public ResourceDelta Cost { get; }       // positive amounts, paid before the roll
+        public ResourceDelta Cost { get; }
         public ResourceDelta Outcome { get; }
         public string ResultText { get; }
-        public int Chance { get; }               // 0-100
+        public int Chance { get; }
         public ResourceDelta FailOutcome { get; }
         public string FailText { get; }
 
@@ -75,13 +66,9 @@ namespace DuskAndDawn
 
         public bool IsGamble => Chance < 100;
 
-        // Hope has to stay above zero after paying - an event should never be the thing
-        // that quietly ends a run on a click.
         public bool CanAfford(PlayerState state) =>
             state.CanAfford(Cost.Food, Cost.Planks, Cost.Scraps) && (Cost.Hope <= 0 || state.Hope > Cost.Hope);
 
-        /// <summary>Pays the cost, rolls the gamble if there is one, and applies the result.
-        /// Returns the story text and everything that actually changed.</summary>
         public (string text, ResourceDelta applied) Resolve(PlayerState state, Random random)
         {
             var paid = state.Apply(-Cost);
@@ -97,8 +84,6 @@ namespace DuskAndDawn
         public string Description { get; }
         public IReadOnlyList<EventOption> Options { get; }
 
-        // null = can always happen. Otherwise the event only comes up when this is true
-        // (e.g. only when the larder is nearly empty).
         private readonly Func<PlayerState, bool> _condition;
 
         public MorningEvent(string title, string description, IReadOnlyList<EventOption> options, Func<PlayerState, bool> condition = null)

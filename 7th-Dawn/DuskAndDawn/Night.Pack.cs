@@ -7,8 +7,6 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: the Pack - using remedies between rooms, so you can patch yourself up
-    // (or buy back time) before walking into the next fight instead of in the middle of it.
     public partial class NightScavengingScreen
     {
         private Button _packButton;
@@ -19,8 +17,6 @@ namespace DuskAndDawn
         private const float PackPanelX = 820f, PackPanelWidth = 420f, PackTop = 148f;
         private const float PackRowHeight = 56f, PackRowGap = 6f;
 
-        // Stopping to tend yourself isn't free: every remedy used on the map costs this much
-        // of the night. (Fights still cost no time, so a remedy mid-fight costs only a turn.)
         private const int PackUseMinutes = 15;
 
         private void InitializePack()
@@ -36,7 +32,6 @@ namespace DuskAndDawn
             RebuildPackRows();
         }
 
-        /// <summary>One row per kind of item, like the combat Items menu.</summary>
         private void RebuildPackRows()
         {
             _packRows.Clear();
@@ -62,8 +57,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Handles a map click while the Pack matters. Returns true if the click was
-        /// used here (so the map underneath doesn't also react).</summary>
         private bool HandlePackClick(int x, int y)
         {
             if (_packButton.Contains(x, y))
@@ -84,7 +77,6 @@ namespace DuskAndDawn
                 return true;
             }
 
-            // Anywhere else closes it - the panel shouldn't trap the map.
             var panel = new RectangleF(PackPanelX, PackTop, PackPanelWidth, PackPanelHeight);
             if (!InputChecker.Contains(panel, x, y)) _packOpen = false;
             return true;
@@ -151,7 +143,6 @@ namespace DuskAndDawn
                 Color border = usable ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
                 UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.4f);
 
-                // The item's icon on the left when it has one (dimmed when it can't be used now).
                 float textX = draw.X + 12;
                 var icon = Game1.GetItemIcon(itemName);
                 if (icon != null)

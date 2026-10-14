@@ -8,7 +8,6 @@ namespace DuskAndDawn
 {
     public static class MorningEventPool
     {
-        // Shorthand so each option below stays readable on a line or two.
         private static ResourceDelta R(int food = 0, int planks = 0, int scraps = 0, int hope = 0) =>
             new ResourceDelta(food, planks, scraps, hope);
 
@@ -18,12 +17,8 @@ namespace DuskAndDawn
         private static EventOption Gamble(string label, int chance, ResourceDelta outcome, string resultText, ResourceDelta failOutcome, string failText, ResourceDelta cost = default) =>
             new EventOption(label, resultText, cost, outcome, chance, failOutcome, failText);
 
-        // Every event keeps at least one option with no Cost, so there's always something
-        // the player can pick. Refusing often isn't free, though - turning people away
-        // costs Hope.
         public static readonly List<MorningEvent> All = new List<MorningEvent>
         {
-            // ---- Trades ----
             new MorningEvent("A trader passes by", "A peddler with a handcart offers dried meat and hard bread.", new[]
             {
                 Option("Trade scraps for food", "You swap scrap metal for a sack of bread.", cost: R(scraps: 5), outcome: R(food: 8)),
@@ -58,7 +53,6 @@ namespace DuskAndDawn
                 Option("Walk away", "You bar the door behind them.")
             }),
 
-            // ---- People at the gate (Food for Hope) ----
             new MorningEvent("A stranger asks for shelter", "A thin figure at the gate begs for a place by the fire.", new[]
             {
                 Option("Take them in", "A new face at the table. Spirits lift.", cost: R(food: 4), outcome: R(hope: 7)),
@@ -79,7 +73,6 @@ namespace DuskAndDawn
                 Option("Close the door", "His muttered prayers fade down the road.")
             }),
 
-            // ---- The household (Food and Hope) ----
             new MorningEvent("Festival of the Seventh Dawn", "The children want to mark another sunrise survived.", new[]
             {
                 Option("Hold a feast", "Singing, full plates, and for once, laughter.", cost: R(food: 8), outcome: R(hope: 10)),
@@ -105,7 +98,6 @@ namespace DuskAndDawn
                 Option("Tighten belts", "Everyone goes to bed hungry.", outcome: R(hope: -6))
             }, state => state.Food < state.DailyUpkeep),
 
-            // ---- Mishaps ----
             new MorningEvent("Rats in the larder", "Something has been gnawing at the food stores overnight.", new[]
             {
                 Option("Throw out the spoiled food", "You scrape the ruined food into the fire.", outcome: R(food: -5)),
@@ -119,7 +111,6 @@ namespace DuskAndDawn
                 Option("Leave it", "Water soaks the stores and everyone's bedding.", outcome: R(food: -3, hope: -4))
             }),
 
-            // ---- Gambles ----
             new MorningEvent("Foraging party", "A few of the household want to search the nearby fields while the light is gentle.", new[]
             {
                 Gamble("Send them out", 70, R(food: 7), "They come back with baskets of roots and berries.",
@@ -134,7 +125,6 @@ namespace DuskAndDawn
                 Option("Leave it", "The river carries it off by noon.")
             }),
 
-            // ---- Good days ----
             new MorningEvent("The garden blooms", "The Kitchen's herb beds came up overnight.", new[]
             {
                 Option("Harvest it all", "Baskets of greens for the larder.", outcome: R(food: 6)),
@@ -147,7 +137,6 @@ namespace DuskAndDawn
             })
         };
 
-        /// <summary>A random event that can happen today, avoiding yesterday's if possible.</summary>
         public static MorningEvent GetRandom(Random random, PlayerState state)
         {
             var eligible = All.Where(e => e.CanHappen(state) && e.Title != state.LastMorningEventTitle).ToList();

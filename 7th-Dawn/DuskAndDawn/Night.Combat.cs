@@ -8,81 +8,56 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    // Night screen: fights - starting them, the action menu, targeting, pacing the exchange,
-    // and how they end.
     public partial class NightScavengingScreen
     {
-        // Combat sub-state
         private CombatEncounter _activeCombat;
         private CombatMenu _combatMenu = CombatMenu.TopLevel;
         private readonly List<Button> _combatButtons = new List<Button>();
 
-        // Items menu groups identical items into one button ("Bandage x2"), so the button
-        // label no longer matches an item name - this holds the real name for each button.
         private readonly List<string> _itemButtonNames = new List<string>();
 
-        // One animated health bar per enemy in the fight (summoned ones get theirs on arrival).
         private readonly Dictionary<Enemy, LerpBar> _enemyBars = new Dictionary<Enemy, LerpBar>();
 
-        // A boss fight's allies: every one given a side of the boss so far, and who stands on
-        // each side now (0 left, 1 right). Kept for the whole fight so nobody changes sides.
         private readonly HashSet<Enemy> _placedAllies = new HashSet<Enemy>();
         private readonly Enemy[] _sideOccupants = new Enemy[2];
 
-        // Set when the fight is the Sun Herald guarding the Hoard: winning opens the Hoard.
         private bool _fightingForHoard;
 
         private const string ShakeItOffLabel = "Shake it off (stunned)";
         private const string NoEscapeLabel = "No escape";
 
-        // ---- Combat sprite effects ----
-        // All three sheets are 7 frames of 64x64. Timings are per whole animation.
-        // Both the player's slash and the enemy's hit on the player play big, in the middle
-        // of the screen, at the same scale so they read as equal-weight beats.
-        private const float AttackAnimDuration = 0.35f;   // quick slash
-        private const float SkillAnimDuration = 0.5f;     // heavier, reads as a bigger move
+        private const float AttackAnimDuration = 0.35f;
+        private const float SkillAnimDuration = 0.5f;
         private const float AttackedAnimDuration = 0.42f;
-        private const int EffectScale = 4;                // native size: 64px per frame on screen
+        private const int EffectScale = 4;
 
-        // Settings > Combat Speed: scales every combat animation and the action lock with it.
         private static float AnimScale => GameSettings.Current.CombatAnimScale;
 
-        // Combat actions are locked until the current exchange has finished playing (our
-        // animation, then the enemy's hit), plus a short breather - so attacks can't be spammed.
         private const float ActionGap = 0.15f;
         private const float MinActionLock = 0.3f;
         private float _actionLock;
         private bool IsActionLocked => _actionLock > 0f;
         private static readonly Vector2 ScreenCenter = new Vector2(640, 360);
 
-        private readonly SpriteEffect _castEffect = new SpriteEffect();     // Attack / Skill - when we hit the enemy
-        private readonly SpriteEffect _playerHitFlash = new SpriteEffect(); // Attacked - when the enemy hits us
+        private readonly SpriteEffect _castEffect = new SpriteEffect();
+        private readonly SpriteEffect _playerHitFlash = new SpriteEffect();
         private readonly DiceRollPopup _diceRollPopup = new DiceRollPopup();
-        private readonly ImpactShake _enemyShake = new ImpactShake();  // punches up our own hit landing
-        private readonly ImpactShake _playerShake = new ImpactShake(); // punches up the enemies' counter-hit landing
-        private Enemy _shakenEnemy;                                     // which panel _enemyShake moves
+        private readonly ImpactShake _enemyShake = new ImpactShake();
+        private readonly ImpactShake _playerShake = new ImpactShake();
+        private Enemy _shakenEnemy;
 
-        // The enemies' turn is resolved instantly under the hood (same method call as our own
-        // action), but showing both hit-flashes at once reads as simultaneous rather than two
-        // separate beats. This delays the player-hit-flash, its log line, and its shake so the
-        // counter visibly lands a beat after ours.
         private const float EnemyCounterDelay = 0.45f;
         private float _pendingPlayerHitDelay = -1f;
         private string _pendingEnemyReplyText = "";
 
-        // The 64x32 HP bar art at 4 screen pixels per art pixel (~171x85 layout units).
         private const int PlayerHpBarScreenScale = 4;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
-
-        // ---------- Encounter (combat) ----------
 
         private void StartEncounter(MapNode room)
         {
             var enemies = room.Enemies;
             if (enemies == null || enemies.All(e => e.IsDefeated))
             {
-                // The maze runs deeper than the old 6-layer map; halve the step count so enemy
-                // strength lands in the same range it was tuned for.
                 int tier = Math.Min(6, room.Depth / 2);
                 enemies = EnemyRoster.RollEncounter(_district, tier, _playerState.Day, _random);
                 _textLog.Push(EncounterIntro(enemies));
@@ -91,17 +66,14 @@ namespace DuskAndDawn
             {
                 enemies = enemies.Where(e => !e.IsDefeated).ToList();
                 bool wounded = enemies.Any(e => e.Health < e.MaxHealth);
-                // The Herald is placed on the Hoard ahead of time, so this is where you first meet him.
                 _textLog.Push(enemies.Any(e => e.IsBoss) ? EncounterIntro(enemies)
                     : wounded ? $"{DescribeGroup(enemies)} still here, waiting for you."
-                    : EncounterIntro(enemies)); // identified ahead of time by the Archive's bestiary
+                    : EncounterIntro(enemies));
             }
 
-            room.Enemies = null; // put back by Retreat() if you run again
+            room.Enemies = null;
             _fightingForHoard = room.Type == RoomType.Hoard;
 
-            // Only the Sun Herald calls for help: frail acolytes from his choir, whatever the
-            // room's depth, so a call is a nuisance rather than a second boss.
             Func<Enemy> summon = enemies.Any(e => e.Kind == EnemyKind.Herald)
                 ? () => EnemyRoster.ChoirAcolyte(_district, _playerState.Day, _random)
                 : null;
@@ -163,9 +135,6 @@ namespace DuskAndDawn
 
                 case CombatMenu.Items:
                     {
-                        // Grouped by name, and a bit more compact than the other menus, since
-                        // the Infirmary and Kitchen can stock up to six different items.
-                        // Tall enough for the name plus a line on what it does.
                         const float itemHeight = 56, itemGap = 6;
                         _itemButtonNames.Clear();
                         foreach (var group in _playerState.Belt.GroupBy(it => it.Name))
@@ -182,12 +151,9 @@ namespace DuskAndDawn
             }
         }
 
-        // The enemy panels' area: right of the action buttons, below the status card (which
-        // reaches y 210 on the left).
         private const float PanelAreaX = 300f, PanelAreaWidth = 940f, PanelGap = 18f, PanelTop = 222f, PanelHeight = 326f;
         private const float WidePanelWidth = 320f, PanelWidth = 290f;
 
-        /// <summary>The index-th of `count` panels side by side, centred in the panel area.</summary>
         private static RectangleF EnemyRowBounds(int index, int count)
         {
             float width = count <= 1 ? WidePanelWidth : Math.Min(PanelWidth, (PanelAreaWidth - PanelGap * (count - 1)) / count);
@@ -196,10 +162,6 @@ namespace DuskAndDawn
             return new RectangleF(x, PanelTop, width, PanelHeight);
         }
 
-        /// <summary>Each enemy that has a panel, with where it stands, in drawing order. A boss
-        /// holds the middle, his allies either side of him - the first on his left, the next on
-        /// his right - and an ally who joins after one has fallen takes the fallen one's place.
-        /// Otherwise the enemies stand in a centred row.</summary>
         private List<(Enemy enemy, RectangleF bounds)> EnemyPanels()
         {
             var enemies = _activeCombat.Enemies;
@@ -212,8 +174,6 @@ namespace DuskAndDawn
             foreach (var ally in enemies)
             {
                 if (ally == boss || _placedAllies.Contains(ally)) continue;
-                // A side that's empty or whose ally has fallen. The boss never has more than
-                // two living allies (Enemy.MaxSummonedAllies), so there's always one.
                 int side = Array.FindIndex(_sideOccupants, occupant => occupant == null || occupant.IsDefeated);
                 if (side < 0) continue;
                 _placedAllies.Add(ally);
@@ -236,7 +196,6 @@ namespace DuskAndDawn
 
         private void HandleCombatClick(int x, int y)
         {
-            // Clicking an enemy makes it the target.
             foreach (var (enemy, bounds) in EnemyPanels())
             {
                 if (!enemy.IsDefeated && InputChecker.Contains(bounds, x, y))
@@ -254,7 +213,6 @@ namespace DuskAndDawn
             }
         }
 
-        // Number keys, top row or keypad, for the Nth combat button.
         private static readonly Keys[][] ButtonKeys =
         {
             new[] { Keys.D1, Keys.NumPad1 }, new[] { Keys.D2, Keys.NumPad2 }, new[] { Keys.D3, Keys.NumPad3 },
@@ -262,8 +220,6 @@ namespace DuskAndDawn
             new[] { Keys.D7, Keys.NumPad7 }, new[] { Keys.D8, Keys.NumPad8 }, new[] { Keys.D9, Keys.NumPad9 }
         };
 
-        /// <summary>Keyboard play: 1-9 press the matching button, Space attacks (or shakes off
-        /// a stun), Tab / Shift+Tab cycle the target, Backspace backs out of a submenu.</summary>
         private void HandleCombatKeys(Func<Keys, bool> pressed, bool shift)
         {
             for (int i = 0; i < ButtonKeys.Length && i < _combatButtons.Count; i++)
@@ -303,7 +259,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Carries out one combat button - from a click or its number key.</summary>
         private void PressCombatButton(Button button)
         {
             if (!button.Enabled) return;
@@ -364,7 +319,6 @@ namespace DuskAndDawn
                 _combatMenu = CombatMenu.TopLevel;
             }
 
-            // The Herald's choir can add an enemy mid-fight.
             foreach (var enemy in _activeCombat.Enemies)
             {
                 if (!_enemyBars.ContainsKey(enemy)) _enemyBars[enemy] = new LerpBar(enemy.Health, enemy.MaxHealth);
@@ -380,8 +334,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Plays the delayed "enemies hit us" beat: Attacked animation, shake, and the
-        /// enemies' log line.</summary>
         private void FirePendingPlayerHit()
         {
             _pendingPlayerHitDelay = -1f;
@@ -394,12 +346,8 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Fires the dice-roll popup and the hit flashes based on what the last action
-        /// actually did - castTexture (Attack.png or Skill.png) only plays for a damage roll.</summary>
         private void TriggerCombatEffects(Texture2D castTexture)
         {
-            // If the last enemy hit is still waiting on its delay when a new action comes in,
-            // play it now so quick clicks never skip it.
             if (_pendingPlayerHitDelay >= 0f)
             {
                 FirePendingPlayerHit();
@@ -420,18 +368,14 @@ namespace DuskAndDawn
 
             if (_activeCombat.PlayerWasHit)
             {
-                // Scheduled rather than played immediately - see EnemyCounterDelay above.
                 _pendingPlayerHitDelay = EnemyCounterDelay * AnimScale;
                 _pendingEnemyReplyText = _activeCombat.LastEnemyReplyText;
             }
             else if (!string.IsNullOrEmpty(_activeCombat.LastEnemyReplyText))
             {
-                // Nothing hit us (all blocked, winding up, or they're all down) - no blow to
-                // stagger against, so the enemies' line shows right away.
                 _textLog.Push(_activeCombat.LastEnemyReplyText);
             }
 
-            // Lock the buttons until this whole exchange has played out.
             float ourPart = _activeCombat.LastRollWasAttack
                 ? (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration)
                 : 0f;
@@ -445,8 +389,6 @@ namespace DuskAndDawn
             bool won = !fled && combat.PlayerWon;
             bool knockedOut = !fled && _playerState.Health <= 0;
 
-            // The fight is over - cut any animation still playing and drop the queued enemy
-            // hit (its log line still shows, so the last blow isn't lost from the log).
             _castEffect.Stop();
             _playerHitFlash.Stop();
             if (_pendingPlayerHitDelay >= 0f && !string.IsNullOrEmpty(_pendingEnemyReplyText))
@@ -479,7 +421,7 @@ namespace DuskAndDawn
             }
             if (won)
             {
-                if (!_fightingForHoard) _roomsCleared++; // the Hoard counts itself below
+                if (!_fightingForHoard) _roomsCleared++;
                 CollectCombatLoot(combat);
                 if (_fightingForHoard)
                 {
@@ -498,8 +440,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Fights are the main source of Scraps: every fallen enemy (except the
-        /// Herald's choir) is stripped, so a weapon that wins without bleeding out pays.</summary>
         private void CollectCombatLoot(CombatEncounter combat)
         {
             int food = 0, planks = 0, scraps = 0;
@@ -521,9 +461,6 @@ namespace DuskAndDawn
             }
         }
 
-        /// <summary>Fleeing backs you out into the room you came from. The enemies stay put -
-        /// still wounded - and the room counts as unexplored again: the corridor through it is
-        /// blocked, and getting past means going back in (and paying the time again).</summary>
         private void Retreat(List<Enemy> survivors)
         {
             var room = _current;
@@ -543,8 +480,6 @@ namespace DuskAndDawn
             _textLog.Push($"You back out the way you came. {DescribeGroup(survivors)} still in there.");
         }
 
-        /// <summary>Beaten by the Sun Herald: there's no one to drag you home from his hall.
-        /// A short beat, then the run is over.</summary>
         private void FallToHerald()
         {
             _playerState.FellToHerald = true;
@@ -554,8 +489,6 @@ namespace DuskAndDawn
             _state = ExplorationState.Map;
         }
 
-        /// <summary>Knocked out: half of tonight's haul is dropped in the dark, the house
-        /// loses Hope, and the night ends.</summary>
         private void Collapse()
         {
             var dropped = new ResourceDelta(

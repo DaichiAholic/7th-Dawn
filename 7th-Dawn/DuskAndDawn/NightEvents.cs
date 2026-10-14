@@ -4,7 +4,6 @@ using System.Linq;
 
 namespace DuskAndDawn
 {
-    /// <summary>What resolving a night event option did.</summary>
     public readonly struct NightEventResult
     {
         public string Text { get; }
@@ -17,9 +16,6 @@ namespace DuskAndDawn
         }
     }
 
-    /// <summary>One choice in a night event. Minutes and Cost are shown and paid up front;
-    /// HealthRisk is the worst the option can do to you, so it can be refused when it
-    /// could knock you out.</summary>
     public class NightEventOption
     {
         public string Label { get; }
@@ -41,7 +37,6 @@ namespace DuskAndDawn
             _resolve = resolve;
         }
 
-        /// <summary>Why this can't be picked right now, or null if it can.</summary>
         public string BlockedReason(PlayerState state, DawnTimer timer)
         {
             if (Minutes > 0 && !timer.CanAfford(Minutes)) return "Dawn would break first";
@@ -50,7 +45,6 @@ namespace DuskAndDawn
             return null;
         }
 
-        /// <summary>Pays the cost and plays out the option. `depth` makes deeper rooms richer.</summary>
         public NightEventResult Resolve(PlayerState state, Random random, int depth)
         {
             state.Apply(-Cost);
@@ -68,21 +62,13 @@ namespace DuskAndDawn
         {
             Title = title;
             Description = description;
-            // Walking away is always possible, and always free.
             Options = options.Append(new NightEventOption("Leave it", "Take nothing and move on.", 0,
                 (s, r, d) => new NightEventResult("You leave it be."))).ToList();
         }
     }
 
-    /// <summary>
-    /// The Strange Rooms of the night: small stories with a choice. What they offer follows
-    /// the district - the Outskirts deal in food and supplies, the Church in timber and
-    /// relics, the Keep in metal (and traps), the Castle in gifts with a price - plus a few
-    /// that can turn up anywhere.
-    /// </summary>
     public static class NightEventPool
     {
-        // Deeper rooms pay a little more: +1 to every non-empty pile per 4 steps in.
         private static int Roll(Random r, int min, int max, int depth) => max <= 0 ? 0 : r.Next(min, max + 1) + depth / 4;
 
         private static NightEventResult Gain(PlayerState s, string text, int food = 0, int planks = 0, int scraps = 0, int hope = 0, int health = 0)
@@ -99,7 +85,6 @@ namespace DuskAndDawn
             ResourceDelta cost = default, int healthRisk = 0) =>
             new NightEventOption(label, detail, minutes, resolve, cost, healthRisk);
 
-        // ---------------- Village Outskirts: food and supplies ----------------
         private static readonly Func<NightEvent>[] Village =
         {
             () => new NightEvent("An abandoned orchard", "Gnarled trees behind a fallen wall, a few still heavy with fruit.",
@@ -136,7 +121,6 @@ namespace DuskAndDawn
                         : Gain(s, "They swarm you all the way out.", food: 2, health: -10), healthRisk: 10)),
         };
 
-        // ---------------- Church Ruins: timber and relics ----------------
         private static readonly Func<NightEvent>[] Church =
         {
             () => new NightEvent("A collapsed nave", "Pews lie splintered beneath a fallen roof beam.",
@@ -165,7 +149,6 @@ namespace DuskAndDawn
                         : Gain(s, "A rung snaps. The floor is very hard.", planks: 3, health: -14), healthRisk: 14)),
         };
 
-        // ---------------- Castle Keep: metal and traps ----------------
         private static readonly Func<NightEvent>[] Keep =
         {
             () => new NightEvent("An armoury rack", "Rusted blades and mail hang from a toppled rack.",
@@ -193,7 +176,6 @@ namespace DuskAndDawn
                 Opt("Search the larder", "Food, and the pots are good iron.", 30, (s, r, d) => Gain(s, "Salted meat and cast iron.", food: Roll(r, 4, 6, d), scraps: Roll(r, 3, 4, d)))),
         };
 
-        // ---------------- Anywhere ----------------
         private static readonly Func<NightEvent>[] Anywhere =
         {
             () => new NightEvent("A candlelit shrine", "Someone still tends this shrine. The candles are fresh.",
@@ -214,7 +196,6 @@ namespace DuskAndDawn
                 Opt("Bury them", "Hope.", 40, (s, r, d) => Gain(s, "It's the least anyone could do.", hope: 5))),
         };
 
-        // ---------------- The Castle: the Herald's gifts, which always cost something ----------------
         private static readonly Func<NightEvent>[] Castle =
         {
             () => new NightEvent("A sunlit chapel", "Light pours through a window that should face the night. It is warm, and it is watching.",
@@ -241,8 +222,6 @@ namespace DuskAndDawn
                         : new NightEventResult("The stalls are not empty after all.", startsFight: true))),
         };
 
-        /// <summary>A district-themed event (or, a quarter of the time, one that can happen
-        /// anywhere), avoiding ones already seen tonight when possible.</summary>
         public static NightEvent Pick(District district, Random random, ISet<string> seenTonight)
         {
             var local = district switch

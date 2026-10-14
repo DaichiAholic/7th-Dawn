@@ -6,23 +6,11 @@ using System.Threading.Tasks;
 
 namespace DuskAndDawn
 {
-    /// <summary>
-    /// Tonight's ruins, laid out as a small maze on a grid. Built in three passes:
-    ///   1. Some cells are filled in as collapsed rubble, so the outline is ragged instead
-    ///      of a neat rectangle.
-    ///   2. A randomized depth-first walk carves corridors from the entrance - this is what
-    ///      gives long winding halls, sharp corners and dead ends.
-    ///   3. A few extra corridors are punched through afterward, so some areas can be
-    ///      reached by separate ways (loops) instead of only one path.
-    /// The room farthest from the entrance becomes the Hoard; the rest are rolled by
-    /// RoomGenerator using their distance from the entrance.
-    /// </summary>
     public class NightMap
     {
         public int Columns { get; }
         public int Rows { get; }
 
-        /// <summary>Null where the cell is solid rubble.</summary>
         public MapNode[,] Grid { get; }
         public List<MapNode> Nodes { get; } = new List<MapNode>();
 
@@ -38,8 +26,6 @@ namespace DuskAndDawn
             Rows = rows;
             Grid = new MapNode[columns, rows];
 
-            // A bad rubble roll can wall off most of the grid - retry a few times, then fall
-            // back to no rubble at all so there's always a decent map.
             for (int attempt = 0; attempt < 12; attempt++)
             {
                 float rubbleChance = attempt < 11 ? 0.16f : 0f;
@@ -67,9 +53,6 @@ namespace DuskAndDawn
             int entranceRow = random.Next(Rows);
             open[0, entranceRow] = true;
 
-            // Randomized depth-first carve (the "recursive backtracker"), done with an
-            // explicit stack. Only cells it reaches become rooms; anything the rubble cut off
-            // stays solid.
             var stack = new Stack<MapNode>();
             Entrance = CreateNode(0, entranceRow, random);
             stack.Push(Entrance);
@@ -98,7 +81,6 @@ namespace DuskAndDawn
                 stack.Push(next);
             }
 
-            // Needs to fill most of the grid, and actually stretch across it.
             bool reachesFarSide = Nodes.Any(n => n.Column >= Columns - 2);
             return Nodes.Count >= Columns * Rows * 0.7f && reachesFarSide;
         }
@@ -111,8 +93,6 @@ namespace DuskAndDawn
             return node;
         }
 
-        /// <summary>Opens a handful of extra corridors between rooms that are side by side but
-        /// weren't connected, turning parts of the tree into loops.</summary>
         private void AddLoops(Random random)
         {
             int loops = Math.Max(2, Nodes.Count / 9);
@@ -158,17 +138,12 @@ namespace DuskAndDawn
                 else node.Type = roomGenerator.PickNext(node.Depth, node.IsDeadEnd);
             }
 
-            // Give the first steps a little breathing room - no fight right at the door.
             foreach (var first in Entrance.Links)
             {
                 if (first.Type == RoomType.Encounter) first.Type = RoomType.Empty;
             }
         }
 
-        /// <summary>Shortest route from start to target where every room along the way
-        /// (other than the target itself) has already been visited - you can only walk
-        /// through ground you know. Returns null if there's no such route. The returned list
-        /// excludes start and ends with target.</summary>
         public List<MapNode> FindKnownPath(MapNode start, MapNode target)
         {
             if (start == null || target == null || start == target) return null;
@@ -198,7 +173,6 @@ namespace DuskAndDawn
             return path;
         }
 
-        /// <summary>Corridor steps from start to every room within maxSteps.</summary>
         public Dictionary<MapNode, int> StepsWithin(MapNode start, int maxSteps)
         {
             var result = new Dictionary<MapNode, int> { { start, 0 } };

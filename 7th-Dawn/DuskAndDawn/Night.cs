@@ -24,15 +24,6 @@ namespace DuskAndDawn
         Items
     }
 
-    /// <summary>
-    /// Phase 2: Night Scavenging. The ruins are a small maze you explore room by room: winding
-    /// corridors, corners, dead ends and a few loops, hidden under fog until your lantern (or
-    /// the Archive's scouting) reaches them. The night runs on a clock from dusk (8 PM) to
-    /// dawn (6 AM): entering a new room takes 30 minutes and every supply-cache choice has its
-    /// own time cost, while walking back through explored rooms and fighting are free.
-    /// Creatures roam between unexplored rooms as the night goes on. Being knocked out in a
-    /// fight ends the night early and costs half of tonight's haul.
-    /// </summary>
     public partial class NightScavengingScreen : GameScreen, IGameplayScreen
     {
         private Game1 Game1 => (Game1)Game;
@@ -40,18 +31,15 @@ namespace DuskAndDawn
         private readonly Random _random = new Random();
         private District _district;
 
-        // ---- Maze layout ----
         private const int MapColumns = 8;
         private const int MapRows = 4;
         private static readonly RectangleF MapArea = new RectangleF(40, 224, 1200, 376);
         private const float RoomSize = 64f;
 
-        private const int RoamChancePercent = 35; // per new room entered
+        private const int RoamChancePercent = 35;
 
-        // ---- The night clock ----
         private const int RoomEntryMinutes = 30;
         private DawnTimer _dawnTimer;
-        // The clock hands sweep to the new time instead of jumping - rendering only.
         private float _displayedElapsed;
         private bool _warnedOfDawn;
         private NightMap _map;
@@ -59,17 +47,11 @@ namespace DuskAndDawn
         private int _roomsVisited;
         private bool _leaving;
 
-        // Rooms the player can click right now: every explored room, plus unexplored rooms
-        // that border one (the frontier). Recomputed whenever the player arrives somewhere.
         private readonly HashSet<MapNode> _reachable = new HashSet<MapNode>();
 
-        // ---- Walking ----
-        // Moving is animated: the lantern token walks the corridors room by room instead
-        // of teleporting, and input on the map is paused until it arrives.
-        private const float WalkSpeed = 420f; // pixels per second
+        private const float WalkSpeed = 420f;
         private List<MapNode> _walkPath;
         private int _walkIndex;
-        // The room you were in before this one - where fleeing takes you back to.
         private MapNode _cameFrom;
         private Vector2 _tokenPosition;
         private bool IsWalking => _walkPath != null;
@@ -77,14 +59,11 @@ namespace DuskAndDawn
         private MapNode _hoveredNode;
         private List<MapNode> _hoverPath;
 
-        // ---- Atmosphere ----
         private const int EmberCount = 46;
         private readonly List<Ember> _embers = new List<Ember>();
 
         private ExplorationState _state = ExplorationState.Map;
 
-        // Seconds since the current state (map, fight, cache, event) began - drives each
-        // panel's entrance. Reset in Draw, the first frame the new state is shown.
         private ExplorationState _shownState = ExplorationState.Map;
         private float _stateTime;
         private readonly TextLog _textLog = new TextLog();
@@ -95,27 +74,19 @@ namespace DuskAndDawn
         private MouseState _previousMouse;
         private KeyboardState _previousKeyboard;
 
-        // Animated health bars - see LerpBar.cs
         private LerpBar _playerHealthBar;
 
-
-        // ---- Knocked out ----
-        // Losing a fight no longer just burns clock time, so it ends the night instead: a short
-        // beat to read what happened, then home, carrying half of what you found.
         private const float CollapseDuration = 2.6f;
         private float _collapseTimer = -1f;
         private string _collapseText = "";
         private int _startFood, _startPlanks, _startScraps;
 
-        // Set when the Sun Herald wins: the collapse beat ends the run instead of the night.
         private bool _collapseEndsRun;
 
-        // ---- Tonight, for the run summary ----
         private int _startHope;
         private int _enemiesDefeatedTonight;
         private bool _knockedOutTonight;
         private bool _nightRecorded;
-
 
         public NightScavengingScreen(Game game, PlayerState playerState) : base(game)
         {
@@ -126,12 +97,9 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
-            // Seeds with the real current mouse state instead of a blank default, so a click
-            // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
             _previousKeyboard = Keyboard.GetState();
 
-            // Rested at the base - full health tonight (more of it with a better Infirmary).
             _playerState.MaxHealth = _playerState.NightMaxHealth;
             _playerState.Health = _playerState.MaxHealth;
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
@@ -146,9 +114,6 @@ namespace DuskAndDawn
             _map = new NightMap(roomGenerator, _random, MapColumns, MapRows);
             LayoutMapNodes();
 
-            // The last night is The Castle's, and it's a single hall with the Sun Herald at the
-            // end of it (see Night.Throne.cs). Beat him and the seventh dawn breaks; fall and
-            // the run is over.
             bool finalNight = DayInfo.IsFinalNight(_playerState.Day);
             _throneRoom = finalNight && _district == District.Castle;
 
@@ -156,8 +121,6 @@ namespace DuskAndDawn
             _current.Visited = true;
             _tokenPosition = _current.Center;
             RefreshVisibility();
-            // Everything visible at the start is already faded in - only rooms found later
-            // should drift out of the fog.
             foreach (var node in _map.Nodes) node.UpdateAnimation(10f, false);
 
             if (_throneRoom) InitializeThrone();
@@ -201,8 +164,6 @@ namespace DuskAndDawn
             _previousKeyboard = keyboard;
             bool KeyPressed(Keys key) => keyboard.IsKeyDown(key) && !previousKeyboard.IsKeyDown(key);
 
-            // Bars and one-shot effects animate every frame regardless of state, so they keep
-            // catching up (or finish playing out) even right after combat ends.
             _playerHealthBar.Update(gameTime, _playerState.Health);
             _textLog.Update(gameTime);
             _castEffect.Update(gameTime);
@@ -213,7 +174,6 @@ namespace DuskAndDawn
             _playerShake.Update(gameTime);
             UpdateEmbers(dt);
             _stateTime += dt;
-            // ~2 real seconds to sweep a full hour, so a room's 30 minutes reads as a quick tick forward.
             _displayedElapsed = UITheme.MoveTowards(_displayedElapsed, _dawnTimer.MinutesElapsed, 180f * dt);
 
             if (_collapseTimer >= 0f)
@@ -251,7 +211,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // The last night has no map - just the walk up to the throne.
             if (_throneRoom && _state == ExplorationState.Map)
             {
                 UpdateThrone(dt, mouse, clicked, KeyPressed);
@@ -265,15 +224,11 @@ namespace DuskAndDawn
                 UpdateWalk(dt);
             }
 
-            // Every interactive element eases its own hover/press animation forward each
-            // frame (even while its screen isn't the active one - that's harmless, it just
-            // idles at rest) so nothing snaps between visual states.
             bool mapInteractive = onMap && !IsWalking;
             bool headBackHovered = mapInteractive && !_packOpen && _headBackButton.Contains(mouse.X, mouse.Y);
             _headBackButton.UpdateAnimation(dt, headBackHovered);
             UpdatePack(dt, mouse, mapInteractive);
 
-            // The maze sits still under the open Pack.
             _hoveredNode = null;
             foreach (var node in _map.Nodes)
             {
@@ -333,8 +288,6 @@ namespace DuskAndDawn
             _previousMouse = mouse;
         }
 
-        // ---------- Map ----------
-
         private void HandleMapClick(int x, int y)
         {
             if (HandlePackClick(x, y)) return;
@@ -387,7 +340,6 @@ namespace DuskAndDawn
         {
             if (node.Visited)
             {
-                // Walking back through explored ground is free - nothing to resolve.
                 RefreshVisibility();
                 return;
             }
@@ -411,7 +363,7 @@ namespace DuskAndDawn
                     StartEvent();
                     break;
                 case RoomType.Hoard:
-                    if (node.Enemies != null) StartEncounter(node); // the Sun Herald, on the last night
+                    if (node.Enemies != null) StartEncounter(node);
                     else ResolveHoard();
                     break;
                 default:
@@ -427,7 +379,6 @@ namespace DuskAndDawn
 
         private bool IsNightOver => !_dawnTimer.HasTimeRemaining || _map.Nodes.All(n => n.Visited);
 
-        /// <summary>One log line the first time the clock drops under an hour.</summary>
         private void WarnOfDawn()
         {
             if (_warnedOfDawn || !_dawnTimer.HasTimeRemaining || _dawnTimer.MinutesLeft > 60) return;
@@ -435,10 +386,6 @@ namespace DuskAndDawn
             _textLog.Push($"{_dawnTimer.ClockLabel}. The sky is starting to pale - under an hour until dawn.");
         }
 
-        /// <summary>What the player can see from where they stand. Explored rooms show their
-        /// doorways (neighbors' types are known), the lantern plus the Archive's scouting
-        /// reveals rooms further along the corridors, and one step beyond that shows only a
-        /// silhouette.</summary>
         private void RefreshVisibility()
         {
             foreach (var node in _map.Nodes)
@@ -458,8 +405,6 @@ namespace DuskAndDawn
                 if (kvp.Value <= scoutSteps) kvp.Key.Scouted = true;
             }
 
-            // Archive Lv 4 bestiary: a scouted enemy room is identified before you go in -
-            // its occupants are rolled now, so the tooltip can say exactly what's waiting.
             if (_playerState.ArchiveBestiary)
             {
                 foreach (var node in _map.Nodes)
@@ -483,9 +428,6 @@ namespace DuskAndDawn
             _reachable.Remove(_current);
         }
 
-        /// <summary>The ruins aren't static: after each new room, a creature may slip from its
-        /// room into a neighboring empty hall. You only see it happen if you can see either
-        /// room - otherwise you just hear it.</summary>
         private void StirTheDark()
         {
             if (_random.Next(100) >= RoamChancePercent) return;
@@ -534,7 +476,6 @@ namespace DuskAndDawn
             ScreenManager.ReplaceScreen(new Dawn(Game, _playerState, _roomsCleared, _roomsVisited), ScreenTransitions.FadeTransition(GraphicsDevice));
         }
 
-        /// <summary>Writes tonight into the run's history, once, however the night ends.</summary>
         private void RecordNight()
         {
             if (_nightRecorded) return;
@@ -553,8 +494,6 @@ namespace DuskAndDawn
                 KnockedOut = _knockedOutTonight
             });
         }
-
-        // ---------- Atmosphere ----------
 
         private Ember SpawnEmber(bool anywhere)
         {
@@ -589,8 +528,6 @@ namespace DuskAndDawn
             }
         }
 
-        // ---------- Empty / Hoard (Strange Rooms are events: see Night.Events.cs) ----------
-
         private static readonly string[] QuietHallLines =
         {
             "Dust and broken furniture. Nothing moves.",
@@ -606,7 +543,6 @@ namespace DuskAndDawn
             string line = QuietHallLines[_random.Next(QuietHallLines.Length)];
             if (_random.Next(100) < 20)
             {
-                // A stray bit of whatever this district is rich in - more in the deeper districts.
                 int amount = _random.Next(1, 3) + DistrictInfo.Corruption(_district) - 1;
                 var (food, planks, scraps) = DistrictInfo.SpecialtyAmount(_district, amount);
                 _playerState.AddResources(food, planks, scraps);
@@ -620,12 +556,10 @@ namespace DuskAndDawn
 
         private void ResolveHoard()
         {
-            // Three finds' worth of this district's materials.
             var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 3);
             _playerState.AddResources(food, planks, scraps);
 
             string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
-            // No weapons out here any more - those come from the Workshop. A good remedy, maybe.
             if (_random.Next(100) < 50)
             {
                 var remedy = _random.Next(3) == 0 ? Item.Elixir() : Item.Tonic();

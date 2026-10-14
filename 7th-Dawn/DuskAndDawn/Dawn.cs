@@ -18,7 +18,6 @@ namespace DuskAndDawn
         private readonly int _roomsCleared;
         private readonly int _roomsVisited;
 
-        // What the Storage cap cut off from tonight's haul.
         private readonly int _lostFood, _lostPlanks, _lostScraps;
 
         private Button _continueButton;
@@ -30,12 +29,9 @@ namespace DuskAndDawn
             _roomsCleared = roomsCleared;
             _roomsVisited = roomsVisited;
 
-            // The night's haul can exceed Storage - this is the moment the overflow is lost.
-            // Done in the constructor so it runs exactly once per dawn.
             (_lostFood, _lostPlanks, _lostScraps) = _playerState.ApplyStorageCap();
         }
 
-        // Dawn sparkles drifting up, and the tallies counting up as the screen settles.
         private readonly ParticleField _sparkles = new ParticleField(45, new RectangleF(0, 200, 1280, 520), new Vector2(-5, -24), new Vector2(5, -10),
             1.2f, 3f, 4f, 8f, new Color(255, 235, 190), new Color(255, 200, 130), wobble: 8f, spawnAtBottom: true);
         private readonly CountUp _food = new CountUp(0f, 30f), _planks = new CountUp(0f, 30f), _scraps = new CountUp(0f, 30f), _rooms = new CountUp(0f, 8f);
@@ -47,11 +43,8 @@ namespace DuskAndDawn
         {
             base.Initialize();
 
-            // Seeds with the real current mouse state instead of a blank default, so a click
-            // still held down from the previous screen doesn't read as a brand-new click here.
             _previousMouse = InputChecker.GetMouse();
 
-            // After the last night there is no next morning - this dawn is the win.
             string label = IsFinalDawn ? "Greet the Seventh Dawn" : "Continue to Morning";
             _continueButton = new Button(new RectangleF(480, 520, 320, 64), label);
         }
@@ -124,7 +117,6 @@ namespace DuskAndDawn
             float buttonIn = Anim.Intro(_elapsed, ButtonAt, 0.45f);
             if (buttonIn > 0.99f)
             {
-                // A slow breathing glow once it's ready, so it reads as the way forward.
                 float breathe = UITheme.PulseSine(_elapsed, 1.6f);
                 var b = _continueButton.Bounds;
                 UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.62f, new Color(255, 170, 90) * (0.12f + breathe * 0.1f));
@@ -134,8 +126,6 @@ namespace DuskAndDawn
             spriteBatch.End();
         }
 
-        /// <summary>Night gives way: the sky warms from indigo to gold over the first seconds
-        /// while the sun climbs out from behind the ruins.</summary>
         private void DrawSunrise(SpriteBatch spriteBatch)
         {
             float rise = UITheme.EaseOutCubic(MathHelper.Clamp(_elapsed / 2.6f, 0f, 1f));
@@ -154,8 +144,6 @@ namespace DuskAndDawn
             _sparkles.Draw(spriteBatch, rise);
         }
 
-        /// <summary>The night's tally: rooms resolved as a filling bar, then the stores, each
-        /// tile popping in with its count running up to the real total.</summary>
         private void DrawTally(SpriteBatch spriteBatch, SpriteFont font)
         {
             float panelIn = Anim.Intro(_elapsed, PanelAt - 0.3f, 0.5f);
@@ -163,7 +151,6 @@ namespace DuskAndDawn
             var panel = Anim.Slide(new RectangleF(290, 200, 700, 280), panelIn, new Vector2(0, 30));
             UITheme.DrawPanel(spriteBatch, panel, new Color(70, 45, 35) * panelIn, new Color(44, 28, 22) * panelIn, new Color(190, 130, 80) * panelIn, 3f, 16f, shadowStrength: 0.7f * panelIn);
 
-            // Rooms resolved, as a bar that fills.
             float x = panel.X + 32, y = panel.Y + 24;
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Rooms resolved  {_rooms.Value} / {_roomsVisited}", new Vector2(x, y), Color.White * panelIn, 0.9f);
             var bar = new RectangleF(x, y + 34, panel.Width - 64, 12);
@@ -174,7 +161,6 @@ namespace DuskAndDawn
                 UITheme.FillRoundedRect(spriteBatch, new RectangleF(bar.X, bar.Y, bar.Width * fill, bar.Height), new Color(240, 170, 90) * panelIn, 6f);
             }
 
-            // The stores, one tile each.
             var textures = new[] { Game1.BreadTexture, Game1.PlanksTexture, Game1.ScrapsTexture };
             string[] labels = { "Food", "Planks", "Scraps" };
             int[] values = { _food.Value, _planks.Value, _scraps.Value };
@@ -199,7 +185,6 @@ namespace DuskAndDawn
                 }
             }
 
-            // Storage verdict, last.
             float verdictIn = Anim.Intro(_elapsed, PanelAt + 0.5f, 0.4f);
             string storageLine = LostLabel();
             Color storageColor = storageLine == null ? new Color(170, 225, 170) : new Color(255, 160, 140);
@@ -208,7 +193,6 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, storageLine, new Vector2(panel.X + (panel.Width - size.X) / 2f, panel.Bottom - 50), storageColor * verdictIn, 0.8f);
         }
 
-        /// <summary>"Storage overflowed - lost 4 Food, 2 Scraps." or null if nothing was lost.</summary>
         private string LostLabel()
         {
             var parts = new List<string>();
