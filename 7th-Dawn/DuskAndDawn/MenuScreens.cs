@@ -229,10 +229,7 @@ namespace DuskAndDawn
             float intro = Anim.Stagger(Elapsed, index, step: 0.07f, baseDelay: EntriesIntroDelay, duration: 0.45f);
             if (intro <= 0.001f) return;
 
-            Color top = armed ? new Color(120, 40, 36) : Color.Lerp(new Color(58, 46, 42), new Color(84, 64, 52), hover);
-            Color bottom = armed ? new Color(80, 24, 22) : Color.Lerp(new Color(36, 28, 26), new Color(54, 40, 34), hover);
-            Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), armed ? 1f : hover);
-            float borderThickness = MathHelper.Lerp(2f, 3.5f, hover);
+            Color border = armed ? new Color(240, 70, 60) : Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), hover);
 
             float squash = button.PressAmount * 4f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(0, 26));
@@ -243,7 +240,7 @@ namespace DuskAndDawn
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.55f, new Color(255, 130, 60) * (0.18f * hover * intro));
             }
-            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 12f, shadowStrength: 0.7f * intro);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
 
             var textSize = UITheme.MeasureString(font, button.Label);
             var textPos = new Vector2(
@@ -265,7 +262,7 @@ namespace DuskAndDawn
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * (0.6f * fade), Color.Black * (0.6f * fade), 1);
             var drawn = Anim.Scale(panel, scale);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawn.X + drawn.Width / 2f, drawn.Y + drawn.Height / 2f), drawn.Width * 0.8f, new Color(200, 100, 55) * (0.12f * fade));
-            UITheme.DrawPanel(spriteBatch, drawn, new Color(62, 54, 58) * fade, new Color(34, 30, 34) * fade, new Color(200, 100, 55) * fade, 3f, 18f, shadowStrength: 0.9f * fade);
+            UITheme.DrawFrame(spriteBatch, drawn, UIFrame.Wood, new Color(200, 100, 55) * fade, fade, shadow: 0.9f);
         }
     }
 

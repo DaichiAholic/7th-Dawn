@@ -306,7 +306,7 @@ namespace DuskAndDawn
             _scrapsPopTimer = MathF.Max(0f, _scrapsPopTimer - dt);
 
             var mouse = InputChecker.GetMouse();
-            bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse);
+            bool clicked = InputChecker.IsNewLeftClick(mouse, _previousMouse) && !ScreenTransitions.IsTransitioning;
             bool panelOpen = _openRoom.HasValue;
 
             _hoveredRoom = null;
@@ -784,11 +784,9 @@ namespace DuskAndDawn
             var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
             UITheme.DrawGlow(spriteBatch, center, bounds.Width * (0.55f + level * 0.05f), new Color(255, 170, 90) * ((0.06f + level * 0.035f) * flicker * intro));
 
-            Color frameColor = maxed ? new Color(60, 110, 75) : new Color(24, 20, 22);
-            frameColor = Color.Lerp(frameColor, new Color(230, 110, 55), hover);
-            float frame = MathHelper.Lerp(3f, 4f, hover);
-            UITheme.DrawSoftShadow(spriteBatch, bounds, 4f, 0.6f);
-            spriteBatch.FillRectangle(new RectangleF(bounds.X - frame, bounds.Y - frame, bounds.Width + frame * 2f, bounds.Height + frame * 2f), frameColor);
+            Color trim = maxed ? new Color(90, 170, 110) : new Color(24, 20, 22);
+            trim = Color.Lerp(trim, new Color(230, 110, 55), hover);
+            UITheme.DrawFrame(spriteBatch, new RectangleF(bounds.X - 8, bounds.Y - 8, bounds.Width + 16, bounds.Height + 16), UIFrame.Wood, trim, shadow: 0.6f);
 
             var art = Game1.GetRoomSprite(room, level);
             if (art != null)
@@ -854,7 +852,7 @@ namespace DuskAndDawn
 
             float dim = 0.55f * Anim.Intro(_elapsed, _panelOpenedAt, 0.2f);
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 0, 1280, 720), Color.Black * dim, Color.Black * dim, 1);
-            UITheme.DrawPanel(spriteBatch, panel, new Color(62, 54, 58), new Color(34, 30, 34), new Color(200, 100, 55), 3f, 18f, shadowStrength: 0.9f);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Wood, new Color(200, 100, 55), shadow: 0.9f);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, $"{room}   Lv {level}/{MaxRoomLevel}", new Vector2(panel.X + 30, panel.Y + 24), Color.White, 1.2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, RoomRole(room), new Vector2(panel.X + 30, panel.Y + 62), new Color(200, 190, 195));
@@ -871,7 +869,7 @@ namespace DuskAndDawn
             if (maxed)
             {
                 _upgradeButton.Label = "Max level";
-                DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(64, 84, 72), new Color(40, 56, 48), null, Color.White, enabled: false);
+                DrawDetailButton(spriteBatch, font, _upgradeButton, null, Color.White, enabled: false, idleBorder: new Color(90, 170, 110));
             }
             else
             {
@@ -879,7 +877,7 @@ namespace DuskAndDawn
                 bool canAfford = _playerState.CanAfford(food, planks, scraps);
                 _upgradeButton.Label = $"Upgrade to Lv {level + 1}";
                 Color costColor = canAfford ? new Color(120, 220, 130) : new Color(230, 100, 90);
-                DrawDetailButton(spriteBatch, font, _upgradeButton, new Color(110, 70, 45), new Color(78, 48, 30), FormatCost(food, planks, scraps), costColor, enabled: true);
+                DrawDetailButton(spriteBatch, font, _upgradeButton, FormatCost(food, planks, scraps), costColor, enabled: true, idleBorder: new Color(200, 110, 60));
 
                 int upkeep = _playerState.DailyUpkeep;
                 int upkeepAfter = _playerState.UpkeepIfUpgraded(room);
@@ -920,24 +918,23 @@ namespace DuskAndDawn
             if (!string.IsNullOrEmpty(_statusLog))
             {
                 Color statusColor = _statusIsError ? new Color(255, 170, 160) : new Color(170, 235, 180);
-                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 30), statusColor, 0.85f);
+                float statusScale = Math.Min(0.85f, (panel.Width - 60) / UITheme.MeasureString(font, _statusLog).X);
+                UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, new Vector2(panel.X + 30, panel.Y + panel.Height - 30), statusColor, statusScale);
             }
 
-            DrawDetailButton(spriteBatch, font, _closeButton, new Color(80, 70, 74), new Color(56, 48, 52), null, Color.White, enabled: true);
+            DrawDetailButton(spriteBatch, font, _closeButton, null, Color.White, enabled: true);
         }
 
-        private void DrawDetailButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color baseTop, Color baseBottom, string rightText, Color rightColor, bool enabled)
+        private void DrawDetailButton(SpriteBatch spriteBatch, SpriteFont font, Button button, string rightText, Color rightColor, bool enabled, Color? idleBorder = null)
         {
             float hover = enabled ? button.HoverAmount : 0f;
-            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
-            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
-            Color border = Color.Lerp(Color.White * 0.5f, new Color(255, 140, 70), hover);
+            Color border = Color.Lerp(idleBorder ?? Color.White * 0.5f, new Color(255, 140, 70), hover);
 
             float squash = button.PressAmount * 3f;
             var bounds = button.Bounds;
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: 0.5f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border, shadow: 0.5f);
 
             var labelSize = UITheme.MeasureString(font, button.Label);
             float textY = drawBounds.Y + (drawBounds.Height - labelSize.Y) / 2f;
@@ -957,17 +954,13 @@ namespace DuskAndDawn
         private void DrawRecipeButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Recipe recipe, string rightText, Color rightColor, bool available)
         {
             float hover = available ? button.HoverAmount : 0f;
-            Color baseTop = available ? new Color(74, 66, 70) : new Color(48, 44, 48);
-            Color baseBottom = available ? new Color(50, 44, 48) : new Color(34, 30, 34);
-            Color top = UITheme.Brighten(baseTop, hover * 0.2f);
-            Color bottom = UITheme.Brighten(baseBottom, hover * 0.2f);
             Color border = Color.Lerp(Color.White * (available ? 0.45f : 0.2f), new Color(255, 140, 70), hover);
 
             float squash = button.PressAmount * 3f;
             var bounds = button.Bounds;
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.4f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border, available ? 1f : 0.8f, shadow: 0.4f);
 
             Color nameColor = available ? Color.White : new Color(150, 145, 145);
             Color detailColor = available ? new Color(200, 195, 190) : new Color(120, 115, 115);
@@ -1041,7 +1034,7 @@ namespace DuskAndDawn
             var card = new RectangleF(500, -70 + 86 * drop, 340, 84);
             var gold = new Color(255, 215, 120);
             UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 230f, gold * (0.3f * alpha));
-            UITheme.DrawPanel(spriteBatch, card, new Color(72, 96, 62) * alpha, new Color(40, 58, 36) * alpha, gold * alpha, 3f, 14f, shadowStrength: 0.8f * alpha);
+            UITheme.DrawFrame(spriteBatch, card, UIFrame.Wood, gold * alpha, alpha, shadow: 0.8f);
 
             var iconCenter = new Vector2(card.X + 44, card.Y + card.Height / 2f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(iconCenter.X - 34, iconCenter.Y - 34, 68, 68), Color.Black * (0.35f * alpha), 10f);
@@ -1098,8 +1091,8 @@ namespace DuskAndDawn
             var textSize = UITheme.MeasureString(font, _statusLog);
             var chip = new RectangleF(position.X - 14, position.Y - 8, textSize.X + 28, textSize.Y + 16);
 
-            UITheme.DrawPanel(spriteBatch, chip, new Color(70, 32, 32), new Color(46, 20, 20), new Color(130, 45, 45), 2f, 10f, shadowStrength: 0.5f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, position, new Color(255, 210, 210));
+            UITheme.DrawFrame(spriteBatch, chip, UIFrame.Tag, new Color(130, 45, 45), shadow: 0.5f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, _statusLog, position, new Color(120, 30, 30), shadowAlpha: 0.12f);
         }
 
         private void DrawEndDayButton(SpriteBatch spriteBatch, SpriteFont font)
@@ -1107,10 +1100,7 @@ namespace DuskAndDawn
             var button = _endDayButton;
             float hover = button.HoverAmount;
 
-            Color top = Color.Lerp(new Color(58, 46, 42), new Color(78, 60, 50), hover);
-            Color bottom = Color.Lerp(new Color(36, 28, 26), new Color(50, 38, 32), hover);
             Color border = Color.Lerp(new Color(200, 90, 45), new Color(255, 140, 70), hover);
-            float borderThickness = MathHelper.Lerp(3f, 4f, hover);
 
             float squash = button.PressAmount * 4f;
             var bounds = button.Bounds;
@@ -1118,7 +1108,7 @@ namespace DuskAndDawn
 
             float breathe = UITheme.PulseSine(_elapsed, 1.6f);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 120, 50) * (0.1f + breathe * 0.08f + hover * 0.12f));
-            UITheme.DrawPanel(spriteBatch, drawBounds, top, bottom, border, borderThickness, 12f, shadowStrength: 0.8f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border, shadow: 0.8f);
 
             var textSize = UITheme.MeasureString(font, button.Label);
             var textPos = new Vector2(
@@ -1183,7 +1173,7 @@ namespace DuskAndDawn
         private void DrawResourceSlot(SpriteBatch spriteBatch, SpriteFont font, float centerX, string label, int value, Action<SpriteBatch, float> drawIcon, float popTimer, Color slotTint)
         {
             var slot = new RectangleF(centerX - 48, 8, 96, 96);
-            UITheme.DrawPanel(spriteBatch, slot, UITheme.Darken(slotTint, 0.05f), UITheme.Darken(slotTint, 0.4f), Color.Black * 0.4f, 2f, 16f, shadowStrength: 0.5f);
+            UITheme.DrawFrame(spriteBatch, slot, UIFrame.Rect, UITheme.Brighten(slotTint, 0.25f), shadow: 0.5f);
 
             drawIcon(spriteBatch, centerX);
 

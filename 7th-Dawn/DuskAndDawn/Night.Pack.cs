@@ -116,11 +116,11 @@ namespace DuskAndDawn
 
         private void DrawPack(SpriteBatch spriteBatch, SpriteFont font)
         {
-            DrawStyledButton(spriteBatch, font, _packButton, new Color(64, 84, 70), new Color(42, 58, 48));
+            DrawStyledButton(spriteBatch, font, _packButton, new Color(150, 200, 160));
             if (!_packOpen) return;
 
             var panel = new RectangleF(PackPanelX, PackTop, PackPanelWidth, PackPanelHeight);
-            UITheme.DrawPanel(spriteBatch, panel, new Color(34, 32, 46), new Color(20, 18, 28), new Color(150, 200, 160), 2f, 14f, shadowStrength: 0.9f);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Wood, new Color(150, 200, 160), shadow: 0.9f);
             UITheme.DrawTextWithShadow(spriteBatch, font, "Pack", new Vector2(panel.X + 16, panel.Y + 12), Color.White);
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Patch yourself up between rooms. Each use takes {DawnTimer.FormatDuration(PackUseMinutes)}.", new Vector2(panel.X + 16, panel.Y + 34), new Color(175, 170, 195), 0.62f);
 
@@ -138,10 +138,8 @@ namespace DuskAndDawn
                 float squash = button.PressAmount * 3f;
                 var draw = new RectangleF(b.X + squash, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
 
-                Color top = usable ? UITheme.Brighten(new Color(60, 70, 64), hover * 0.2f) : new Color(40, 40, 48);
-                Color bottom = usable ? UITheme.Brighten(new Color(40, 48, 44), hover * 0.2f) : new Color(30, 30, 36);
                 Color border = usable ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
-                UITheme.DrawPanel(spriteBatch, draw, top, bottom, border, MathHelper.Lerp(1.5f, 3f, hover), 10f, shadowStrength: 0.4f);
+                UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border, usable ? 1f : 0.7f, shadow: 0.4f);
 
                 float textX = draw.X + 12;
                 var icon = Game1.GetItemIcon(itemName);

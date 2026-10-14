@@ -224,7 +224,7 @@ namespace DuskAndDawn
             DrawMap(spriteBatch, font, totalSeconds);
 
             float loadoutIn = Anim.Intro(_elapsed, 0.05f, 0.4f);
-            UITheme.DrawPanel(spriteBatch, Anim.Slide(LoadoutPanel, loadoutIn, new Vector2(30, 0)), new Color(30, 28, 42) * loadoutIn, new Color(18, 17, 26) * loadoutIn, Color.White * (0.15f * loadoutIn), 2f, 16f, shadowStrength: 0.6f * loadoutIn);
+            UITheme.DrawFrame(spriteBatch, Anim.Slide(LoadoutPanel, loadoutIn, new Vector2(30, 0)), UIFrame.Wood, Color.White * (0.15f * loadoutIn), loadoutIn, shadow: 0.6f);
             DrawWeapons(spriteBatch, font);
             DrawBelt(spriteBatch, font);
             DrawDestination(spriteBatch, font);
@@ -237,7 +237,7 @@ namespace DuskAndDawn
 
         private void DrawMap(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawPanel(spriteBatch, MapPanel, new Color(30, 38, 44), new Color(16, 20, 26), new Color(150, 120, 70) * 0.7f, 2f, 16f, shadowStrength: 0.6f);
+            UITheme.DrawFrame(spriteBatch, MapPanel, UIFrame.Rect, new Color(150, 120, 70) * 0.7f, shadow: 0.6f);
             DrawScenery(spriteBatch, totalSeconds);
 
             var previous = ShelterPoint;
@@ -313,7 +313,7 @@ namespace DuskAndDawn
         private void DrawShelter(SpriteBatch spriteBatch, SpriteFont font)
         {
             var house = new RectangleF(ShelterPoint.X - 18, ShelterPoint.Y - 14, 36, 28);
-            UITheme.DrawPanel(spriteBatch, house, new Color(120, 86, 52), new Color(84, 58, 34), new Color(235, 200, 140), 2f, 5f, shadowStrength: 0.5f);
+            UITheme.DrawFrame(spriteBatch, house, UIFrame.Wood, new Color(235, 200, 140), shadow: 0.5f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(ShelterPoint.X - 6, ShelterPoint.Y - 6, 12, 12), new Color(255, 215, 130), 2f);
 
             DrawCenteredText(spriteBatch, font, "Your Shelter", new Vector2(ShelterPoint.X, ShelterPoint.Y + 22), new Color(235, 215, 180), 0.7f);
@@ -444,7 +444,7 @@ namespace DuskAndDawn
             {
                 var panel = new RectangleF(topLeft.X, topLeft.Y, TooltipWidth, panelHeight);
                 Color accent = unlocked ? LandmarkColor(district) : new Color(90, 88, 96);
-                UITheme.DrawPanel(spriteBatch, panel, new Color(34, 30, 44) * alpha, new Color(20, 18, 28) * alpha, UITheme.Brighten(accent, 0.3f) * alpha, 2f, 12f, shadowStrength: 0.8f * alpha);
+                UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, UITheme.Brighten(accent, 0.3f) * alpha, alpha, shadow: 0.8f);
             }
 
             void Text(string text, float lineX, Color color, float scale)
@@ -584,16 +584,7 @@ namespace DuskAndDawn
                 float intro = Anim.Stagger(_elapsed, i, step: 0.06f, baseDelay: 0.15f, duration: 0.35f);
                 if (intro <= 0.001f) continue;
 
-                Color top = equipped ? new Color(150, 112, 44) : new Color(66, 66, 78);
-                Color bottom = equipped ? new Color(110, 80, 28) : new Color(46, 46, 56);
                 Color border = equipped ? Color.Gold : Color.Lerp(Color.White * 0.6f, Color.White, hover);
-                float borderThickness = equipped ? 3f : MathHelper.Lerp(1.5f, 3f, hover);
-
-                if (!equipped && hover > 0f)
-                {
-                    top = UITheme.Brighten(top, hover * 0.2f);
-                    bottom = UITheme.Brighten(bottom, hover * 0.2f);
-                }
 
                 float squash = button.PressAmount * 3f;
                 var bounds = Anim.Slide(button.Bounds, intro, new Vector2(24, 0));
@@ -604,7 +595,7 @@ namespace DuskAndDawn
                     float shine = UITheme.PulseSine(_elapsed, 1.5f);
                     UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 200, 90) * ((0.12f + shine * 0.08f) * intro));
                 }
-                UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 12f, shadowStrength: 0.6f * intro);
+                UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border * intro, intro, shadow: 0.6f);
 
                 float iconSize = 32 * IconScale;
                 var iconPos = new Vector2(drawBounds.X + 10, drawBounds.Y + (drawBounds.Height - iconSize) / 2f);
@@ -666,7 +657,7 @@ namespace DuskAndDawn
             if (intro <= 0.001f) return;
             var box = Anim.Slide(new RectangleF(LoadoutPanel.X + 20, 556, LoadoutPanel.Width - 40, 50), intro, new Vector2(0, 16));
             float pulse = UITheme.PulseSine(_elapsed, 1.2f);
-            UITheme.DrawPanel(spriteBatch, box, UITheme.Darken(LandmarkColor(district), 0.45f) * intro, UITheme.Darken(LandmarkColor(district), 0.7f) * intro, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), 2f, 10f, shadowStrength: 0.4f * intro);
+            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), intro, shadow: 0.4f);
 
             string specialty = DistrictInfo.SpecialtyMaterial(district);
             var landmark = Game1.GetDistrictIcon(district);
@@ -683,10 +674,7 @@ namespace DuskAndDawn
             float intro = Anim.Intro(_elapsed, 0.55f, 0.4f);
             if (intro <= 0.001f) return;
             float hover = _startButton.HoverAmount;
-            Color top = Color.Lerp(new Color(85, 145, 95), new Color(105, 170, 115), hover);
-            Color bottom = Color.Lerp(new Color(60, 110, 68), new Color(78, 132, 86), hover);
-            Color border = Color.Lerp(Color.White * 0.8f, Color.White, hover);
-            float borderThickness = MathHelper.Lerp(2f, 3f, hover);
+            Color border = Color.Lerp(new Color(120, 220, 135), new Color(200, 255, 210), hover);
 
             float squash = _startButton.PressAmount * 4f;
             var bounds = Anim.Slide(_startButton.Bounds, intro, new Vector2(0, 20));
@@ -694,7 +682,7 @@ namespace DuskAndDawn
 
             float breathe = UITheme.PulseSine(_elapsed, 1.6f);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(120, 230, 140) * ((0.1f + breathe * 0.08f + hover * 0.1f) * intro));
-            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, borderThickness, 14f, shadowStrength: 0.7f * intro);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
             var textSize = UITheme.MeasureString(font, _startButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White * intro);
@@ -705,15 +693,13 @@ namespace DuskAndDawn
             float intro = Anim.Intro(_elapsed, 0.5f, 0.4f);
             if (intro <= 0.001f) return;
             float hover = _backButton.HoverAmount;
-            Color top = Color.Lerp(new Color(70, 62, 78), new Color(92, 82, 102), hover);
-            Color bottom = Color.Lerp(new Color(48, 42, 56), new Color(64, 56, 76), hover);
             Color border = Color.Lerp(Color.White * 0.6f, Color.White, hover);
 
             float squash = _backButton.PressAmount * 4f;
             var bounds = Anim.Slide(_backButton.Bounds, intro, new Vector2(0, 20));
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, MathHelper.Lerp(2f, 3f, hover), 14f, shadowStrength: 0.6f * intro);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.6f);
             var textSize = UITheme.MeasureString(font, _backButton.Label) * 0.9f;
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White * intro, 0.9f);

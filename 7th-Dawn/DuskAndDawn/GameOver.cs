@@ -68,6 +68,7 @@ namespace DuskAndDawn
             var keyboard = Keyboard.GetState();
             var mouse = InputChecker.GetMouse();
             bool Pressed(Keys key) => keyboard.IsKeyDown(key) && !_previousKeyboard.IsKeyDown(key);
+            bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
             bool buttonsLive = _elapsed > ButtonsAt;
             _hoveredPoint = _elapsed > SummaryAt ? PointUnder(mouse.X, mouse.Y) : -1;
 
@@ -77,7 +78,7 @@ namespace DuskAndDawn
             if (!ScreenTransitions.IsTransitioning && buttonsLive)
             {
                 bool released = mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed;
-                if (Pressed(Keys.Enter) || (released && _newRunButton.Contains(mouse.X, mouse.Y)))
+                if ((Pressed(Keys.Enter) && !alt) || (released && _newRunButton.Contains(mouse.X, mouse.Y)))
                 {
                     _newRunButton.TriggerPress();
                     Game1.StartNewRun();
@@ -194,10 +195,8 @@ namespace DuskAndDawn
                 {
                     float pop = MathHelper.Lerp(0.85f, 1f, UITheme.EaseOutBack(t));
                     var tile = Anim.Scale(new RectangleF(x, top, widths[i], height), pop);
-                    Color panelTop = _victory ? new Color(74, 50, 50) : new Color(40, 20, 24);
-                    Color panelBottom = _victory ? new Color(48, 30, 34) : new Color(22, 10, 14);
                     Color border = _victory ? new Color(230, 170, 100) : new Color(150, 50, 45);
-                    UITheme.DrawPanel(spriteBatch, tile, panelTop * t, panelBottom * t, border * t, 2f, 12f, shadowStrength: 0.6f * t);
+                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, border * t, t, shadow: 0.6f);
 
                     var labelSize = UITheme.MeasureString(font, labels[i]) * 0.66f;
                     UITheme.DrawTextWithShadow(spriteBatch, font, labels[i], new Vector2(tile.X + (tile.Width - labelSize.X) / 2f, tile.Y + 12), new Color(210, 195, 185) * t, 0.66f);
@@ -244,10 +243,8 @@ namespace DuskAndDawn
             if (t <= 0.001f) return;
             var panel = Anim.Slide(SummaryPanel, t, new Vector2(0, 20));
             float dy = panel.Y - SummaryPanel.Y;
-            Color panelTop = _victory ? new Color(58, 40, 42) : new Color(34, 18, 22);
-            Color panelBottom = _victory ? new Color(38, 26, 30) : new Color(20, 10, 14);
-            Color surface = Color.Lerp(panelTop, panelBottom, 0.5f);
-            UITheme.DrawPanel(spriteBatch, panel, panelTop * (0.95f * t), panelBottom * (0.95f * t), new Color(170, 120, 80) * (0.8f * t), 2f, 14f, shadowStrength: 0.6f * t);
+            Color surface = new Color(72, 72, 72);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, new Color(170, 120, 80) * (0.8f * t), t, shadow: 0.6f);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hope at nightfall", new Vector2(panel.X + 24, panel.Y + 16), InkPrimary * t, 0.8f);
 
@@ -345,7 +342,7 @@ namespace DuskAndDawn
             if (anchor.X + 14 + width > ChartArea.Right + 60) x = anchor.X - 14 - width;
             float y = MathHelper.Clamp(anchor.Y - height / 2f, SummaryPanel.Y + 6, SummaryPanel.Bottom - height - 6);
             var card = new RectangleF(x, y, width, height);
-            UITheme.DrawPanel(spriteBatch, card, new Color(30, 24, 30) * t, new Color(20, 16, 22) * t, LineColor * (0.7f * t), 1.5f, 8f, shadowStrength: 0.8f * t);
+            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, LineColor * (0.7f * t), t, shadow: 0.8f);
             for (int i = 0; i < lines.Count; i++)
             {
                 UITheme.DrawTextWithShadow(spriteBatch, font, lines[i].text, new Vector2(card.X + 12, card.Y + 8 + i * lineHeight), lines[i].color * t, scale);

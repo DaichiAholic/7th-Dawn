@@ -127,20 +127,18 @@ namespace DuskAndDawn
 
                 if (!unlocked)
                 {
-                    UITheme.DrawRoundedRectBorder(spriteBatch, b, Color.White * 0.12f, 1.5f, 8f);
+                    UITheme.DrawFrameOutline(spriteBatch, b, UIFrame.Rect, Color.White * 0.12f);
                     continue;
                 }
 
                 float hover = button.HoverAmount;
-                Color top = filled ? UITheme.Brighten(new Color(60, 76, 64), hover * 0.2f) : new Color(28, 26, 36);
-                Color bottom = filled ? UITheme.Brighten(new Color(40, 52, 44), hover * 0.2f) : new Color(20, 18, 26);
                 Color border = filled ? Color.Lerp(new Color(150, 200, 160), Color.White, hover) : Color.White * 0.3f;
                 float flash = filled && _slotPackedAt[i] >= 0f ? Anim.Flash(_elapsed, _slotPackedAt[i], 0.5f) : 0f;
                 if (flash > 0f)
                 {
                     UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.9f, new Color(150, 230, 160) * (0.35f * flash));
                 }
-                UITheme.DrawPanel(spriteBatch, b, top * intro, bottom * intro, border * intro, filled ? 2f : 1.5f, 8f, shadowStrength: 0.3f * intro);
+                UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, border * intro, (filled ? 1f : 0.7f) * intro, shadow: 0.3f);
 
                 if (!filled)
                 {
@@ -183,10 +181,8 @@ namespace DuskAndDawn
                 if (chipIn <= 0.001f) continue;
                 var b = Anim.Slide(button.Bounds, chipIn, new Vector2(0, 10));
                 b = new RectangleF(b.X, b.Y - hover * 2f, b.Width, b.Height);
-                UITheme.DrawPanel(spriteBatch, b, (canPack ? UITheme.Brighten(new Color(62, 58, 76), hover * 0.25f) : new Color(40, 38, 48)) * chipIn,
-                    (canPack ? UITheme.Brighten(new Color(44, 40, 56), hover * 0.25f) : new Color(30, 28, 36)) * chipIn,
-                    Color.Lerp(Color.White * 0.35f, Color.White, hover) * chipIn, 1.5f, 8f, shadowStrength: 0.2f * chipIn);
-                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + 10, b.Y + 4), (canPack ? Color.White : new Color(150, 145, 155)) * chipIn, 0.68f);
+                UITheme.DrawFrame(spriteBatch, b, UIFrame.Tag, Color.Lerp(new Color(150, 110, 70), new Color(255, 170, 90), hover) * chipIn, (canPack ? 1f : 0.6f) * chipIn, shadow: 0.2f);
+                UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + 10, b.Y + 4), (canPack ? new Color(60, 38, 22) : new Color(120, 100, 85)) * chipIn, 0.68f, shadowAlpha: 0.12f * chipIn);
             }
 
             if (!string.IsNullOrEmpty(_beltMessage))
@@ -201,8 +197,7 @@ namespace DuskAndDawn
         {
             float hover = button.HoverAmount;
             var b = button.Bounds;
-            UITheme.DrawPanel(spriteBatch, b, UITheme.Brighten(new Color(58, 54, 72), hover * 0.25f), UITheme.Brighten(new Color(40, 36, 52), hover * 0.25f),
-                Color.Lerp(Color.White * 0.4f, Color.White, hover), 1.5f, 8f, shadowStrength: 0.3f);
+            UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, Color.Lerp(Color.White * 0.4f, Color.White, hover), shadow: 0.3f);
             var size = UITheme.MeasureString(font, button.Label) * 0.66f;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + (b.Width - size.X) / 2f, b.Y + (b.Height - size.Y) / 2f), textColor ?? Color.White, 0.66f);
         }

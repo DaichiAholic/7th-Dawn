@@ -124,6 +124,11 @@ namespace DuskAndDawn
             HopeBarFrame = Content.Load<Texture2D>("UI/HopeBarFrame");
             HopeBarGauge = Content.Load<Texture2D>("UI/HopeBarGauge");
             HopeIcon = Content.Load<Texture2D>("UI/HopeIcon");
+            var rectOutline = new SlicedTexture(Content.Load<Texture2D>("UI/FrameRectOutline"), 2, 1, 2, 1);
+            UITheme.RegisterFrame(UIFrame.Rect, new SlicedTexture(Content.Load<Texture2D>("UI/FrameRect"), 2, 6, 2, 9), rectOutline, tileY: false);
+            UITheme.RegisterFrame(UIFrame.Pill, new SlicedTexture(Content.Load<Texture2D>("UI/FramePill"), 4, 5, 4, 6), new SlicedTexture(Content.Load<Texture2D>("UI/FramePillOutline"), 4, 4, 4, 4), tileY: false, washInset: 4);
+            UITheme.RegisterFrame(UIFrame.Tag, new SlicedTexture(Content.Load<Texture2D>("UI/FrameTag"), 5, 3, 5, 3), new SlicedTexture(Content.Load<Texture2D>("UI/FrameTagOutline"), 5, 3, 5, 3), tileY: true, washInset: 3);
+            UITheme.RegisterFrame(UIFrame.Wood, new SlicedTexture(Content.Load<Texture2D>("UI/FrameWood"), 4, 4, 4, 4), rectOutline, tileY: true, outlineInset: 3, washInset: 4);
             AttackedTexture = Content.Load<Texture2D>("Attacked");
             AttackTexture = Content.Load<Texture2D>("Attack");
             SkillTexture = Content.Load<Texture2D>("Skill");
@@ -315,10 +320,8 @@ namespace DuskAndDawn
             var bounds = _menuButton.Bounds;
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            Color top = Color.Lerp(new Color(58, 46, 42), new Color(84, 64, 52), hover) * 0.9f;
-            Color bottom = Color.Lerp(new Color(36, 28, 26), new Color(54, 40, 34), hover) * 0.9f;
             Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), hover);
-            UITheme.DrawPanel(SpriteBatch, drawBounds, top, bottom, border, MathHelper.Lerp(1.5f, 2.5f, hover), 8f, shadowStrength: 0.5f);
+            UITheme.DrawFrame(SpriteBatch, drawBounds, UIFrame.Rect, border, 0.9f, shadow: 0.5f);
 
             Color bar = Color.Lerp(new Color(225, 215, 210), Color.White, hover);
             float barWidth = drawBounds.Width * 0.5f;

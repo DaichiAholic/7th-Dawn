@@ -83,7 +83,8 @@ namespace DuskAndDawn
             var keyboard = Keyboard.GetState();
             var mouse = InputChecker.GetMouse();
             bool Pressed(Keys key) => keyboard.IsKeyDown(key) && !_previousKeyboard.IsKeyDown(key);
-            bool advance = Pressed(Keys.Space) || Pressed(Keys.Enter) || Pressed(Keys.Z)
+            bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
+            bool advance = Pressed(Keys.Space) || (Pressed(Keys.Enter) && !alt) || Pressed(Keys.Z)
                 || (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed);
             _previousKeyboard = keyboard;
             _previousMouse = mouse;

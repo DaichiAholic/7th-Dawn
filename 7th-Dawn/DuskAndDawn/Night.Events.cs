@@ -74,7 +74,7 @@ namespace DuskAndDawn
             if (cardIn <= 0.001f) return;
             var card = Anim.Slide(new RectangleF(60, 280, 320, 300), cardIn, new Vector2(0, 24));
             UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 220f, new Color(150, 90, 230) * ((0.1f + 0.05f * UITheme.PulseSine(totalSeconds, 1.2f)) * cardIn));
-            UITheme.DrawPanel(spriteBatch, card, new Color(52, 34, 70) * cardIn, new Color(32, 20, 46) * cardIn, new Color(170, 120, 230) * cardIn, 3f, 14f, shadowStrength: 0.6f * cardIn);
+            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, new Color(170, 120, 230) * cardIn, cardIn, shadow: 0.6f, wash: new Color(52, 34, 70) * (0.7f * cardIn));
             var sparkleCenter = new Vector2(card.X + card.Width - 40, card.Y + 36);
             float s = 12f + UITheme.PulseSine(totalSeconds, 2.5f) * 4f;
             UITheme.DrawGlow(spriteBatch, sparkleCenter, 30f, new Color(170, 110, 255) * 0.8f);
@@ -108,14 +108,12 @@ namespace DuskAndDawn
             if (intro <= 0.001f) return;
             bool enabled = button.Enabled;
             float hover = button.HoverAmount;
-            Color top = enabled ? UITheme.Brighten(new Color(70, 58, 86), hover * 0.2f) : new Color(44, 44, 50);
-            Color bottom = enabled ? UITheme.Brighten(new Color(46, 38, 58), hover * 0.2f) : new Color(32, 32, 38);
-            Color border = enabled ? Color.Lerp(Color.White * 0.55f, Color.White, hover) : Color.White * 0.18f;
+            Color border = enabled ? Color.Lerp(new Color(185, 150, 225), Color.White, hover) : Color.White * 0.18f;
 
             float squash = button.PressAmount * 3f;
             var b = Anim.Slide(button.Bounds, intro, new Vector2(40, 0));
             var draw = new RectangleF(b.X + squash + hover * 4f, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
-            UITheme.DrawPanel(spriteBatch, draw, top * intro, bottom * intro, border * intro, MathHelper.Lerp(2f, 3f, hover), 10f, shadowStrength: (enabled ? 0.5f : 0.2f) * intro);
+            UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border * intro, (enabled ? 1f : 0.6f) * intro, shadow: enabled ? 0.5f : 0.2f);
             DrawHoverAccent(spriteBatch, draw, hover, new Color(200, 150, 255));
 
             UITheme.DrawTextWithShadow(spriteBatch, font, option.Label, new Vector2(draw.X + 14, draw.Y + 8), (enabled ? Color.White : new Color(140, 140, 150)) * intro, 0.95f);

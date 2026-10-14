@@ -2,11 +2,126 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Extended;
 using System;
+using System.Collections.Generic;
 
 namespace DuskAndDawn
 {
+    public enum UIFrame { Rect, Pill, Tag, Wood }
+
+    public readonly record struct SlicedTexture(Texture2D Texture, int Left, int Top, int Right, int Bottom);
+
     public static class UITheme
     {
+        private const int FramePixelSize = 3;
+
+        private sealed record FrameSprite(SlicedTexture Fill, SlicedTexture? Outline, bool TileY, int OutlineInset, int WashInset);
+
+        private static readonly Dictionary<UIFrame, FrameSprite> _frames = new Dictionary<UIFrame, FrameSprite>();
+        private static readonly List<(int src, int srcLen, int dst, int dstLen)> _columns = new List<(int, int, int, int)>();
+        private static readonly List<(int src, int srcLen, int dst, int dstLen)> _rows = new List<(int, int, int, int)>();
+
+        public static void RegisterFrame(UIFrame frame, SlicedTexture fill, SlicedTexture? outline, bool tileY, int outlineInset = 0, int washInset = 1) =>
+            _frames[frame] = new FrameSprite(fill, outline, tileY, outlineInset, washInset);
+
+        public static void DrawFrame(SpriteBatch spriteBatch, RectangleF bounds, UIFrame frame, Color border, float alpha = 1f, float shadow = 0f, Color? wash = null)
+        {
+            if (alpha <= 0.001f || !_frames.TryGetValue(frame, out var sprite)) return;
+            if (shadow > 0f) DrawSoftShadow(spriteBatch, bounds, 6f, shadow * alpha);
+            DrawFrameLayers(spriteBatch, bounds, sprite, Color.White * alpha, border, wash ?? Color.Transparent);
+        }
+
+        public static void DrawFrameOutline(SpriteBatch spriteBatch, RectangleF bounds, UIFrame frame, Color border)
+        {
+            if (!_frames.TryGetValue(frame, out var sprite)) return;
+            DrawFrameLayers(spriteBatch, bounds, sprite, Color.Transparent, border, Color.Transparent);
+        }
+
+        private static void DrawFrameLayers(SpriteBatch spriteBatch, RectangleF bounds, FrameSprite sprite, Color fill, Color border, Color wash)
+        {
+            int x = (int)MathF.Round(bounds.X * RenderScale), y = (int)MathF.Round(bounds.Y * RenderScale);
+            int w = (int)MathF.Round((bounds.X + bounds.Width) * RenderScale) - x;
+            int h = (int)MathF.Round((bounds.Y + bounds.Height) * RenderScale) - y;
+            if (w <= 0 || h <= 0) return;
+
+            int s = FramePixelSize;
+            var f = sprite.Fill;
+            while (s > 1 && ((f.Left + f.Right) * s > w || (f.Top + f.Bottom) * s > h)) s--;
+
+            spriteBatch.End();
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            if (fill.A > 0) DrawNineSlice(spriteBatch, sprite.Fill, sprite.TileY, x, y, w, h, s, fill);
+            if (wash.A > 0)
+            {
+                int i = sprite.WashInset * s;
+                spriteBatch.FillRectangle(new RectangleF((x + i) / RenderScale, (y + i) / RenderScale, (w - i * 2) / RenderScale, (h - i * 2) / RenderScale), wash);
+            }
+            if (sprite.Outline is SlicedTexture outline && border.A > 0)
+            {
+                int o = sprite.OutlineInset * s;
+                DrawNineSlice(spriteBatch, outline, sprite.TileY, x + o, y + o, w - o * 2, h - o * 2, s, OutlineTint(border));
+            }
+            spriteBatch.End();
+            BeginCanvas(spriteBatch);
+        }
+
+        private static Color OutlineTint(Color color)
+        {
+            const float boost = 255f / 211f;
+            int Channel(byte c) => Math.Min(color.A, (int)(c * boost));
+            return new Color(Channel(color.R), Channel(color.G), Channel(color.B), color.A);
+        }
+
+        private static void DrawNineSlice(SpriteBatch spriteBatch, SlicedTexture sliced, bool tileY, int x, int y, int w, int h, int s, Color color)
+        {
+            if (w <= 0 || h <= 0) return;
+            var texture = sliced.Texture;
+            Slice(_columns, sliced.Left, sliced.Right, texture.Width, w, s, tile: true);
+            Slice(_rows, sliced.Top, sliced.Bottom, texture.Height, h, s, tileY);
+
+            foreach (var row in _rows)
+            {
+                foreach (var column in _columns)
+                {
+                    if (column.dstLen <= 0 || row.dstLen <= 0 || column.srcLen <= 0 || row.srcLen <= 0) continue;
+                    var position = new Vector2((x + column.dst) / RenderScale, (y + row.dst) / RenderScale);
+                    var scale = new Vector2(column.dstLen / (float)column.srcLen, row.dstLen / (float)row.srcLen) / RenderScale;
+                    var source = new Rectangle(column.src, row.src, column.srcLen, row.srcLen);
+                    spriteBatch.Draw(texture, position, source, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                }
+            }
+        }
+
+        private static void Slice(List<(int src, int srcLen, int dst, int dstLen)> slices, int lead, int trail, int textureSize, int size, int s, bool tile)
+        {
+            slices.Clear();
+            int middle = textureSize - lead - trail;
+            int leadLen = lead * s, trailLen = trail * s;
+            if (leadLen + trailLen > size)
+            {
+                leadLen = size * lead / (lead + trail);
+                trailLen = size - leadLen;
+            }
+            int span = size - leadLen - trailLen;
+
+            slices.Add((0, lead, 0, leadLen));
+            if (span > 0 && middle > 0)
+            {
+                if (!tile)
+                {
+                    slices.Add((lead, middle, leadLen, span));
+                }
+                else
+                {
+                    for (int d = 0; d < span; d += middle * s)
+                    {
+                        int len = Math.Min(middle * s, span - d);
+                        slices.Add((lead, (len + s - 1) / s, leadLen + d, len));
+                    }
+                }
+            }
+            slices.Add((textureSize - trail, trail, size - trailLen, trailLen));
+        }
+
         private const int CircleTextureSize = 128;
         private const int CircleRadius = CircleTextureSize / 2;
         private static readonly Rectangle CornerSource = new Rectangle(0, 0, CircleRadius, CircleRadius);
@@ -150,14 +265,6 @@ namespace DuskAndDawn
             spriteBatch.Draw(_circle, new Rectangle((int)(bounds.X + bounds.Width) - r, (int)(bounds.Y + bounds.Height) - r, r, r), CornerSource, color, 0f, Vector2.Zero, SpriteEffects.FlipHorizontally | SpriteEffects.FlipVertically, 0f);
         }
 
-        public static void DrawRoundedRectBorder(SpriteBatch spriteBatch, RectangleF bounds, Color color, float thickness, float radius)
-        {
-            if (thickness <= 0f) return;
-            radius = ClampRadius(bounds, radius);
-            var outer = new RectangleF(bounds.X - thickness, bounds.Y - thickness, bounds.Width + thickness * 2f, bounds.Height + thickness * 2f);
-            FillRoundedRect(spriteBatch, outer, color, radius + thickness);
-        }
-
         public static void DrawSoftShadow(SpriteBatch spriteBatch, RectangleF bounds, float radius, float strength = 1f)
         {
             var offset = new Vector2(4f, 6f);
@@ -226,16 +333,6 @@ namespace DuskAndDawn
             FillGradientRect(spriteBatch, new RectangleF(bounds.X + radius, bounds.Y, bounds.Width - radius * 2f, radius), topColor, ColorAt(bounds.Y + radius), 4);
             FillGradientRect(spriteBatch, new RectangleF(bounds.X, bounds.Y + radius, bounds.Width, bounds.Height - radius * 2f), ColorAt(bounds.Y + radius), ColorAt(bounds.Y + bounds.Height - radius), steps);
             FillGradientRect(spriteBatch, new RectangleF(bounds.X + radius, bounds.Y + bounds.Height - radius, bounds.Width - radius * 2f, radius), ColorAt(bounds.Y + bounds.Height - radius), bottomColor, 4);
-        }
-
-        public static void DrawPanel(SpriteBatch spriteBatch, RectangleF bounds, Color topColor, Color bottomColor, Color borderColor, float borderThickness, float radius, float shadowStrength = 1f)
-        {
-            if (shadowStrength > 0f)
-            {
-                DrawSoftShadow(spriteBatch, bounds, radius, shadowStrength);
-            }
-            DrawRoundedRectBorder(spriteBatch, bounds, borderColor, borderThickness, radius);
-            FillRoundedRectGradient(spriteBatch, bounds, topColor, bottomColor, radius, 14);
         }
 
         public static void DrawPixelIcon(SpriteBatch spriteBatch, Texture2D texture, Vector2 topLeft, float scale, Color? tint = null)

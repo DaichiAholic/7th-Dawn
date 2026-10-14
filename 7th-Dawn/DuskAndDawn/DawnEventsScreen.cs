@@ -254,7 +254,7 @@ namespace DuskAndDawn
             var slot = new RectangleF(x, slotY, SlotWidth, SlotHeight);
             float flash = _deltaTimer > 0f && delta != 0 ? _deltaTimer / DeltaDuration : 0f;
             Color border = Color.Lerp(new Color(150, 110, 70), delta > 0 ? new Color(140, 235, 150) : new Color(255, 130, 110), flash * 0.8f);
-            UITheme.DrawPanel(spriteBatch, slot, new Color(98, 68, 44) * t, new Color(66, 44, 28) * t, border * t, 2f, 12f, shadowStrength: 0.5f * t);
+            UITheme.DrawFrame(spriteBatch, slot, UIFrame.Rect, border * t, t, shadow: 0.5f);
 
             var iconCenter = new Vector2(x + 38, slotY + SlotHeight / 2f);
             if (icon != null)
@@ -291,7 +291,7 @@ namespace DuskAndDawn
             var panel = new RectangleF(ContentX, top, ContentWidth, padding * 2 + _morningReport.Count * lineHeight);
             float panelIn = Anim.Intro(_elapsed, ReportAt - 0.15f, 0.35f);
             if (panelIn <= 0.001f) return panel.Y + panel.Height;
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 244, 222) * panelIn, new Color(236, 214, 180) * panelIn, new Color(150, 110, 70) * panelIn, 2f, 12f, shadowStrength: 0.4f * panelIn);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Tag, new Color(150, 110, 70) * panelIn, panelIn, shadow: 0.4f);
 
             for (int i = 0; i < _morningReport.Count; i++)
             {
@@ -316,7 +316,7 @@ namespace DuskAndDawn
             float t = Anim.Intro(_elapsed, CardAt, 0.45f);
             if (t <= 0.001f) return;
             var panel = Anim.Slide(new RectangleF(ContentX, top, ContentWidth, bottom - top), t, new Vector2(0, 20));
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238) * t, new Color(232, 216, 188) * t, new Color(150, 110, 70) * t, 3f, 16f, shadowStrength: 0.6f * t);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Tag, new Color(150, 110, 70) * t, t, shadow: 0.6f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(panel.X + 12, panel.Y + 18, 5, panel.Height - 36), new Color(220, 120, 60) * (0.85f * t), 2.5f);
 
             LightText(spriteBatch, font, _event.Title, new Vector2(panel.X + 30, panel.Y + 16), Color.Black * t, 1.15f);
@@ -332,10 +332,7 @@ namespace DuskAndDawn
             bool enabled = button.Enabled;
             float hover = button.HoverAmount;
 
-            Color top = enabled ? UITheme.Brighten(new Color(255, 248, 232), hover * 0.3f) : new Color(222, 210, 190);
-            Color bottom = enabled ? UITheme.Brighten(new Color(236, 220, 192), hover * 0.3f) : new Color(206, 192, 170);
             Color border = enabled ? Color.Lerp(new Color(150, 110, 70), new Color(220, 110, 50), hover) : new Color(170, 150, 130);
-            float thickness = enabled ? MathHelper.Lerp(2f, 3f, hover) : 2f;
 
             float squash = button.PressAmount * 3f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(40, 0));
@@ -344,7 +341,7 @@ namespace DuskAndDawn
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.4f, new Color(255, 170, 90) * (0.2f * hover));
             }
-            UITheme.DrawPanel(spriteBatch, drawBounds, top * intro, bottom * intro, border * intro, thickness, 12f, shadowStrength: (enabled ? 0.5f : 0.2f) * intro);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Tag, border * intro, (enabled ? 1f : 0.7f) * intro, shadow: enabled ? 0.5f : 0.2f);
             if (hover > 0.01f)
             {
                 UITheme.FillRoundedRect(spriteBatch, new RectangleF(drawBounds.X + 6, drawBounds.Y + 12, 5, drawBounds.Height - 24), new Color(220, 110, 50) * hover, 2.5f);
@@ -392,7 +389,7 @@ namespace DuskAndDawn
             var panel = Anim.Scale(ResultPanel(font), MathHelper.Lerp(0.94f, 1f, UITheme.EaseOutBack(t)));
             bool good = _resultDelta.Parts().All(p => p.gain);
             Color accent = _resultDelta.IsEmpty ? new Color(150, 110, 70) : good ? GainColor : LossColor;
-            UITheme.DrawPanel(spriteBatch, panel, new Color(255, 250, 238) * t, new Color(232, 216, 188) * t, Color.Lerp(new Color(150, 110, 70), accent, 0.5f) * t, 2.5f, 12f, shadowStrength: 0.5f * t);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Tag, Color.Lerp(new Color(150, 110, 70), accent, 0.5f) * t, t, shadow: 0.5f);
 
             for (int i = 0; i < lines.Count; i++)
             {

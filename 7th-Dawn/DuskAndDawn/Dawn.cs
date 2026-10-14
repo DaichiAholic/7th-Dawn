@@ -149,7 +149,7 @@ namespace DuskAndDawn
             float panelIn = Anim.Intro(_elapsed, PanelAt - 0.3f, 0.5f);
             if (panelIn <= 0.001f) return;
             var panel = Anim.Slide(new RectangleF(290, 200, 700, 280), panelIn, new Vector2(0, 30));
-            UITheme.DrawPanel(spriteBatch, panel, new Color(70, 45, 35) * panelIn, new Color(44, 28, 22) * panelIn, new Color(190, 130, 80) * panelIn, 3f, 16f, shadowStrength: 0.7f * panelIn);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Wood, new Color(190, 130, 80) * panelIn, panelIn, shadow: 0.7f);
 
             float x = panel.X + 32, y = panel.Y + 24;
             UITheme.DrawTextWithShadow(spriteBatch, font, $"Rooms resolved  {_rooms.Value} / {_roomsVisited}", new Vector2(x, y), Color.White * panelIn, 0.9f);
@@ -172,7 +172,7 @@ namespace DuskAndDawn
                 if (t > 0.001f)
                 {
                     var tile = Anim.Scale(new RectangleF(tileX + i * (tileW + tileGap), panel.Y + 92, tileW, tileH), MathHelper.Lerp(0.8f, 1f, UITheme.EaseOutBack(t)));
-                    UITheme.DrawPanel(spriteBatch, tile, new Color(90, 62, 48) * t, new Color(62, 42, 32) * t, new Color(150, 105, 70) * t, 2f, 12f, shadowStrength: 0.4f * t);
+                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, new Color(150, 105, 70) * t, t, shadow: 0.4f);
                     var texture = textures[i];
                     if (texture != null)
                     {

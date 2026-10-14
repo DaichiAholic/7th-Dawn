@@ -54,7 +54,9 @@ namespace DuskAndDawn
             bool ready = ThroneReady;
             _approachButton.UpdateAnimation(dt, ready && _approachButton.Contains(mouse.X, mouse.Y));
 
-            bool advance = clicked || keyPressed(Keys.Space) || keyPressed(Keys.Enter);
+            var keyboard = Keyboard.GetState();
+            bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
+            bool advance = clicked || keyPressed(Keys.Space) || (keyPressed(Keys.Enter) && !alt);
             if (!advance || _leaving || ScreenTransitions.IsTransitioning) return;
 
             if (!ready)

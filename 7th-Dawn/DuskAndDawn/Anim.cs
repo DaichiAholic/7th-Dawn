@@ -41,15 +41,13 @@ namespace DuskAndDawn
             float grow = hover * 5f;
             var b = new RectangleF(bounds.X + squash - grow, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f + grow * 2f, bounds.Height - squash);
 
-            Color top = primary ? Color.Lerp(new Color(110, 58, 36), new Color(140, 76, 46), hover) : Color.Lerp(new Color(58, 46, 42), new Color(84, 64, 52), hover);
-            Color bottom = primary ? Color.Lerp(new Color(70, 34, 24), new Color(96, 48, 30), hover) : Color.Lerp(new Color(36, 28, 26), new Color(54, 40, 34), hover);
-            Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 150, 80), hover);
+            Color border = primary ? Color.Lerp(new Color(220, 110, 55), new Color(255, 170, 90), hover) : Color.Lerp(new Color(150, 75, 45), new Color(255, 150, 80), hover);
 
             if (hover > 0.01f || primary)
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.55f, new Color(255, 130, 60) * ((primary ? 0.1f : 0f) + 0.18f * hover) * intro);
             }
-            UITheme.DrawPanel(spriteBatch, b, top * intro, bottom * intro, border * intro, MathHelper.Lerp(2f, 3.5f, hover), 12f, shadowStrength: 0.7f * intro);
+            UITheme.DrawFrame(spriteBatch, b, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
 
             var size = UITheme.MeasureString(font, button.Label) * textScale;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + (b.Width - size.X) / 2f, b.Y + (b.Height - size.Y) / 2f), Color.White * intro, textScale, shadowAlpha: 0.45f * intro);
