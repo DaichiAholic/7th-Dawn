@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- .NET 8 (LTS): builds with the .NET 8, 9 or 10 SDK, and runs on any newer runtime. -->
@@ -25,15 +25,17 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MonoGame.Extended" Version="6.1.1" />
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.6" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.6" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.5.1" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.5.1" />
   </ItemGroup>
 
   <!-- A "Download ZIP" from GitHub leaves every file marked as downloaded from the internet
        (Windows: "this file came from another computer and might be blocked"). On Windows,
        clear that mark from the project's files once, on the first build. Never fails the build. -->
-  <Target Name="UnblockDownloadedFiles" BeforeTargets="PrepareForBuild;_RestoreMGCBTool" Condition="'$(OS)' == 'Windows_NT' And !Exists('$(IntermediateOutputPath)unblocked.marker')">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-ChildItem -LiteralPath '$(MSBuildProjectDirectory.Replace(&quot;'&quot;, &quot;''&quot;))' -Recurse -File | Unblock-File&quot;" IgnoreExitCode="true" ContinueOnError="true" StandardOutputImportance="low" />
+  <Target Name="UnblockDownloadedFiles" BeforeTargets="PrepareForBuild;_RestoreMGCBTool"
+          Condition="'$(OS)' == 'Windows_NT' And !Exists('$(IntermediateOutputPath)unblocked.marker')">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;Get-ChildItem -LiteralPath '$(MSBuildProjectDirectory.Replace(&quot;'&quot;, &quot;''&quot;))' -Recurse -File | Unblock-File&quot;"
+          IgnoreExitCode="true" ContinueOnError="true" StandardOutputImportance="low" />
     <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
     <Touch Files="$(IntermediateOutputPath)unblocked.marker" AlwaysCreate="true" ContinueOnError="true" />
   </Target>
@@ -54,7 +56,8 @@
     <Exec Condition="'$(_MgcbToolRestoreExit)' != '0'" Command="&quot;$(DotnetCommand)&quot; tool restore" WorkingDirectory="$(MSBuildProjectDirectory)" IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_MgcbToolRestoreExit" />
     </Exec>
-    <Error Condition="'$(_MgcbToolRestoreExit)' != '0'" Text="Couldn't download the MonoGame content builder (MGCB, about 220 MB) that builds the game's art and fonts. Check your internet connection, then build again - or run &quot;dotnet tool restore&quot; in the 7th-Dawn/DuskAndDawn folder. See README.md." />
+    <Error Condition="'$(_MgcbToolRestoreExit)' != '0'"
+           Text="Couldn't download the MonoGame content builder (MGCB, about 220 MB) that builds the game's art and fonts. Check your internet connection, then build again - or run &quot;dotnet tool restore&quot; in the 7th-Dawn/DuskAndDawn folder. See README.md." />
     <MakeDir Directories="$(IntermediateOutputPath)" Condition="!Exists('$(IntermediateOutputPath)')" />
     <Touch Files="$(IntermediateOutputPath)mgcb.tool.restore" AlwaysCreate="true" />
   </Target>
