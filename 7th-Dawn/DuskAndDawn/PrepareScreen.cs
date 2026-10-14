@@ -237,7 +237,7 @@ namespace DuskAndDawn
 
         private void DrawMap(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawFrame(spriteBatch, MapPanel, UIFrame.Rect, new Color(150, 120, 70) * 0.7f, shadow: 0.6f);
+            UITheme.DrawFrame(spriteBatch, MapPanel, UIFrame.Rect, new Color(150, 120, 70) * 0.7f, shadow: 0.6f, surface: Palette.NightMap);
             DrawScenery(spriteBatch, totalSeconds);
 
             var previous = ShelterPoint;
@@ -444,7 +444,7 @@ namespace DuskAndDawn
             {
                 var panel = new RectangleF(topLeft.X, topLeft.Y, TooltipWidth, panelHeight);
                 Color accent = unlocked ? LandmarkColor(district) : new Color(90, 88, 96);
-                UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, UITheme.Brighten(accent, 0.3f) * alpha, alpha, shadow: 0.8f);
+                UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, UITheme.Brighten(accent, 0.3f) * alpha, alpha, shadow: 0.8f, surface: Palette.NightPanel);
             }
 
             void Text(string text, float lineX, Color color, float scale)
@@ -593,7 +593,7 @@ namespace DuskAndDawn
                     float shine = UITheme.PulseSine(_elapsed, 1.5f);
                     UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(255, 200, 90) * ((0.12f + shine * 0.08f) * intro));
                 }
-                UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border * intro, intro, shadow: 0.6f);
+                UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border * intro, intro, shadow: 0.6f, surface: equipped ? new Color(72, 56, 24) : new Color(46, 46, 58));
 
                 float iconSize = 32 * IconScale;
                 var iconPos = new Vector2(drawBounds.X + 10, drawBounds.Y + (drawBounds.Height - iconSize) / 2f);
@@ -655,7 +655,7 @@ namespace DuskAndDawn
             if (intro <= 0.001f) return;
             var box = Anim.Slide(new RectangleF(LoadoutPanel.X + 20, 556, LoadoutPanel.Width - 40, 50), intro, new Vector2(0, 16));
             float pulse = UITheme.PulseSine(_elapsed, 1.2f);
-            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), intro, shadow: 0.4f);
+            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, new Color(255, 170, 90) * ((0.45f + pulse * 0.3f) * intro), intro, shadow: 0.4f, surface: UITheme.Darken(LandmarkColor(district), 0.5f));
 
             string specialty = DistrictInfo.SpecialtyMaterial(district);
             var landmark = Game1.GetDistrictIcon(district);
@@ -680,7 +680,7 @@ namespace DuskAndDawn
 
             float breathe = UITheme.PulseSine(_elapsed, 1.6f);
             UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.6f, new Color(120, 230, 140) * ((0.1f + breathe * 0.08f + hover * 0.1f) * intro));
-            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f, surface: new Color(40, 66, 46));
             var textSize = UITheme.MeasureString(font, _startButton.Label);
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _startButton.Label, textPos, Color.White * intro);
@@ -697,7 +697,7 @@ namespace DuskAndDawn
             var bounds = Anim.Slide(_backButton.Bounds, intro, new Vector2(0, 20));
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f - hover * 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
-            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.6f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.6f, surface: new Color(54, 50, 64));
             var textSize = UITheme.MeasureString(font, _backButton.Label) * 0.9f;
             var textPos = new Vector2(drawBounds.X + (drawBounds.Width - textSize.X) / 2f, drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, _backButton.Label, textPos, Color.White * intro, 0.9f);

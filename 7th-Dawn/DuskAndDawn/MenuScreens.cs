@@ -240,7 +240,7 @@ namespace DuskAndDawn
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(drawBounds.X + drawBounds.Width / 2f, drawBounds.Y + drawBounds.Height / 2f), drawBounds.Width * 0.55f, new Color(255, 130, 60) * (0.18f * hover * intro));
             }
-            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Pill, border * intro, intro, shadow: 0.7f, surface: armed ? new Color(72, 30, 28) : Palette.EmberPanel);
 
             var textSize = UITheme.MeasureString(font, button.Label);
             var textPos = new Vector2(

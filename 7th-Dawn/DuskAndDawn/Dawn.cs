@@ -172,7 +172,7 @@ namespace DuskAndDawn
                 if (t > 0.001f)
                 {
                     var tile = Anim.Scale(new RectangleF(tileX + i * (tileW + tileGap), panel.Y + 92, tileW, tileH), MathHelper.Lerp(0.8f, 1f, UITheme.EaseOutBack(t)));
-                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, new Color(150, 105, 70) * t, t, shadow: 0.4f);
+                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, new Color(150, 105, 70) * t, t, shadow: 0.4f, surface: Palette.DawnPanel);
                     var texture = textures[i];
                     if (texture != null)
                     {

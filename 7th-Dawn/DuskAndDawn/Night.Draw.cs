@@ -23,11 +23,15 @@ namespace DuskAndDawn
             public static readonly Color Mist = new Color(0xAD, 0xB5, 0xBE);
             public static readonly Color Deep = new Color(0x1A, 0x17, 0x16);
             public static readonly Color Dim = new Color(0x84, 0x88, 0x8D);
+            public static readonly Color Raised = new Color(0x42, 0x3D, 0x3B);
         }
 
         private float CombatDark => _state == ExplorationState.Encounter ? UITheme.EaseOutCubic(Anim.Intro(_stateTime, 0f, 0.6f)) : 0f;
 
         private Color Themed(Color map, Color fight) => Color.Lerp(map, fight, CombatDark);
+
+        private Color PanelSurface => Themed(Palette.NightPanel, FightPalette.Umber);
+        private Color PanelBorder => Themed(Palette.NightBorder, FightPalette.Ash);
 
         public override void Draw(GameTime gameTime)
         {
@@ -139,9 +143,8 @@ namespace DuskAndDawn
 
         private void DrawHud(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            Color cardBorder = Themed(new Color(80, 72, 100), FightPalette.Ash);
-            UITheme.DrawFrame(spriteBatch, StatusCard, UIFrame.Rect, cardBorder, 0.92f, shadow: 0.6f);
-            UITheme.DrawFrame(spriteBatch, InfoCard, UIFrame.Rect, cardBorder, 0.92f, shadow: 0.6f);
+            UITheme.DrawFrame(spriteBatch, StatusCard, UIFrame.Rect, PanelBorder, 0.94f, shadow: 0.6f, surface: PanelSurface);
+            UITheme.DrawFrame(spriteBatch, InfoCard, UIFrame.Rect, PanelBorder, 0.94f, shadow: 0.6f, surface: PanelSurface);
 
             DrawClock(spriteBatch, font, totalSeconds);
             string weaponLine = $"Weapon: {_playerState.EquippedWeapon.DisplayName} ({_playerState.EquippedWeapon.DiceLabel})";
@@ -299,20 +302,10 @@ namespace DuskAndDawn
             _ => new Color(58, 58, 70)
         };
 
-        private static Color RoomBottom(RoomType type) => type switch
-        {
-            RoomType.Supplies => new Color(28, 70, 46),
-            RoomType.Encounter => new Color(88, 22, 22),
-            RoomType.Special => new Color(64, 30, 92),
-            RoomType.Hoard => new Color(110, 78, 20),
-            RoomType.Entrance => new Color(40, 50, 70),
-            _ => new Color(36, 36, 46)
-        };
-
         private void DrawMaze(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
             var slab = new RectangleF(MapArea.X - 12, MapArea.Y - 10, MapArea.Width + 24, MapArea.Height + 20);
-            UITheme.DrawFrame(spriteBatch, slab, UIFrame.Rect, new Color(52, 48, 66), shadow: 0.8f, wash: new Color(9, 9, 14) * 0.6f);
+            UITheme.DrawFrame(spriteBatch, slab, UIFrame.Rect, Palette.NightBorderSoft, shadow: 0.8f, surface: Palette.NightDeep);
 
             if (!_map.Hoard.Visited)
             {
@@ -348,7 +341,7 @@ namespace DuskAndDawn
             DrawToken(spriteBatch, totalSeconds);
 
             DrawBottomBar(spriteBatch, font);
-            DrawStyledButton(spriteBatch, font, _headBackButton, new Color(220, 140, 110));
+            DrawStyledButton(spriteBatch, font, _headBackButton, Palette.EmberBorder, Palette.NightPanel, accent: Palette.EmberHover);
 
             if (_hoveredNode != null)
             {
@@ -427,11 +420,11 @@ namespace DuskAndDawn
             if (alpha < 0.999f) bounds = Anim.Scale(bounds, MathHelper.Lerp(0.6f, 1f, UITheme.EaseOutBack(alpha)));
             var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
 
-            Color wash = !node.Scouted ? new Color(30, 30, 42) : RoomTop(node.Type);
-            if (node.Scouted && node.Visited && node != _current) wash = Color.Lerp(wash, new Color(52, 52, 58), 0.7f);
-            if (hover > 0f) wash = UITheme.Brighten(wash, hover * 0.22f);
+            Color wash = !node.Scouted ? Color.Transparent : RoomTop(node.Type) * 0.7f;
+            if (node.Scouted && node.Visited && node != _current) wash = Color.Lerp(RoomTop(node.Type), Palette.NightRaised, 0.75f) * 0.7f;
+            if (hover > 0f) wash = Color.Lerp(wash, Color.White, hover * 0.16f);
 
-            Color border = new Color(120, 116, 140) * 0.6f;
+            Color border = Palette.NightBorder * 0.8f;
             if (frontier)
             {
                 float breathe = UITheme.PulseSine(totalSeconds + node.Phase, 2.4f);
@@ -451,7 +444,7 @@ namespace DuskAndDawn
                 UITheme.DrawGlow(spriteBatch, center, 58f, new Color(220, 40, 30) * (0.22f + menace * 0.2f) * alpha);
             }
 
-            UITheme.DrawFrame(spriteBatch, bounds, UIFrame.Rect, border * alpha, alpha, shadow: 0.5f, wash: wash * (0.65f * alpha));
+            UITheme.DrawFrame(spriteBatch, bounds, UIFrame.Rect, border * alpha, alpha, shadow: 0.5f, wash: wash * alpha, surface: Palette.NightRaised);
 
             float iconAlpha = alpha * (node.Visited && node != _current ? 0.45f : 1f);
             if (!node.Scouted)
@@ -638,7 +631,7 @@ namespace DuskAndDawn
             float y = MathHelper.Clamp(anchor.Y - 20, MapArea.Y - 4, 700 - height);
             var box = new RectangleF(x, y, width, height);
 
-            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, new Color(150, 120, 90), shadow: 0.8f);
+            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, Palette.NightBorder, shadow: 0.8f, surface: Palette.NightPanel);
             UITheme.DrawTextWithShadow(spriteBatch, font, title, new Vector2(box.X + 12, box.Y + 10), Color.White);
             UITheme.DrawTextWithShadow(spriteBatch, font, detail, new Vector2(box.X + 12, box.Y + 38), new Color(200, 196, 214), 0.72f);
             UITheme.DrawTextWithShadow(spriteBatch, font, action, new Vector2(box.X + 12, box.Y + 60), actionColor, 0.85f);
@@ -648,11 +641,11 @@ namespace DuskAndDawn
         private void DrawBottomBar(SpriteBatch spriteBatch, SpriteFont font)
         {
             var journal = new RectangleF(40, 616, 836, 88);
-            UITheme.DrawFrame(spriteBatch, journal, UIFrame.Rect, new Color(80, 72, 100), 0.92f, shadow: 0.5f);
+            UITheme.DrawFrame(spriteBatch, journal, UIFrame.Rect, Palette.NightBorder, 0.94f, shadow: 0.5f, surface: Palette.NightPanel);
             _textLog.Draw(spriteBatch, font, new Vector2(journal.X + 16, journal.Y + 56), maxWidth: journal.Width - 32f);
 
             var legend = new RectangleF(892, 616, 348, 88);
-            UITheme.DrawFrame(spriteBatch, legend, UIFrame.Rect, new Color(80, 72, 100), 0.92f, shadow: 0.5f);
+            UITheme.DrawFrame(spriteBatch, legend, UIFrame.Rect, Palette.NightBorder, 0.94f, shadow: 0.5f, surface: Palette.NightPanel);
             var entries = new (RoomType type, string label)[]
             {
                 (RoomType.Supplies, "Supplies"), (RoomType.Encounter, "Enemy"), (RoomType.Special, "Event"),
@@ -663,7 +656,7 @@ namespace DuskAndDawn
                 float ex = legend.X + 16 + (i % 3) * 112;
                 float ey = legend.Y + 16 + (i / 3) * 32;
                 var swatch = new RectangleF(ex, ey + 2, 18, 18);
-                UITheme.FillRoundedRectGradient(spriteBatch, swatch, RoomTop(entries[i].type), RoomBottom(entries[i].type), 4f, 4);
+                UITheme.DrawFrame(spriteBatch, swatch, UIFrame.Rect, Palette.NightBorder * 0.8f, wash: RoomTop(entries[i].type) * 0.7f, surface: Palette.NightRaised);
                 UITheme.DrawTextWithShadow(spriteBatch, font, entries[i].label, new Vector2(ex + 26, ey), new Color(210, 206, 225), 0.8f);
             }
         }
@@ -671,8 +664,8 @@ namespace DuskAndDawn
         private void DrawMapFragment(SpriteBatch spriteBatch, SpriteFont font)
         {
             var box = new RectangleF(40, 604, 232, 100);
-            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, Themed(new Color(150, 120, 70), FightPalette.Ash), shadow: 0.5f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, $"Tonight's map  -  Depth {_current.Depth}", new Vector2(box.X + 10, box.Y + 6), Themed(new Color(225, 205, 165), FightPalette.Mist), 0.75f);
+            UITheme.DrawFrame(spriteBatch, box, UIFrame.Rect, PanelBorder, shadow: 0.5f, surface: PanelSurface);
+            UITheme.DrawTextWithShadow(spriteBatch, font, $"Tonight's map  -  Depth {_current.Depth}", new Vector2(box.X + 10, box.Y + 6), Themed(new Color(200, 196, 214), FightPalette.Mist), 0.75f);
 
             var area = new RectangleF(box.X + 10, box.Y + 30, box.Width - 20, box.Height - 38);
             float cellW = area.Width / _map.Columns;
@@ -685,7 +678,7 @@ namespace DuskAndDawn
                 foreach (var b in a.Links)
                 {
                     if (!b.Discovered) continue;
-                    spriteBatch.DrawLine(MiniCenter(a), MiniCenter(b), Themed(new Color(120, 96, 60), FightPalette.Ash), 2f);
+                    spriteBatch.DrawLine(MiniCenter(a), MiniCenter(b), Themed(Palette.NightBorderSoft, FightPalette.Ash), 2f);
                 }
             }
 
@@ -693,8 +686,8 @@ namespace DuskAndDawn
             {
                 if (!node.Discovered) continue;
                 var c = MiniCenter(node);
-                Color color = !node.Scouted ? Themed(new Color(90, 80, 70), FightPalette.Slate)
-                    : node.Visited ? Themed(new Color(150, 130, 100), FightPalette.Dim)
+                Color color = !node.Scouted ? Themed(new Color(80, 76, 100), FightPalette.Slate)
+                    : node.Visited ? Themed(new Color(130, 124, 150), FightPalette.Dim)
                     : RoomTop(node.Type);
                 spriteBatch.FillRectangle(new RectangleF(c.X - 3.5f, c.Y - 3.5f, 7, 7), color);
             }
@@ -749,15 +742,15 @@ namespace DuskAndDawn
                 }
                 else if (IsActionLocked || !button.Enabled)
                 {
-                    DrawStyledButton(spriteBatch, font, button, FightPalette.Ash, intro, accent: FightPalette.Mist, alpha: 0.55f);
+                    DrawStyledButton(spriteBatch, font, button, FightPalette.Ash, FightPalette.Deep, intro, accent: FightPalette.Mist);
                 }
                 else if (button.Label == ShakeItOffLabel)
                 {
-                    DrawStyledButton(spriteBatch, font, button, new Color(230, 190, 90), intro);
+                    DrawStyledButton(spriteBatch, font, button, new Color(230, 190, 90), new Color(72, 58, 26), intro);
                 }
                 else
                 {
-                    DrawStyledButton(spriteBatch, font, button, FightPalette.Slate, intro, accent: FightPalette.Mist);
+                    DrawStyledButton(spriteBatch, font, button, FightPalette.Slate, FightPalette.Raised, intro, accent: FightPalette.Mist);
                 }
                 if (i < 9) DrawKeyBadge(spriteBatch, font, isItem ? button.Bounds : Anim.Slide(button.Bounds, intro, new Vector2(-40, 0)), (i + 1).ToString(), intro * (button.Enabled && !IsActionLocked ? 1f : 0.4f));
             }
@@ -785,7 +778,7 @@ namespace DuskAndDawn
             float squash = button.PressAmount * 3f;
             var b = button.Bounds;
             var draw = new RectangleF(b.X + squash, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
-            UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border, IsActionLocked ? 0.55f : 1f, shadow: 0.5f);
+            UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border, shadow: 0.5f, surface: IsActionLocked ? FightPalette.Deep : FightPalette.Raised);
 
             float textX = draw.X + 12;
             var icon = Game1.GetItemIcon(itemName);
@@ -819,7 +812,7 @@ namespace DuskAndDawn
                 float height = 70 + lines.Count * 20;
                 var card = new RectangleF(button.Bounds.Right + 14, Math.Min(button.Bounds.Y, 700 - height), width, height);
 
-                UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, FightPalette.Slate, shadow: 0.8f);
+                UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, FightPalette.Slate, shadow: 0.8f, surface: FightPalette.Umber);
                 UITheme.DrawTextWithShadow(spriteBatch, font, item.Name, new Vector2(card.X + 14, card.Y + 10), Color.White);
                 for (int l = 0; l < lines.Count; l++)
                 {
@@ -856,12 +849,12 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, keys, new Vector2(42, y + 4), FightPalette.Dim, 0.58f);
         }
 
-        private static Color EnemyBorder(EnemyKind kind) => kind switch
+        private static (Color surface, Color border) EnemyLook(EnemyKind kind) => kind switch
         {
-            EnemyKind.Penitent => new Color(150, 128, 96),
-            EnemyKind.Knight => new Color(150, 156, 166),
-            EnemyKind.Herald => new Color(255, 225, 140),
-            _ => new Color(118, 42, 38)
+            EnemyKind.Penitent => (new Color(56, 48, 42), new Color(150, 128, 96)),
+            EnemyKind.Knight => (new Color(50, 49, 54), new Color(150, 156, 166)),
+            EnemyKind.Herald => (new Color(72, 60, 32), new Color(255, 225, 140)),
+            _ => (new Color(56, 40, 38), new Color(150, 60, 50))
         };
 
         private void DrawEnemyPanel(SpriteBatch spriteBatch, SpriteFont font, Enemy enemy, RectangleF bounds, float totalSeconds, float intro = 1f)
@@ -875,7 +868,7 @@ namespace DuskAndDawn
             bool fallen = enemy.IsDefeated;
             bool targeted = !fallen && enemy == _activeCombat.Target;
             float glow = UITheme.PulseSine(totalSeconds, 2.5f);
-            var border = EnemyBorder(enemy.Kind);
+            var (surface, border) = EnemyLook(enemy.Kind);
 
             var mouse = InputChecker.GetMouse();
             bool pickable = !fallen && !targeted && _activeCombat.Enemies.Count(e => !e.IsDefeated) > 1 && InputChecker.Contains(bounds, mouse.X, mouse.Y);
@@ -892,7 +885,7 @@ namespace DuskAndDawn
                 border = Color.Lerp(FightPalette.Mist, Color.White, glow * 0.5f);
             }
             float alpha = (fallen ? 0.35f : 1f) * intro;
-            UITheme.DrawFrame(spriteBatch, bounds, UIFrame.Rect, border * alpha, alpha, shadow: 0.6f);
+            UITheme.DrawFrame(spriteBatch, bounds, UIFrame.Rect, border * alpha, alpha, shadow: 0.6f, surface: surface);
 
             float scale = UITheme.MeasureString(font, enemy.Name).X * 0.85f > bounds.Width - 24 ? 0.72f : 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.Name, new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * alpha, scale);
@@ -952,7 +945,7 @@ namespace DuskAndDawn
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(chip.X + chip.Width / 2f, chip.Y + chip.Height / 2f), chip.Width * 0.6f, new Color(255, 80, 40) * (0.2f * intro));
             }
-            UITheme.DrawFrame(spriteBatch, chip, UIFrame.Rect, chipBorder * intro, intro, shadow: 0.4f, wash: chipWash * (0.75f * intro));
+            UITheme.DrawFrame(spriteBatch, chip, UIFrame.Rect, chipBorder * intro, intro, shadow: 0.4f, wash: chipWash * (0.75f * intro), surface: FightPalette.Deep);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, "Next:", new Vector2(chip.X + 10, chip.Y + 6), FightPalette.Dim * intro, 0.6f);
             var labelSize = UITheme.MeasureString(font, enemy.IntentLabel) * 1.05f;
@@ -1109,15 +1102,15 @@ namespace DuskAndDawn
             if (intro <= 0.001f) return;
             bool enabled = button.Enabled;
             float hover = button.HoverAmount;
-            Color border = enabled ? Color.Lerp(new Color(150, 200, 150), Color.White, hover) : Color.White * 0.18f;
+            Color border = enabled ? Color.Lerp(Palette.NightBorder, Palette.Gain, hover) : Palette.NightBorderSoft;
 
             float squash = button.PressAmount * 3f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(40, 0));
             var drawBounds = new RectangleF(bounds.X + squash + hover * 4f, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
-            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border * intro, (enabled ? 1f : 0.6f) * intro, shadow: enabled ? 0.5f : 0.2f);
-            DrawHoverAccent(spriteBatch, drawBounds, hover, new Color(150, 220, 150));
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, border * intro, intro, shadow: enabled ? 0.5f : 0.2f, surface: enabled ? Palette.NightRaised : Palette.NightDeep);
+            DrawHoverAccent(spriteBatch, drawBounds, hover, Palette.Gain);
 
-            Color titleColor = (enabled ? Color.White : new Color(140, 140, 150)) * intro;
+            Color titleColor = (enabled ? Color.White : new Color(130, 126, 150)) * intro;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(drawBounds.X + 14, drawBounds.Y + 8), titleColor, 0.95f);
 
             int minutes = SupplyMinutes(action);
@@ -1148,7 +1141,7 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, right, new Vector2(drawBounds.X + drawBounds.Width - rightSize.X - 14, drawBounds.Y + 10), rightColor * intro, 0.8f);
 
             const float descScale = 0.72f;
-            Color descColor = (enabled ? new Color(215, 215, 215) : new Color(120, 120, 130)) * intro;
+            Color descColor = (enabled ? new Color(205, 200, 222) : new Color(110, 106, 130)) * intro;
             var lines = TextLog.WrapText(font, SupplyDescription(action), (drawBounds.Width - 28) / descScale);
             for (int i = 0; i < Math.Min(lines.Count, 2); i++)
             {
@@ -1156,19 +1149,20 @@ namespace DuskAndDawn
             }
         }
 
-        private void DrawStyledButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color border, float intro = 1f, Color? accent = null, float alpha = 1f)
+        private void DrawStyledButton(SpriteBatch spriteBatch, SpriteFont font, Button button, Color border, Color surface, float intro = 1f, Color? accent = null)
         {
             if (intro <= 0.001f) return;
             float hover = button.HoverAmount;
-            Color borderColor = Color.Lerp(border, Color.White, hover);
+            Color hoverBorder = accent ?? Palette.EmberHover;
+            Color borderColor = Color.Lerp(border, hoverBorder, hover);
 
             float squash = button.PressAmount * 3f;
             var bounds = Anim.Slide(button.Bounds, intro, new Vector2(-40, 0));
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
             float textShift = hover * 6f;
 
-            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, borderColor * intro, alpha * intro, shadow: 0.5f);
-            DrawHoverAccent(spriteBatch, drawBounds, hover, accent ?? new Color(255, 190, 120));
+            UITheme.DrawFrame(spriteBatch, drawBounds, UIFrame.Rect, borderColor * intro, intro, shadow: 0.5f, surface: surface);
+            DrawHoverAccent(spriteBatch, drawBounds, hover, hoverBorder);
 
             var textPos = new Vector2(drawBounds.X + 12 + textShift, drawBounds.Y + (drawBounds.Height - UITheme.MeasureString(font, button.Label).Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White * intro);

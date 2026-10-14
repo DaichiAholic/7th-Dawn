@@ -23,11 +23,20 @@ namespace DuskAndDawn
         public static void RegisterFrame(UIFrame frame, SlicedTexture fill, SlicedTexture? outline, bool tileY, int outlineInset = 0, int washInset = 1) =>
             _frames[frame] = new FrameSprite(fill, outline, tileY, outlineInset, washInset);
 
-        public static void DrawFrame(SpriteBatch spriteBatch, RectangleF bounds, UIFrame frame, Color border, float alpha = 1f, float shadow = 0f, Color? wash = null)
+        private const float SpriteGrey = 72f;
+
+        public static void DrawFrame(SpriteBatch spriteBatch, RectangleF bounds, UIFrame frame, Color border, float alpha = 1f, float shadow = 0f, Color? wash = null, Color? surface = null)
         {
             if (alpha <= 0.001f || !_frames.TryGetValue(frame, out var sprite)) return;
             if (shadow > 0f) DrawSoftShadow(spriteBatch, bounds, 6f, shadow * alpha);
-            DrawFrameLayers(spriteBatch, bounds, sprite, Color.White * alpha, border, wash ?? Color.Transparent);
+            Color fill = surface is Color s ? SurfaceTint(s) : Color.White;
+            DrawFrameLayers(spriteBatch, bounds, sprite, fill * alpha, border, wash ?? Color.Transparent);
+        }
+
+        private static Color SurfaceTint(Color surface)
+        {
+            int Channel(byte c) => Math.Min(255, (int)MathF.Round(c * 255f / SpriteGrey));
+            return new Color(Channel(surface.R), Channel(surface.G), Channel(surface.B));
         }
 
         public static void DrawFrameOutline(SpriteBatch spriteBatch, RectangleF bounds, UIFrame frame, Color border)

@@ -196,7 +196,7 @@ namespace DuskAndDawn
                     float pop = MathHelper.Lerp(0.85f, 1f, UITheme.EaseOutBack(t));
                     var tile = Anim.Scale(new RectangleF(x, top, widths[i], height), pop);
                     Color border = _victory ? new Color(230, 170, 100) : new Color(150, 50, 45);
-                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, border * t, t, shadow: 0.6f);
+                    UITheme.DrawFrame(spriteBatch, tile, UIFrame.Rect, border * t, t, shadow: 0.6f, surface: _victory ? new Color(72, 50, 50) : new Color(40, 20, 24));
 
                     var labelSize = UITheme.MeasureString(font, labels[i]) * 0.66f;
                     UITheme.DrawTextWithShadow(spriteBatch, font, labels[i], new Vector2(tile.X + (tile.Width - labelSize.X) / 2f, tile.Y + 12), new Color(210, 195, 185) * t, 0.66f);
@@ -243,8 +243,8 @@ namespace DuskAndDawn
             if (t <= 0.001f) return;
             var panel = Anim.Slide(SummaryPanel, t, new Vector2(0, 20));
             float dy = panel.Y - SummaryPanel.Y;
-            Color surface = new Color(72, 72, 72);
-            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, new Color(170, 120, 80) * (0.8f * t), t, shadow: 0.6f);
+            Color surface = _victory ? new Color(58, 40, 42) : new Color(34, 18, 22);
+            UITheme.DrawFrame(spriteBatch, panel, UIFrame.Rect, new Color(170, 120, 80) * (0.8f * t), t, shadow: 0.6f, surface: surface);
 
             UITheme.DrawTextWithShadow(spriteBatch, font, "Hope at nightfall", new Vector2(panel.X + 24, panel.Y + 16), InkPrimary * t, 0.8f);
 
@@ -342,7 +342,7 @@ namespace DuskAndDawn
             if (anchor.X + 14 + width > ChartArea.Right + 60) x = anchor.X - 14 - width;
             float y = MathHelper.Clamp(anchor.Y - height / 2f, SummaryPanel.Y + 6, SummaryPanel.Bottom - height - 6);
             var card = new RectangleF(x, y, width, height);
-            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, LineColor * (0.7f * t), t, shadow: 0.8f);
+            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, LineColor * (0.7f * t), t, shadow: 0.8f, surface: new Color(30, 24, 30));
             for (int i = 0; i < lines.Count; i++)
             {
                 UITheme.DrawTextWithShadow(spriteBatch, font, lines[i].text, new Vector2(card.X + 12, card.Y + 8 + i * lineHeight), lines[i].color * t, scale);

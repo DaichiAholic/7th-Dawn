@@ -254,7 +254,7 @@ namespace DuskAndDawn
             var slot = new RectangleF(x, slotY, SlotWidth, SlotHeight);
             float flash = _deltaTimer > 0f && delta != 0 ? _deltaTimer / DeltaDuration : 0f;
             Color border = Color.Lerp(new Color(150, 110, 70), delta > 0 ? new Color(140, 235, 150) : new Color(255, 130, 110), flash * 0.8f);
-            UITheme.DrawFrame(spriteBatch, slot, UIFrame.Rect, border * t, t, shadow: 0.5f);
+            UITheme.DrawFrame(spriteBatch, slot, UIFrame.Rect, border * t, t, shadow: 0.5f, surface: Palette.DawnPanel);
 
             var iconCenter = new Vector2(x + 38, slotY + SlotHeight / 2f);
             if (icon != null)

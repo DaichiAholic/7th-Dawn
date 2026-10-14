@@ -47,7 +47,7 @@ namespace DuskAndDawn
             {
                 UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.55f, new Color(255, 130, 60) * ((primary ? 0.1f : 0f) + 0.18f * hover) * intro);
             }
-            UITheme.DrawFrame(spriteBatch, b, UIFrame.Pill, border * intro, intro, shadow: 0.7f);
+            UITheme.DrawFrame(spriteBatch, b, UIFrame.Pill, border * intro, intro, shadow: 0.7f, surface: primary ? Palette.EmberPanelBright : Palette.EmberPanel);
 
             var size = UITheme.MeasureString(font, button.Label) * textScale;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + (b.Width - size.X) / 2f, b.Y + (b.Height - size.Y) / 2f), Color.White * intro, textScale, shadowAlpha: 0.45f * intro);

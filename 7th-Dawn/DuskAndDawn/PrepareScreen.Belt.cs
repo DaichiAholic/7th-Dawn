@@ -138,7 +138,7 @@ namespace DuskAndDawn
                 {
                     UITheme.DrawGlow(spriteBatch, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f), b.Width * 0.9f, new Color(150, 230, 160) * (0.35f * flash));
                 }
-                UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, border * intro, (filled ? 1f : 0.7f) * intro, shadow: 0.3f);
+                UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, border * intro, intro, shadow: 0.3f, surface: filled ? new Color(48, 62, 52) : new Color(28, 26, 36));
 
                 if (!filled)
                 {
@@ -197,7 +197,7 @@ namespace DuskAndDawn
         {
             float hover = button.HoverAmount;
             var b = button.Bounds;
-            UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, Color.Lerp(Color.White * 0.4f, Color.White, hover), shadow: 0.3f);
+            UITheme.DrawFrame(spriteBatch, b, UIFrame.Rect, Color.Lerp(Color.White * 0.4f, Color.White, hover), shadow: 0.3f, surface: new Color(52, 48, 66));
             var size = UITheme.MeasureString(font, button.Label) * 0.66f;
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, new Vector2(b.X + (b.Width - size.X) / 2f, b.Y + (b.Height - size.Y) / 2f), textColor ?? Color.White, 0.66f);
         }

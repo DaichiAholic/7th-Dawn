@@ -74,7 +74,7 @@ namespace DuskAndDawn
             if (cardIn <= 0.001f) return;
             var card = Anim.Slide(new RectangleF(60, 280, 320, 300), cardIn, new Vector2(0, 24));
             UITheme.DrawGlow(spriteBatch, new Vector2(card.X + card.Width / 2f, card.Y + card.Height / 2f), 220f, new Color(150, 90, 230) * ((0.1f + 0.05f * UITheme.PulseSine(totalSeconds, 1.2f)) * cardIn));
-            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, new Color(170, 120, 230) * cardIn, cardIn, shadow: 0.6f, wash: new Color(52, 34, 70) * (0.7f * cardIn));
+            UITheme.DrawFrame(spriteBatch, card, UIFrame.Rect, Palette.Strange * cardIn, cardIn, shadow: 0.6f, surface: new Color(44, 30, 62));
             var sparkleCenter = new Vector2(card.X + card.Width - 40, card.Y + 36);
             float s = 12f + UITheme.PulseSine(totalSeconds, 2.5f) * 4f;
             UITheme.DrawGlow(spriteBatch, sparkleCenter, 30f, new Color(170, 110, 255) * 0.8f);
@@ -108,15 +108,15 @@ namespace DuskAndDawn
             if (intro <= 0.001f) return;
             bool enabled = button.Enabled;
             float hover = button.HoverAmount;
-            Color border = enabled ? Color.Lerp(new Color(185, 150, 225), Color.White, hover) : Color.White * 0.18f;
+            Color border = enabled ? Color.Lerp(Palette.NightBorder, Palette.Strange, hover) : Palette.NightBorderSoft;
 
             float squash = button.PressAmount * 3f;
             var b = Anim.Slide(button.Bounds, intro, new Vector2(40, 0));
             var draw = new RectangleF(b.X + squash + hover * 4f, b.Y + squash / 2f, b.Width - squash * 2f, b.Height - squash);
-            UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border * intro, (enabled ? 1f : 0.6f) * intro, shadow: enabled ? 0.5f : 0.2f);
-            DrawHoverAccent(spriteBatch, draw, hover, new Color(200, 150, 255));
+            UITheme.DrawFrame(spriteBatch, draw, UIFrame.Rect, border * intro, intro, shadow: enabled ? 0.5f : 0.2f, surface: enabled ? Palette.NightRaised : Palette.NightDeep);
+            DrawHoverAccent(spriteBatch, draw, hover, Palette.Strange);
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, option.Label, new Vector2(draw.X + 14, draw.Y + 8), (enabled ? Color.White : new Color(140, 140, 150)) * intro, 0.95f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, option.Label, new Vector2(draw.X + 14, draw.Y + 8), (enabled ? Color.White : new Color(130, 126, 150)) * intro, 0.95f);
 
             string blocked = option.BlockedReason(_playerState, _dawnTimer);
             string right = blocked
@@ -131,7 +131,7 @@ namespace DuskAndDawn
             for (int i = 0; i < Math.Min(lines.Count, 2); i++)
             {
                 UITheme.DrawTextWithShadow(spriteBatch, font, lines[i], new Vector2(draw.X + 14, draw.Y + 40 + i * 20),
-                    (enabled ? new Color(215, 210, 225) : new Color(120, 120, 130)) * intro, detailScale);
+                    (enabled ? new Color(205, 200, 222) : new Color(110, 106, 130)) * intro, detailScale);
             }
         }
     }

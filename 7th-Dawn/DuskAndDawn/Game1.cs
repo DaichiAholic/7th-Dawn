@@ -321,7 +321,7 @@ namespace DuskAndDawn
             var drawBounds = new RectangleF(bounds.X + squash, bounds.Y + squash / 2f, bounds.Width - squash * 2f, bounds.Height - squash);
 
             Color border = Color.Lerp(new Color(170, 80, 45), new Color(255, 140, 70), hover);
-            UITheme.DrawFrame(SpriteBatch, drawBounds, UIFrame.Rect, border, 0.9f, shadow: 0.5f);
+            UITheme.DrawFrame(SpriteBatch, drawBounds, UIFrame.Rect, border, 0.9f, shadow: 0.5f, surface: Palette.EmberPanel);
 
             Color bar = Color.Lerp(new Color(225, 215, 210), Color.White, hover);
             float barWidth = drawBounds.Width * 0.5f;
