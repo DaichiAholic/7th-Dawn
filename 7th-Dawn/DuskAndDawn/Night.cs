@@ -411,7 +411,7 @@ namespace DuskAndDawn
                 {
                     if (node.Scouted && !node.Visited && node.Type == RoomType.Encounter && node.Enemies == null)
                     {
-                        node.Enemies = EnemyRoster.RollEncounter(_district, Math.Min(6, node.Depth / 2), _playerState.Day, _random);
+                        node.Enemies = EnemyRoster.RollEncounter(_district, EnemyStats.TierAt(node.Depth), _playerState.Day, _random);
                     }
                 }
             }

@@ -481,7 +481,7 @@ namespace DuskAndDawn
             {
                 Wrapped("No rooms to search tonight - one hall, and the throne at the end of it.", new Color(225, 205, 165), 0.66f);
                 y += 4f;
-                Wrapped($"The Sun Herald: {EnemyRoster.SunHeraldHealth} health.", new Color(255, 225, 150), 0.66f);
+                Wrapped($"The Sun Herald: {EnemyStats.HeraldHealth} health.", new Color(255, 225, 150), 0.66f);
                 Wrapped("- Gathers light, then a SOLAR FLARE: Guard won't help. Smoke, or heal through it.", new Color(235, 200, 160), 0.62f);
                 Wrapped("- BRAND: burns for 3 turns. Guard blocks it; a healing remedy puts it out.", new Color(235, 200, 160), 0.62f);
                 Wrapped("- Calls his choir to fight beside him.", new Color(235, 200, 160), 0.62f);
@@ -537,16 +537,14 @@ namespace DuskAndDawn
 
             Wrapped($"Strange rooms: choices that trade time and risk for {DistrictInfo.EventTheme(district)}.", new Color(200, 185, 230), 0.62f);
 
-            int day = _playerState.Day;
-            int enemyHealth = (int)MathF.Round(DistrictInfo.EnemyHealth(district, 0) * DayInfo.EnemyHealthMultiplier(day));
-            int enemyAttack = DistrictInfo.EnemyAttack(district, 0) + DayInfo.EnemyAttackBonus(day);
-            Wrapped($"Wretches tonight: {enemyHealth}+ health, hit for {enemyAttack}+ and wind up heavy blows. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
-            int penitents = EnemyRoster.PenitentChance(district);
+            var (wretchHealth, wretchAttack) = EnemyStats.For(EnemyStats.Wretch, district, 0, _playerState.Day);
+            Wrapped($"Wretches tonight: {wretchHealth}+ health, hit for {wretchAttack}+ and wind up heavy blows. Winning drops Scraps.", new Color(235, 150, 140), 0.62f);
+            int penitents = EnemyStats.EffectivePenitentChance(district);
             if (penitents > 0)
             {
                 Wrapped($"Penitents ({penitents}% of fights): groups that cast holy fire and chant stuns.", new Color(235, 200, 140), 0.62f);
             }
-            int knights = EnemyRoster.CastleKnightChance(district);
+            int knights = EnemyStats.Districts[district].KnightChance;
             if (knights > 0)
             {
                 Wrapped($"Castle Knights ({knights}%): elites that hit hard and wind up often.", new Color(255, 200, 120), 0.62f);

@@ -58,8 +58,7 @@ namespace DuskAndDawn
             var enemies = room.Enemies;
             if (enemies == null || enemies.All(e => e.IsDefeated))
             {
-                int tier = Math.Min(6, room.Depth / 2);
-                enemies = EnemyRoster.RollEncounter(_district, tier, _playerState.Day, _random);
+                enemies = EnemyRoster.RollEncounter(_district, EnemyStats.TierAt(room.Depth), _playerState.Day, _random);
                 _textLog.Push(EncounterIntro(enemies));
             }
             else

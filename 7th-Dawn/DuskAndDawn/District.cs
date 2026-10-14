@@ -92,22 +92,6 @@ namespace DuskAndDawn
 
         public static int Corruption(District district) => (int)district + 1;
 
-        public static int EnemyHealth(District district, int tier) => district switch
-        {
-            District.ChurchRuins => 34 + tier * 4,
-            District.CastleKeep => 50 + tier * 5,
-            District.Castle => 54 + tier * 5,
-            _ => 18 + tier * 3
-        };
-
-        public static int EnemyAttack(District district, int tier) => district switch
-        {
-            District.ChurchRuins => 8 + tier,
-            District.CastleKeep => 12 + tier,
-            District.Castle => 12 + tier,
-            _ => 4 + tier
-        };
-
         public static (int food, int planks, int scraps) CombatLoot(District district, int enemyMaxHealth, Random random)
         {
             int districtBonus = district switch

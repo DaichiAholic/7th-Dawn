@@ -27,14 +27,6 @@ namespace DuskAndDawn
 
     public class Enemy
     {
-        public const float HeavyMultiplier = 2.5f;
-        public const float SpellMultiplier = 1.3f;
-        public const float FlareMultiplier = 2.0f;
-        public const float AscendedAttackMultiplier = 1.25f;
-        public const int BrandTurns = 3;
-        public const int HeraldCallInterval = 5;
-        public const int MaxSummonedAllies = 2;
-
         public string Name { get; }
         public EnemyKind Kind { get; }
         public int MaxHealth { get; }
@@ -103,18 +95,18 @@ namespace DuskAndDawn
             return true;
         }
 
-        public int EffectiveAttack => Ascended ? (int)MathF.Round(AttackPower * AscendedAttackMultiplier) : AttackPower;
+        public int EffectiveAttack => Ascended ? (int)MathF.Round(AttackPower * EnemyStats.HeraldAscendedAttack) : AttackPower;
 
-        public int BrandBurn => Ascended ? 6 : 5;
+        public int BrandBurn => Ascended ? EnemyStats.AscendedBrandBurn : EnemyStats.BrandBurn;
 
         public int IntentDamage => Intent switch
         {
             IntentType.Attack => EffectiveAttack,
-            IntentType.Heavy => (int)MathF.Round(EffectiveAttack * HeavyMultiplier),
-            IntentType.Spell => (int)MathF.Round(EffectiveAttack * SpellMultiplier),
-            IntentType.Stun => Math.Max(1, EffectiveAttack / 2),
-            IntentType.Flare => (int)MathF.Round(EffectiveAttack * FlareMultiplier),
-            IntentType.Brand => Math.Max(1, EffectiveAttack / 2),
+            IntentType.Heavy => (int)MathF.Round(EffectiveAttack * EnemyStats.HeavyDamage),
+            IntentType.Spell => (int)MathF.Round(EffectiveAttack * EnemyStats.SpellDamage),
+            IntentType.Stun => Math.Max(1, (int)(EffectiveAttack * EnemyStats.StunDamage)),
+            IntentType.Flare => (int)MathF.Round(EffectiveAttack * EnemyStats.FlareDamage),
+            IntentType.Brand => Math.Max(1, (int)(EffectiveAttack * EnemyStats.BrandDamage)),
             _ => 0
         };
 
@@ -128,17 +120,17 @@ namespace DuskAndDawn
             switch (Kind)
             {
                 case EnemyKind.Wretch:
-                    Intent = roll < DayInfo.WretchChargeChance(day) ? IntentType.Charge : IntentType.Attack;
+                    Intent = roll < EnemyStats.WretchChargeChance + EnemyStats.WretchChargeChancePerDay * day ? IntentType.Charge : IntentType.Attack;
                     break;
 
                 case EnemyKind.Penitent:
-                    Intent = roll < 40 ? IntentType.Attack
-                        : roll < 70 || IsSummoned ? IntentType.Spell
+                    Intent = roll < EnemyStats.PenitentAttackChance ? IntentType.Attack
+                        : roll < EnemyStats.PenitentAttackChance + EnemyStats.PenitentSpellChance || IsSummoned ? IntentType.Spell
                         : IntentType.Chant;
                     break;
 
                 case EnemyKind.Knight:
-                    Intent = roll < 35 ? IntentType.Charge : IntentType.Attack;
+                    Intent = roll < EnemyStats.KnightChargeChance ? IntentType.Charge : IntentType.Attack;
                     break;
 
                 case EnemyKind.Herald:
@@ -146,14 +138,14 @@ namespace DuskAndDawn
                         _turnsSinceCall++;
                         bool mayGather = !_flaredLast;
                         _flaredLast = false;
-                        if (_turnsSinceCall >= HeraldCallInterval && summonedAllies < MaxSummonedAllies)
+                        if (_turnsSinceCall >= EnemyStats.HeraldCallEveryTurns && summonedAllies < EnemyStats.HeraldMaxChoir)
                         {
                             _turnsSinceCall = 0;
                             Intent = IntentType.CallForAid;
                             break;
                         }
-                        int gather = mayGather ? (Ascended ? 28 : 18) : 0;
-                        int brand = Ascended ? 24 : 22;
+                        int gather = mayGather ? (Ascended ? EnemyStats.HeraldAscendedGatherChance : EnemyStats.HeraldGatherChance) : 0;
+                        int brand = Ascended ? EnemyStats.HeraldAscendedBrandChance : EnemyStats.HeraldBrandChance;
                         Intent = roll < gather ? IntentType.Gather
                             : roll < gather + brand ? IntentType.Brand
                             : IntentType.Attack;

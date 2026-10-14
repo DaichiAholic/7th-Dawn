@@ -429,7 +429,7 @@ namespace DuskAndDawn
                     break;
                 case IntentType.Brand when _playerState.Health > 0:
                     BurnDamage = Math.Max(BurnDamage, enemy.BrandBurn);
-                    BurnTurns = Enemy.BrandTurns;
+                    BurnTurns = EnemyStats.BrandTurns;
                     lines.Add($"{enemy.Name} brands you for {damage} - it burns!");
                     break;
                 case IntentType.Stun when _stunImmune:
