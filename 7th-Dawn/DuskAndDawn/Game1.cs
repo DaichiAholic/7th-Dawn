@@ -321,6 +321,19 @@ namespace DuskAndDawn
                     if (menuClicked) _menuButton.TriggerPress();
                     _screenManager.ShowScreen(new PauseMenuScreen(this));
                 }
+
+                // Hidden: Ctrl+Shift+F7 jumps the run to day 7 (the Castle night). Not shown
+                // anywhere in the UI. Only from the base or the prepare screen, never mid-night.
+                bool skipChord = keyboard.IsKeyDown(Keys.F7) && !_previousKeyboard.IsKeyDown(Keys.F7)
+                    && (keyboard.IsKeyDown(Keys.LeftControl) || keyboard.IsKeyDown(Keys.RightControl))
+                    && (keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift));
+                bool atBase = _screenManager.ActiveScreen is BaseBuilding || _screenManager.ActiveScreen is PreparationScreen;
+                if (skipChord && atBase && PlayerState != null && PlayerState.Day < DayInfo.FinalDay)
+                {
+                    PlayerState.Day = DayInfo.FinalDay;
+                    // A fresh base screen saves the new day and shows the final-night label.
+                    _screenManager.ReplaceScreen(new BaseBuilding(this, PlayerState), ScreenTransitions.FadeTransition(GraphicsDevice));
+                }
             }
 
             _previousKeyboard = keyboard;
