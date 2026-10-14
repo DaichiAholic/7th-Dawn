@@ -167,7 +167,6 @@ namespace DuskAndDawn
         private void DrawThroneIntro(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
             var (starts, done) = ThroneTimeline();
-            float time = _throneTime;
 
             // A dark band behind the text so it reads over the light.
             UITheme.FillGradientRect(spriteBatch, new RectangleF(0, 470, 1280, 250), Color.Black * 0f, Color.Black * 0.85f, 10);
@@ -175,15 +174,11 @@ namespace DuskAndDawn
             float y = 480;
             for (int i = 0; i < ThroneLines.Length; i++)
             {
-                if (!_throneRevealed && time < starts[i]) break;
-                // Revealed: show the whole line. (Don't push time to float.MaxValue - casting
-                // the overflowed product to int goes negative and Substring throws.)
-                int shown = _throneRevealed
-                    ? ThroneLines[i].Length
-                    : Math.Clamp((int)((time - starts[i]) * ThroneTypeSpeed), 0, ThroneLines[i].Length);
-                string text = ThroneLines[i].Substring(0, shown);
-                var size = UITheme.MeasureString(font, ThroneLines[i]);
-                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(640 - size.X / 2f, y), new Color(240, 228, 215));
+                string line = ThroneLines[i];
+                if (!_throneRevealed && _throneTime < starts[i]) break;
+                int shown = _throneRevealed ? line.Length : Math.Min(line.Length, (int)((_throneTime - starts[i]) * ThroneTypeSpeed));
+                var size = UITheme.MeasureString(font, line);
+                UITheme.DrawTextWithShadow(spriteBatch, font, line.Substring(0, shown), new Vector2(640 - size.X / 2f, y), new Color(240, 228, 215));
                 y += 34;
             }
 
