@@ -12,7 +12,7 @@ namespace DuskAndDawn
         public static readonly Dictionary<District, DistrictEnemies> Districts = new Dictionary<District, DistrictEnemies>
         {
             [District.VillageOutskirts] = new(Health: 18, HealthPerTier: 3, Attack: 4, AttackPerTier: 1, KnightChance: 0, PenitentChance: 0),
-            [District.ChurchRuins] = new(Health: 34, HealthPerTier: 4, Attack: 8, AttackPerTier: 1, KnightChance: 0, PenitentChance: 25),
+            [District.ChurchRuins] = new(Health: 35, HealthPerTier: 4, Attack: 8, AttackPerTier: 1, KnightChance: 0, PenitentChance: 25),
             [District.CastleKeep] = new(Health: 50, HealthPerTier: 5, Attack: 12, AttackPerTier: 1, KnightChance: 15, PenitentChance: 20),
             [District.Castle] = new(Health: 54, HealthPerTier: 5, Attack: 12, AttackPerTier: 1, KnightChance: 30, PenitentChance: 25)
         };
