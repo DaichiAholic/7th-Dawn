@@ -22,6 +22,8 @@ namespace DuskAndDawn
 
             public Func<bool> NeedsConfirm;
             public string ConfirmLabel;
+
+            public Action<int> OnAdjust;
         }
 
         protected readonly List<MenuEntry> Entries = new List<MenuEntry>();
@@ -73,6 +75,12 @@ namespace DuskAndDawn
                 NeedsConfirm = needsConfirm,
                 ConfirmLabel = confirmLabel
             });
+        }
+
+        protected void AddSlider(Func<string> label, Action<int> onAdjust)
+        {
+            AddEntry(label, () => onAdjust(1));
+            Entries[^1].OnAdjust = onAdjust;
         }
 
         protected float EntriesBottom => EntriesTop + Entries.Count * (EntryHeight + EntryGap) - EntryGap;
@@ -156,7 +164,15 @@ namespace DuskAndDawn
                 _pressedEntry = null;
                 if (pressed != null && pressed.Button.Contains(mouse.X, mouse.Y))
                 {
-                    Select(pressed);
+                    if (pressed.OnAdjust != null)
+                    {
+                        var bounds = pressed.Button.Bounds;
+                        pressed.OnAdjust(mouse.X < bounds.X + bounds.Width / 2f ? -1 : 1);
+                    }
+                    else
+                    {
+                        Select(pressed);
+                    }
                 }
             }
         }
@@ -181,6 +197,14 @@ namespace DuskAndDawn
             {
                 _focusIndex = _focusIndex <= 0 ? Entries.Count - 1 : _focusIndex - 1;
             }
+
+            var focused = _focusIndex >= 0 ? Entries[_focusIndex] : null;
+            if (focused?.OnAdjust != null)
+            {
+                if (Pressed(Keys.Left) || Pressed(Keys.A)) focused.OnAdjust(-1);
+                else if (Pressed(Keys.Right) || Pressed(Keys.D)) focused.OnAdjust(1);
+            }
+
             bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
             if (((Pressed(Keys.Enter) && !alt) || Pressed(Keys.Space)) && _focusIndex >= 0)
             {
@@ -247,6 +271,15 @@ namespace DuskAndDawn
                 drawBounds.X + (drawBounds.Width - textSize.X) / 2f,
                 drawBounds.Y + (drawBounds.Height - textSize.Y) / 2f);
             UITheme.DrawTextWithShadow(spriteBatch, font, button.Label, textPos, Color.White * intro, 1f, shadowAlpha: 0.45f * intro);
+
+            if (entry.OnAdjust != null)
+            {
+                Color arrow = Color.Lerp(new Color(200, 150, 120), new Color(255, 200, 150), hover) * intro;
+                var arrowSize = UITheme.MeasureString(font, ">");
+                float arrowY = drawBounds.Y + (drawBounds.Height - arrowSize.Y) / 2f;
+                UITheme.DrawTextWithShadow(spriteBatch, font, "<", new Vector2(drawBounds.X + 24, arrowY), arrow, 1f, shadowAlpha: 0.45f * intro);
+                UITheme.DrawTextWithShadow(spriteBatch, font, ">", new Vector2(drawBounds.X + drawBounds.Width - 24 - arrowSize.X, arrowY), arrow, 1f, shadowAlpha: 0.45f * intro);
+            }
         }
 
         protected static void DrawCenteredText(SpriteBatch spriteBatch, SpriteFont font, string text, float y, Color color, float scale = 1f)
@@ -364,7 +397,7 @@ namespace DuskAndDawn
 
     public class SettingsScreen : MenuScreen
     {
-        private static readonly RectangleF Panel = new RectangleF(400, 130, 480, 470);
+        private static readonly RectangleF Panel = new RectangleF(400, 60, 480, 600);
 
         public SettingsScreen(Game game) : base(game, isOverlay: true) { }
 
@@ -390,10 +423,25 @@ namespace DuskAndDawn
                 Settings.FastCombat = !Settings.FastCombat;
                 GameSettings.Save();
             });
+            AddSlider(() => $"Music Volume: {Settings.MusicVolume}%", step =>
+            {
+                Settings.MusicVolume = StepVolume(Settings.MusicVolume, step);
+                Sound.ApplyVolume();
+                GameSettings.Save();
+            });
+            AddSlider(() => $"Sound Volume: {Settings.SoundVolume}%", step =>
+            {
+                Settings.SoundVolume = StepVolume(Settings.SoundVolume, step);
+                Sound.ApplyVolume();
+                Sound.Play(Sfx.ItemLoot);
+                GameSettings.Save();
+            });
             AddEntry("Back", OnBack);
         }
 
         private static string OnOff(bool value) => value ? "On" : "Off";
+
+        private static int StepVolume(int volume, int step) => Math.Clamp(volume + step * Sound.VolumeStep, 0, 100);
 
         protected override void OnBack() => ScreenManager.CloseScreen();
 

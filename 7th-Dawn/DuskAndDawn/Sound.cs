@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework.Audio;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Media;
 using System;
@@ -20,9 +21,15 @@ namespace DuskAndDawn
         ItemLoot
     }
 
+    public enum Music
+    {
+        Ambiance,
+        Combat
+    }
+
     public static class Sound
     {
-        private const float MusicVolume = 0.4f;
+        public const int VolumeStep = 10;
         private const int RepeatGuardMs = 60;
 
         private static readonly Dictionary<Sfx, string[]> SfxFiles = new Dictionary<Sfx, string[]>
@@ -38,10 +45,17 @@ namespace DuskAndDawn
             [Sfx.ItemLoot] = new[] { "sfx_item_loot" }
         };
 
+        private static readonly Dictionary<Music, (string file, float mix)> MusicFiles = new Dictionary<Music, (string, float)>
+        {
+            [Music.Ambiance] = ("bgm_ambiance", 0.8f),
+            [Music.Combat] = ("bgm_combat_encounter", 0.4f)
+        };
+
         private static readonly Dictionary<Sfx, SoundEffect[]> _effects = new Dictionary<Sfx, SoundEffect[]>();
+        private static readonly Dictionary<Music, Song> _songs = new Dictionary<Music, Song>();
         private static readonly Dictionary<Sfx, long> _lastPlayedAt = new Dictionary<Sfx, long>();
         private static readonly Random _random = new Random();
-        private static Song _combatMusic;
+        private static Music? _currentMusic;
 
         public static void LoadContent(ContentManager content)
         {
@@ -51,14 +65,27 @@ namespace DuskAndDawn
                 {
                     _effects[sfx] = files.Select(file => content.Load<SoundEffect>("Audio/" + file)).ToArray();
                 }
-                _combatMusic = content.Load<Song>("Audio/bgm_combat_encounter");
+                foreach (var (music, (file, _)) in MusicFiles)
+                {
+                    _songs[music] = content.Load<Song>("Audio/" + file);
+                }
                 MediaPlayer.IsRepeating = true;
-                MediaPlayer.Volume = MusicVolume;
+                ApplyVolume();
             }
             catch (NoAudioHardwareException)
             {
                 _effects.Clear();
-                _combatMusic = null;
+                _songs.Clear();
+            }
+        }
+
+        public static void ApplyVolume()
+        {
+            if (_songs.Count == 0) return;
+            SoundEffect.MasterVolume = MathHelper.Clamp(GameSettings.Current.SoundVolume / 100f, 0f, 1f);
+            if (_currentMusic is Music music)
+            {
+                MediaPlayer.Volume = MusicFiles[music].mix * MathHelper.Clamp(GameSettings.Current.MusicVolume / 100f, 0f, 1f);
             }
         }
 
@@ -73,17 +100,12 @@ namespace DuskAndDawn
             variants[_random.Next(variants.Length)].Play();
         }
 
-        public static void PlayCombatMusic()
+        public static void PlayMusic(Music music)
         {
-            if (_combatMusic == null) return;
-            if (MediaPlayer.State == MediaState.Playing && MediaPlayer.Queue.ActiveSong == _combatMusic) return;
-            MediaPlayer.Play(_combatMusic);
-        }
-
-        public static void StopMusic()
-        {
-            if (_combatMusic == null || MediaPlayer.State == MediaState.Stopped) return;
-            MediaPlayer.Stop();
+            if (_currentMusic == music || !_songs.TryGetValue(music, out var song)) return;
+            _currentMusic = music;
+            ApplyVolume();
+            MediaPlayer.Play(song);
         }
     }
 }

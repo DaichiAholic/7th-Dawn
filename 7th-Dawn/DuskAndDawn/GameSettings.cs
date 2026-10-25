@@ -10,6 +10,8 @@ namespace DuskAndDawn
         public bool Fullscreen { get; set; } = true;
         public bool ScreenShake { get; set; } = true;
         public bool FastCombat { get; set; }
+        public int MusicVolume { get; set; } = 100;
+        public int SoundVolume { get; set; } = 100;
 
         [JsonIgnore]
         public float CombatAnimScale => FastCombat ? 0.55f : 1f;

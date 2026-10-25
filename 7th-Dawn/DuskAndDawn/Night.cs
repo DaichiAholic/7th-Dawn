@@ -135,12 +135,6 @@ namespace DuskAndDawn
             InitializePack();
         }
 
-        public override void Dispose()
-        {
-            Sound.StopMusic();
-            base.Dispose();
-        }
-
         private void LayoutMapNodes()
         {
             float pitchX = MapArea.Width / _map.Columns;

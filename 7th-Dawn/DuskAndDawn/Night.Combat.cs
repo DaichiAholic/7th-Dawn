@@ -11,6 +11,7 @@ namespace DuskAndDawn
     public partial class NightScavengingScreen
     {
         private CombatEncounter _activeCombat;
+        public bool InCombat => _activeCombat != null;
         private CombatMenu _combatMenu = CombatMenu.TopLevel;
         private readonly List<Button> _combatButtons = new List<Button>();
 
@@ -87,7 +88,6 @@ namespace DuskAndDawn
             _combatTurn = 0;
             LayoutCombatButtons();
             _state = ExplorationState.Encounter;
-            Sound.PlayCombatMusic();
         }
 
         private static string EncounterIntro(List<Enemy> enemies)
@@ -392,7 +392,6 @@ namespace DuskAndDawn
 
             _castEffect.Stop();
             _playerHitFlash.Stop();
-            Sound.StopMusic();
             if (_pendingPlayerHitDelay >= 0f && !string.IsNullOrEmpty(_pendingEnemyReplyText))
             {
                 _textLog.Push(_pendingEnemyReplyText);

@@ -177,6 +177,20 @@ namespace DuskAndDawn
 
         private bool IsGameplayActive => _screenManager.ActiveScreen is IGameplayScreen && !ScreenTransitions.IsTransitioning;
 
+        private bool IsCombatShowing
+        {
+            get
+            {
+                var screens = _screenManager.Screens;
+                for (int i = screens.Count - 1; i >= 0; i--)
+                {
+                    if (screens[i] is MainMenuScreen) return false;
+                    if (screens[i] is NightScavengingScreen night) return night.InCombat;
+                }
+                return false;
+            }
+        }
+
         public void StartNewRun(bool withIntro = false)
         {
             PlayerState = new PlayerState();
@@ -291,6 +305,7 @@ namespace DuskAndDawn
             _previousMouse = mouse;
 
             base.Update(gameTime);
+            Sound.PlayMusic(IsCombatShowing ? Music.Combat : Music.Ambiance);
         }
 
         protected override void Draw(GameTime gameTime)

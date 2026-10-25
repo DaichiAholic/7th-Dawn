@@ -846,6 +846,12 @@
 /processorParam:Version=3.8.5.1
 /build:UI/FrameWood.png
 
+#begin Audio/bgm_ambiance.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/bgm_ambiance.mp3
+
 #begin Audio/bgm_combat_encounter.mp3
 /importer:Mp3Importer
 /processor:SongProcessor
