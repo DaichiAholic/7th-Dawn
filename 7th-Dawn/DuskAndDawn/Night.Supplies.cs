@@ -151,6 +151,7 @@ namespace DuskAndDawn
 
             _textLog.Push(text);
             WarnOfDawn();
+            if (action is SupplyAction.Grab or SupplyAction.Thorough or SupplyAction.Quiet) Sound.Play(Sfx.ItemLoot);
 
             if (drewAFight)
             {

@@ -40,8 +40,10 @@ namespace DuskAndDawn
         public WeaponTrait Trait { get; }
         public int TraitPower { get; }
 
+        public Sfx HitSound { get; }
+
         public Weapon(string name, int tier, int diceCount, int diceSides, int flatBonus = 0, int corruptionBonus = 0, string iconName = null,
-            WeaponTrait trait = WeaponTrait.None, int traitPower = 0)
+            WeaponTrait trait = WeaponTrait.None, int traitPower = 0, Sfx hitSound = Sfx.Slash)
         {
             Name = name;
             Tier = tier;
@@ -52,6 +54,7 @@ namespace DuskAndDawn
             IconName = iconName;
             Trait = trait;
             TraitPower = traitPower;
+            HitSound = hitSound;
         }
 
         public string TraitLabel => Trait switch
@@ -111,19 +114,19 @@ namespace DuskAndDawn
             return FlatBonus + perDie * (DiceCount + extraDice);
         }
 
-        public static Weapon RustyKnife() => new Weapon("Rusty Knife", 0, 1, 6, iconName: "RustyKnife", trait: WeaponTrait.Bleed, traitPower: 1);
+        public static Weapon RustyKnife() => new Weapon("Rusty Knife", 0, 1, 6, iconName: "RustyKnife", trait: WeaponTrait.Bleed, traitPower: 1, hitSound: Sfx.Pierce);
 
-        public static Weapon WoodenClub() => new Weapon("Wooden Club", 1, 1, 8, 1, iconName: "Club", trait: WeaponTrait.Stagger, traitPower: 20);
-        public static Weapon ScrapClub() => new Weapon("Scrap Club", 1, 2, 4, 1, iconName: "Club", trait: WeaponTrait.Stagger, traitPower: 25);
+        public static Weapon WoodenClub() => new Weapon("Wooden Club", 1, 1, 8, 1, iconName: "Club", trait: WeaponTrait.Stagger, traitPower: 20, hitSound: Sfx.Smash);
+        public static Weapon ScrapClub() => new Weapon("Scrap Club", 1, 2, 4, 1, iconName: "Club", trait: WeaponTrait.Stagger, traitPower: 25, hitSound: Sfx.Smash);
 
-        public static Weapon IronSword() => new Weapon("Iron Sword", 2, 2, 6, 1, iconName: "IronSword", trait: WeaponTrait.Lifesteal, traitPower: 20);
-        public static Weapon Cleaver() => new Weapon("Cleaver", 2, 1, 10, 3, iconName: "Cleaver", trait: WeaponTrait.Bleed, traitPower: 3);
-        public static Weapon HandAxe() => new Weapon("Hand Axe", 2, 1, 12, 2, iconName: "Axe", trait: WeaponTrait.Bleed, traitPower: 2);
+        public static Weapon IronSword() => new Weapon("Iron Sword", 2, 2, 6, 1, iconName: "IronSword", trait: WeaponTrait.Lifesteal, traitPower: 20, hitSound: Sfx.Slash);
+        public static Weapon Cleaver() => new Weapon("Cleaver", 2, 1, 10, 3, iconName: "Cleaver", trait: WeaponTrait.Bleed, traitPower: 3, hitSound: Sfx.Slash);
+        public static Weapon HandAxe() => new Weapon("Hand Axe", 2, 1, 12, 2, iconName: "Axe", trait: WeaponTrait.Bleed, traitPower: 2, hitSound: Sfx.Slash);
 
-        public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2, iconName: "HolyLance", trait: WeaponTrait.Lifesteal, traitPower: 15);
-        public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2, iconName: "WarMaul", trait: WeaponTrait.Stagger, traitPower: 35);
+        public static Weapon HolyLance() => new Weapon("Holy Lance", 3, 2, 6, 2, corruptionBonus: 2, iconName: "HolyLance", trait: WeaponTrait.Lifesteal, traitPower: 15, hitSound: Sfx.Pierce);
+        public static Weapon WarMaul() => new Weapon("War Maul", 3, 3, 6, 2, iconName: "WarMaul", trait: WeaponTrait.Stagger, traitPower: 35, hitSound: Sfx.Smash);
 
-        public static Weapon Dawnbreaker() => new Weapon("Dawnbreaker", 4, 3, 6, 3, corruptionBonus: 2, iconName: "Dawnbreaker", trait: WeaponTrait.Sunbane, traitPower: 30);
+        public static Weapon Dawnbreaker() => new Weapon("Dawnbreaker", 4, 3, 6, 3, corruptionBonus: 2, iconName: "Dawnbreaker", trait: WeaponTrait.Sunbane, traitPower: 30, hitSound: Sfx.Slash);
 
         private static readonly Func<Weapon>[] AllFactories =
         {

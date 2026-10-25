@@ -135,6 +135,12 @@ namespace DuskAndDawn
             InitializePack();
         }
 
+        public override void Dispose()
+        {
+            Sound.StopMusic();
+            base.Dispose();
+        }
+
         private void LayoutMapNodes()
         {
             float pitchX = MapArea.Width / _map.Columns;
@@ -547,6 +553,7 @@ namespace DuskAndDawn
                 var (food, planks, scraps) = DistrictInfo.SpecialtyAmount(_district, amount);
                 _playerState.AddResources(food, planks, scraps);
                 line += $" You pocket {amount} {DistrictInfo.SpecialtyMaterial(_district)} from the rubble.";
+                Sound.Play(Sfx.ItemLoot);
             }
 
             _textLog.Push(line);
@@ -558,6 +565,7 @@ namespace DuskAndDawn
         {
             var (food, planks, scraps) = DistrictInfo.Yield(_district).Roll(_random, times: 3);
             _playerState.AddResources(food, planks, scraps);
+            Sound.Play(Sfx.ItemLoot);
 
             string line = $"The Hoard! {food} Food, {planks} Planks and {scraps} Scraps, stacked in the dark.";
             if (_random.Next(100) < 50)

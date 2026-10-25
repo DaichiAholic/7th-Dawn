@@ -87,6 +87,7 @@ namespace DuskAndDawn
             _combatTurn = 0;
             LayoutCombatButtons();
             _state = ExplorationState.Encounter;
+            Sound.PlayCombatMusic();
         }
 
         private static string EncounterIntro(List<Enemy> enemies)
@@ -356,6 +357,7 @@ namespace DuskAndDawn
             {
                 float castDuration = (castTexture == Game1.SkillTexture ? SkillAnimDuration : AttackAnimDuration) * AnimScale;
                 _castEffect.Play(castTexture, ScreenCenter, castDuration, EffectScale);
+                Sound.Play(_playerState.EquippedWeapon.HitSound);
                 _shakenEnemy = _activeCombat.LastTarget;
                 _enemyShake.Play();
 
@@ -390,6 +392,7 @@ namespace DuskAndDawn
 
             _castEffect.Stop();
             _playerHitFlash.Stop();
+            Sound.StopMusic();
             if (_pendingPlayerHitDelay >= 0f && !string.IsNullOrEmpty(_pendingEnemyReplyText))
             {
                 _textLog.Push(_pendingEnemyReplyText);
@@ -451,6 +454,7 @@ namespace DuskAndDawn
             }
             _playerState.AddResources(food, planks, scraps);
             _textLog.Push($"You strip the remains: {MaterialYield.Describe(food, planks, scraps)}.");
+            if (food + planks + scraps > 0) Sound.Play(Sfx.ItemLoot);
 
             if (combat.HasBoss)
             {

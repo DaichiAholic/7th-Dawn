@@ -449,6 +449,7 @@ namespace DuskAndDawn
             {
                 _playerState.RoomLevels[room] = level + 1;
                 SpawnSpendFloaters(food, planks, scraps);
+                Sound.Play(Sfx.RoomUpgrade);
                 SetStatus($"{room} upgraded to Lv {level + 1}. {UpgradeNote(room, level + 1)} Upkeep is now {_playerState.DailyUpkeep} Food.", isError: false);
             }
             else
@@ -486,8 +487,16 @@ namespace DuskAndDawn
             CelebrateCraft(recipe, button);
         }
 
+        private static Sfx CraftSound(Recipe recipe) => recipe.Room switch
+        {
+            BaseRoomType.Workshop => Sfx.BlacksmithCrafting,
+            BaseRoomType.Kitchen => Sfx.Cooking,
+            _ => recipe.SampleItem?.Name == "Bandage" ? Sfx.BandageCrafting : Sfx.PotionCrafting
+        };
+
         private void CelebrateCraft(Recipe recipe, Button button)
         {
+            Sound.Play(CraftSound(recipe));
             _craftToastRecipe = recipe;
             var equipped = _playerState.EquippedWeapon;
             _craftToastDetail = recipe.IsReinforce ? $"{equipped.DisplayName} now rolls {equipped.DiceLabel}"

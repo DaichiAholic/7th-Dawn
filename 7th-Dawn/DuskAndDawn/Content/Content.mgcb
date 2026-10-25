@@ -845,3 +845,81 @@
 /processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
 /build:UI/FrameWood.png
+
+#begin Audio/bgm_combat_encounter.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/build:Audio/bgm_combat_encounter.mp3
+
+#begin Audio/sfx_bandage_crafting.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_bandage_crafting.mp3
+
+#begin Audio/sfx_blacksmith_crafting.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_blacksmith_crafting.mp3
+
+#begin Audio/sfx_cooking.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_cooking.mp3
+
+#begin Audio/sfx_item_loot.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_item_loot.mp3
+
+#begin Audio/sfx_pierce_1.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_pierce_1.mp3
+
+#begin Audio/sfx_pierce_2.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_pierce_2.mp3
+
+#begin Audio/sfx_potion_crafting.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_potion_crafting.mp3
+
+#begin Audio/sfx_room_upgrade.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_room_upgrade.mp3
+
+#begin Audio/sfx_slash_1.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_slash_1.mp3
+
+#begin Audio/sfx_slash_2.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_slash_2.mp3
+
+#begin Audio/sfx_smash_1.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_smash_1.mp3
+
+#begin Audio/sfx_smash_2.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_smash_2.mp3

@@ -160,6 +160,7 @@ namespace DuskAndDawn
                     _roomSprites[(room, tier)] = Content.Load<Texture2D>($"Base/{artName}_LV{tier}");
                 }
             }
+            Sound.LoadContent(Content);
 
             _screenManager.ShowScreen(new MainMenuScreen(this));
         }
