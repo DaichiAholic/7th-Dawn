@@ -870,6 +870,18 @@
 /processorParam:Quality=Best
 /build:Audio/sfx_blacksmith_crafting.mp3
 
+#begin Audio/sfx_boss_attack.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_boss_attack.mp3
+
+#begin Audio/sfx_boss_skill.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_boss_skill.mp3
+
 #begin Audio/sfx_cooking.mp3
 /importer:Mp3Importer
 /processor:SoundEffectProcessor
@@ -881,6 +893,24 @@
 /processor:SoundEffectProcessor
 /processorParam:Quality=Best
 /build:Audio/sfx_item_loot.mp3
+
+#begin Audio/sfx_knight_wretch_attack.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_knight_wretch_attack.mp3
+
+#begin Audio/sfx_penitent_attack.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_penitent_attack.mp3
+
+#begin Audio/sfx_penitent_skill.mp3
+/importer:Mp3Importer
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Audio/sfx_penitent_skill.mp3
 
 #begin Audio/sfx_pierce_1.mp3
 /importer:Mp3Importer

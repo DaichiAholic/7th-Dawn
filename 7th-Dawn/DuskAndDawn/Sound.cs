@@ -18,7 +18,12 @@ namespace DuskAndDawn
         PotionCrafting,
         Cooking,
         RoomUpgrade,
-        ItemLoot
+        ItemLoot,
+        BossAttack,
+        BossSkill,
+        PenitentAttack,
+        PenitentSkill,
+        KnightWretchAttack
     }
 
     public enum Music
@@ -42,7 +47,12 @@ namespace DuskAndDawn
             [Sfx.PotionCrafting] = new[] { "sfx_potion_crafting" },
             [Sfx.Cooking] = new[] { "sfx_cooking" },
             [Sfx.RoomUpgrade] = new[] { "sfx_room_upgrade" },
-            [Sfx.ItemLoot] = new[] { "sfx_item_loot" }
+            [Sfx.ItemLoot] = new[] { "sfx_item_loot" },
+            [Sfx.BossAttack] = new[] { "sfx_boss_attack" },
+            [Sfx.BossSkill] = new[] { "sfx_boss_skill" },
+            [Sfx.PenitentAttack] = new[] { "sfx_penitent_attack" },
+            [Sfx.PenitentSkill] = new[] { "sfx_penitent_skill" },
+            [Sfx.KnightWretchAttack] = new[] { "sfx_knight_wretch_attack" }
         };
 
         private static readonly Dictionary<Music, (string file, float mix)> MusicFiles = new Dictionary<Music, (string, float)>

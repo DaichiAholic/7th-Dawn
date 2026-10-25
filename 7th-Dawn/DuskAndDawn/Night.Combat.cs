@@ -50,6 +50,8 @@ namespace DuskAndDawn
         private const float EnemyCounterDelay = 0.45f;
         private float _pendingPlayerHitDelay = -1f;
         private string _pendingEnemyReplyText = "";
+        private float _pendingEnemySoundDelay = -1f;
+        private readonly List<Sfx> _pendingEnemySounds = new List<Sfx>();
 
         private const int PlayerHpBarScreenScale = 4;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
@@ -346,12 +348,39 @@ namespace DuskAndDawn
             }
         }
 
+        private static Sfx? EnemyActionSound(Enemy enemy, IntentType action) => (enemy.Kind, action) switch
+        {
+            (EnemyKind.Herald, IntentType.Attack) => Sfx.BossAttack,
+            (EnemyKind.Herald, IntentType.Brand or IntentType.Flare or IntentType.CallForAid) => Sfx.BossSkill,
+            (EnemyKind.Penitent, IntentType.Attack) => Sfx.PenitentAttack,
+            (EnemyKind.Penitent, IntentType.Spell or IntentType.Stun) => Sfx.PenitentSkill,
+            (EnemyKind.Knight or EnemyKind.Wretch, IntentType.Attack or IntentType.Heavy) => Sfx.KnightWretchAttack,
+            _ => null
+        };
+
+        private void PlayPendingEnemySounds()
+        {
+            _pendingEnemySoundDelay = -1f;
+            foreach (var sound in _pendingEnemySounds) Sound.Play(sound);
+            _pendingEnemySounds.Clear();
+        }
+
         private void TriggerCombatEffects(Texture2D castTexture)
         {
             if (_pendingPlayerHitDelay >= 0f)
             {
                 FirePendingPlayerHit();
             }
+            if (_pendingEnemySoundDelay >= 0f)
+            {
+                PlayPendingEnemySounds();
+            }
+
+            foreach (var (enemy, action) in _activeCombat.LastEnemyActions)
+            {
+                if (EnemyActionSound(enemy, action) is Sfx sound) _pendingEnemySounds.Add(sound);
+            }
+            if (_pendingEnemySounds.Count > 0) _pendingEnemySoundDelay = EnemyCounterDelay * AnimScale;
 
             if (_activeCombat.LastRollWasAttack)
             {
@@ -398,6 +427,7 @@ namespace DuskAndDawn
             }
             _pendingPlayerHitDelay = -1f;
             _pendingEnemyReplyText = "";
+            if (_pendingEnemySoundDelay >= 0f) PlayPendingEnemySounds();
             _actionLock = 0f;
 
             _activeCombat = null;

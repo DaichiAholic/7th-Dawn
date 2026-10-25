@@ -203,6 +203,14 @@ namespace DuskAndDawn
                     FirePendingPlayerHit();
                 }
             }
+            if (_pendingEnemySoundDelay >= 0f)
+            {
+                _pendingEnemySoundDelay -= dt;
+                if (_pendingEnemySoundDelay <= 0f)
+                {
+                    PlayPendingEnemySounds();
+                }
+            }
             if (_activeCombat != null)
             {
                 foreach (var enemy in _activeCombat.Enemies)

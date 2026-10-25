@@ -47,6 +47,7 @@ namespace DuskAndDawn
         public int LastIncomingDamage { get; private set; }
 
         public string LastEnemyReplyText { get; private set; } = "";
+        public List<(Enemy enemy, IntentType action)> LastEnemyActions { get; } = new List<(Enemy, IntentType)>();
 
         public CombatEncounter(List<Enemy> enemies, PlayerState playerState, DawnTimer dawnTimer, Random random, int day, Func<Enemy> summonAid)
         {
@@ -271,6 +272,7 @@ namespace DuskAndDawn
             PlayerWasHit = false;
             LastIncomingDamage = 0;
             LastEnemyReplyText = "";
+            LastEnemyActions.Clear();
         }
 
         private void ResolveEnemyTurn()
@@ -312,6 +314,7 @@ namespace DuskAndDawn
             {
                 if (_playerState.Health <= 0) break;
 
+                LastEnemyActions.Add((enemy, enemy.Intent));
                 switch (enemy.Intent)
                 {
                     case IntentType.Charge:
