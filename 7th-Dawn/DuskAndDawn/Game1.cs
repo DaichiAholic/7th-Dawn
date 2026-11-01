@@ -41,6 +41,7 @@ namespace DuskAndDawn
         public Texture2D BreadTexture { get; private set; }
         public Texture2D PlanksTexture { get; private set; }
         public Texture2D ScrapsTexture { get; private set; }
+        public Texture2D Logo { get; private set; }
         public Texture2D BaseBackdrop { get; private set; }
         public Texture2D MapBackdrop { get; private set; }
         public Texture2D FightBackdrop { get; private set; }
@@ -162,6 +163,7 @@ namespace DuskAndDawn
             BreadTexture = Content.Load<Texture2D>("Bread");
             PlanksTexture = Content.Load<Texture2D>("Planks");
             ScrapsTexture = Content.Load<Texture2D>("Scraps");
+            Logo = Content.Load<Texture2D>("UI/Logo");
             BaseBackdrop = Content.Load<Texture2D>("Backgrounds/Base_bg");
             MapBackdrop = Content.Load<Texture2D>("Backgrounds/MAP_bg");
             FightBackdrop = Content.Load<Texture2D>("Backgrounds/Fight_Screen");

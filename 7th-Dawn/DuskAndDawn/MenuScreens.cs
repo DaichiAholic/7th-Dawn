@@ -288,6 +288,14 @@ namespace DuskAndDawn
             UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(640 - size.X / 2f, y), color, scale);
         }
 
+        public static void DrawLogo(SpriteBatch spriteBatch, Texture2D logo, Vector2 center, float alpha, float glow)
+        {
+            if (logo == null || alpha <= 0.001f) return;
+            float scale = 4f / UITheme.RenderScale;
+            UITheme.DrawGlow(spriteBatch, center, 110f, new Color(255, 170, 80) * ((0.22f + glow * 0.08f) * alpha));
+            UITheme.DrawPixelIcon(spriteBatch, logo, center - new Vector2(logo.Width, logo.Height) * (scale / 2f), scale, Color.White * alpha);
+        }
+
         protected void DrawOverlayPanel(SpriteBatch spriteBatch, RectangleF panel)
         {
             float fade = Anim.Intro(Elapsed, 0f, 0.25f);
@@ -355,6 +363,8 @@ namespace DuskAndDawn
 
             float titleIn = Anim.Intro(Elapsed, 0.1f, 0.9f);
             float titleY = 130 - (1f - titleIn) * 30f + MathF.Sin(Elapsed * 1.1f) * 3f;
+            DrawLogo(spriteBatch, Game1.Logo, new Vector2(640, titleY - 52), titleIn, glow);
+
             const int titlePixel = 5;
             var titleSize = UITheme.MeasurePixelText("7th Dawn", titlePixel);
             UITheme.DrawGlow(spriteBatch, new Vector2(640, titleY + titleSize.Y / 2f), titleSize.X * 0.75f, new Color(255, 140, 70) * (0.22f * titleIn * (0.8f + glow * 0.2f)));

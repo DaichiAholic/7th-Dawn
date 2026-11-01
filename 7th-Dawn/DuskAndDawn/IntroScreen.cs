@@ -225,10 +225,12 @@ namespace DuskAndDawn
             float t = Anim.Intro(_titleTime, 0.2f, 1.6f);
             float glow = UITheme.PulseSine(_titleTime, 0.8f);
             UITheme.DrawGlow(spriteBatch, new Vector2(640, 300), 420f, new Color(255, 150, 70) * ((0.18f + glow * 0.06f) * t));
+            float titleY = 250 - (1f - t) * 20f;
+            MenuScreen.DrawLogo(spriteBatch, Game1.Logo, new Vector2(640, titleY - 52), t, glow);
             const string title = "7th Dawn";
             const int titlePixel = 5;
             var size = UITheme.MeasurePixelText(title, titlePixel);
-            UITheme.DrawPixelText(spriteBatch, title, new Vector2(640 - size.X / 2f, 250 - (1f - t) * 20f), new Color(255, 212, 160) * t, titlePixel, shadowAlpha: 0.45f * t);
+            UITheme.DrawPixelText(spriteBatch, title, new Vector2(640 - size.X / 2f, titleY), new Color(255, 212, 160) * t, titlePixel, shadowAlpha: 0.45f * t);
 
             const string sub = "Seven nights. One house. Hold on to Hope.";
             float subIn = Anim.Intro(_titleTime, 1.0f, 1.2f);
