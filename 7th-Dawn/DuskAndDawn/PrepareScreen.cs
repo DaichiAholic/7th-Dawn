@@ -29,17 +29,18 @@ namespace DuskAndDawn
         private float _elapsed;
         private const float RoadAt = 0.15f, RoadStep = 0.28f;
 
-        private static readonly RectangleF MapPanel = new RectangleF(40, 64, 660, 632);
+        private static readonly RectangleF MapPanel = new RectangleF(40, 64, 644, 632);
         private static readonly RectangleF LoadoutPanel = new RectangleF(720, 64, 520, 632);
+        private const int MapArtPixel = 4;
 
-        private static readonly Vector2 ShelterPoint = new Vector2(130, 610);
+        private static readonly Vector2 ShelterPoint = new Vector2(122, 583);
 
         private static readonly Vector2[] LandmarkPoints =
         {
-            new Vector2(240, 470),
-            new Vector2(410, 335),
-            new Vector2(520, 225),
-            new Vector2(620, 134)
+            new Vector2(213, 460),
+            new Vector2(415, 359),
+            new Vector2(501, 279),
+            new Vector2(607, 193)
         };
 
         private const float LandmarkRadius = 30f;
@@ -49,16 +50,10 @@ namespace DuskAndDawn
 
         private static readonly Vector2[] RiverPoints =
         {
-            new Vector2(330, 64), new Vector2(310, 160), new Vector2(350, 250), new Vector2(300, 380),
-            new Vector2(340, 470), new Vector2(310, 560), new Vector2(330, 696)
-        };
-
-        private static readonly Vector2[] TreePoints =
-        {
-            new Vector2(90, 200), new Vector2(112, 228), new Vector2(150, 182), new Vector2(200, 300),
-            new Vector2(90, 400), new Vector2(470, 160), new Vector2(180, 120), new Vector2(520, 560),
-            new Vector2(556, 598), new Vector2(600, 540), new Vector2(640, 420), new Vector2(560, 650),
-            new Vector2(500, 450), new Vector2(230, 640)
+            new Vector2(370, 71), new Vector2(359, 125), new Vector2(327, 168), new Vector2(322, 211),
+            new Vector2(338, 253), new Vector2(343, 296), new Vector2(311, 339), new Vector2(306, 381),
+            new Vector2(322, 424), new Vector2(327, 467), new Vector2(295, 509), new Vector2(258, 552),
+            new Vector2(247, 595), new Vector2(253, 637), new Vector2(269, 684)
         };
 
         private const int WeaponsPerRow = 2;
@@ -237,8 +232,9 @@ namespace DuskAndDawn
 
         private void DrawMap(SpriteBatch spriteBatch, SpriteFont font, float totalSeconds)
         {
-            UITheme.DrawFrame(spriteBatch, MapPanel, UIFrame.Rect, new Color(150, 120, 70) * 0.7f, shadow: 0.6f, surface: Palette.NightMap);
+            UITheme.DrawFrame(spriteBatch, MapPanel, UIFrame.Rect, Color.Transparent, shadow: 0.6f, surface: Palette.NightMap);
             DrawScenery(spriteBatch, totalSeconds);
+            UITheme.DrawFrameOutline(spriteBatch, MapPanel, UIFrame.Rect, new Color(150, 120, 70) * 0.7f);
 
             var previous = ShelterPoint;
             int selectedIndex = Array.IndexOf(DistrictInfo.All, _playerState.SelectedDistrict);
@@ -248,10 +244,13 @@ namespace DuskAndDawn
                 if (t <= 0f) break;
                 bool onRoute = i <= selectedIndex;
                 bool reachable = onRoute || _playerState.IsDistrictUnlocked(DistrictInfo.All[i]);
-                Color roadColor = !reachable ? Color.White * 0.15f
-                    : onRoute ? new Color(255, 205, 140) * 0.9f
-                    : new Color(225, 195, 140) * 0.55f;
-                DrawDashedLine(spriteBatch, previous, Vector2.Lerp(previous, LandmarkPoints[i], t), roadColor, 3f, onRoute && reachable ? totalSeconds * 14f : 0f);
+                Color roadColor = !reachable ? Color.White * 0.3f
+                    : onRoute ? new Color(255, 215, 150)
+                    : new Color(235, 205, 150) * 0.75f;
+                float phase = onRoute && reachable ? totalSeconds * 14f : 0f;
+                var end = Vector2.Lerp(previous, LandmarkPoints[i], t);
+                DrawDashedLine(spriteBatch, previous, end, Color.Black * 0.35f, 6f, phase);
+                DrawDashedLine(spriteBatch, previous, end, roadColor, 3f, phase);
                 previous = LandmarkPoints[i];
             }
 
@@ -262,52 +261,40 @@ namespace DuskAndDawn
                 DrawLandmark(spriteBatch, font, i, totalSeconds);
             }
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Scavenging map", new Vector2(MapPanel.X + 18, MapPanel.Y + 14), new Color(225, 205, 165));
-            UITheme.DrawTextWithShadow(spriteBatch, font, "Hover a landmark to scout it, click to choose.", new Vector2(MapPanel.X + 18, MapPanel.Y + MapPanel.Height - 30), new Color(190, 180, 165), 0.65f);
-
-            var compass = new Vector2(MapPanel.X + MapPanel.Width - 40, MapPanel.Y + MapPanel.Height - 70);
-            spriteBatch.DrawLine(compass + new Vector2(0, -18), compass + new Vector2(0, 18), new Color(225, 205, 165) * 0.6f, 2f);
-            spriteBatch.DrawLine(compass + new Vector2(-12, 0), compass + new Vector2(12, 0), new Color(225, 205, 165) * 0.4f, 2f);
-            UITheme.DrawTextWithShadow(spriteBatch, font, "N", compass + new Vector2(-6, -44), new Color(225, 205, 165), 0.75f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Scavenging map", new Vector2(MapPanel.X + 18, MapPanel.Y + 14), new Color(240, 225, 190));
+            UITheme.DrawTextWithShadow(spriteBatch, font, "Hover a landmark to scout it, click to choose.", new Vector2(MapPanel.X + 18, MapPanel.Y + MapPanel.Height - 30), new Color(220, 210, 190), 0.65f);
         }
 
         private void DrawScenery(SpriteBatch spriteBatch, float totalSeconds)
         {
-            for (float x = MapPanel.X + 60; x < MapPanel.X + MapPanel.Width; x += 60)
+            var art = Game1.MapBackdrop;
+            var inner = new RectangleF(MapPanel.X + 2, MapPanel.Y + 2, MapPanel.Width - 4, MapPanel.Height - 4);
+            if (art != null)
             {
-                spriteBatch.DrawLine(new Vector2(x, MapPanel.Y + 4), new Vector2(x, MapPanel.Y + MapPanel.Height - 4), Color.White * 0.03f, 1f);
-            }
-            for (float y = MapPanel.Y + 60; y < MapPanel.Y + MapPanel.Height; y += 60)
-            {
-                spriteBatch.DrawLine(new Vector2(MapPanel.X + 4, y), new Vector2(MapPanel.X + MapPanel.Width - 4, y), Color.White * 0.03f, 1f);
+                float pixel = MapArtPixel / UITheme.RenderScale;
+                int rows = Math.Min(art.Height, (int)MathF.Ceiling(inner.Height / pixel));
+                var size = new Vector2(art.Width, rows) * pixel;
+                var bounds = new RectangleF(inner.X + (inner.Width - size.X) / 2f, inner.Y + (inner.Height - size.Y) / 2f, size.X, size.Y);
+                UITheme.DrawPixelArt(spriteBatch, art, bounds, new Rectangle(0, (art.Height - rows) / 2, art.Width, rows));
             }
 
-            for (int i = 0; i < RiverPoints.Length - 1; i++)
-            {
-                spriteBatch.DrawLine(RiverPoints[i], RiverPoints[i + 1], new Color(26, 44, 66), 12f);
-            }
-            for (int i = 1; i < RiverPoints.Length - 1; i++)
-            {
-                FillCircle(spriteBatch, RiverPoints[i], 6f, new Color(26, 44, 66));
-            }
-            for (int i = 0; i < RiverPoints.Length - 1; i++)
-            {
-                spriteBatch.DrawLine(RiverPoints[i], RiverPoints[i + 1], new Color(70, 110, 150) * 0.35f, 4f);
-            }
             for (int g = 0; g < 6; g++)
             {
                 float along = ((totalSeconds * 0.05f + g / 6f) % 1f) * (RiverPoints.Length - 1);
                 int segment = (int)along;
                 var glint = Vector2.Lerp(RiverPoints[segment], RiverPoints[segment + 1], along - segment);
-                UITheme.DrawGlow(spriteBatch, glint, 10f, new Color(150, 200, 255) * 0.35f);
+                UITheme.DrawGlow(spriteBatch, glint, 10f, new Color(170, 215, 255) * 0.4f);
             }
 
-            foreach (var tree in TreePoints)
-            {
-                FillCircle(spriteBatch, tree + new Vector2(2, 3), 9f, Color.Black * 0.3f);
-                FillCircle(spriteBatch, tree, 9f, new Color(28, 52, 38));
-                FillCircle(spriteBatch, tree + new Vector2(-2, -2), 5f, new Color(42, 74, 52));
-            }
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(inner.X, inner.Y, inner.Width, 52), Color.Black * 0.55f, Color.Transparent, 13);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(inner.X, inner.Bottom - 52, inner.Width, 52), Color.Transparent, Color.Black * 0.55f, 13);
+        }
+
+        private static void DrawMapLabel(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 topCenter, Color color, float scale)
+        {
+            var size = UITheme.MeasureString(font, text) * scale;
+            UITheme.FillRoundedRect(spriteBatch, new RectangleF(topCenter.X - size.X / 2f - 6, topCenter.Y - 2, size.X + 12, size.Y + 4), Color.Black * (0.45f * color.A / 255f), 6f);
+            DrawCenteredText(spriteBatch, font, text, topCenter, color, scale);
         }
 
         private void DrawShelter(SpriteBatch spriteBatch, SpriteFont font)
@@ -316,7 +303,7 @@ namespace DuskAndDawn
             UITheme.DrawFrame(spriteBatch, house, UIFrame.Wood, new Color(235, 200, 140), shadow: 0.5f);
             UITheme.FillRoundedRect(spriteBatch, new RectangleF(ShelterPoint.X - 6, ShelterPoint.Y - 6, 12, 12), new Color(255, 215, 130), 2f);
 
-            DrawCenteredText(spriteBatch, font, "Your Shelter", new Vector2(ShelterPoint.X, ShelterPoint.Y + 22), new Color(235, 215, 180), 0.7f);
+            DrawMapLabel(spriteBatch, font, "Your Shelter", new Vector2(ShelterPoint.X, ShelterPoint.Y + 22), new Color(235, 215, 180), 0.7f);
         }
 
         private void DrawLandmark(SpriteBatch spriteBatch, SpriteFont font, int index, float totalSeconds)
@@ -372,16 +359,11 @@ namespace DuskAndDawn
 
             if (selected)
             {
-                DrawCenteredText(spriteBatch, font, "TONIGHT", new Vector2(center.X, center.Y - radius - 30), new Color(255, 215, 150), 0.65f);
+                DrawMapLabel(spriteBatch, font, "TONIGHT", new Vector2(center.X, center.Y - radius - 30), new Color(255, 215, 150), 0.65f);
             }
 
-            string name = DistrictInfo.Name(district);
-            var nameSize = UITheme.MeasureString(font, name) * 0.8f;
-            var namePos = new Vector2(center.X, center.Y + radius + 8);
-            UITheme.FillRoundedRect(spriteBatch, new RectangleF(namePos.X - nameSize.X / 2f - 6, namePos.Y - 2, nameSize.X + 12, nameSize.Y + 4), Color.Black * 0.35f, 6f);
-
-            Color nameColor = unlocked ? Color.White : new Color(140, 135, 145);
-            DrawCenteredText(spriteBatch, font, name, namePos, nameColor * MathHelper.Clamp(arrive, 0f, 1f), 0.8f);
+            Color nameColor = unlocked ? Color.White : new Color(170, 165, 175);
+            DrawMapLabel(spriteBatch, font, DistrictInfo.Name(district), new Vector2(center.X, center.Y + radius + 8), nameColor * MathHelper.Clamp(arrive, 0f, 1f), 0.8f);
 
             if (unlocked)
             {
@@ -393,12 +375,13 @@ namespace DuskAndDawn
                 for (int t = 0; t < maxTier; t++)
                 {
                     var pipCenter = new Vector2(startX + t * (pip * 2f + gap), pipY);
-                    FillCircle(spriteBatch, pipCenter, pip, t < tier ? new Color(255, 140, 70) : Color.White * 0.15f);
+                    FillCircle(spriteBatch, pipCenter, pip + 1.5f, Color.Black * 0.5f);
+                    FillCircle(spriteBatch, pipCenter, pip, t < tier ? new Color(255, 140, 70) : Color.White * 0.2f);
                 }
             }
             else
             {
-                DrawCenteredText(spriteBatch, font, LockLabel(district), new Vector2(center.X, center.Y + radius + 30), new Color(160, 150, 160), 0.6f);
+                DrawMapLabel(spriteBatch, font, LockLabel(district), new Vector2(center.X, center.Y + radius + 30), new Color(190, 180, 190), 0.6f);
             }
         }
 

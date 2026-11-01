@@ -209,6 +209,15 @@ namespace DuskAndDawn
             spriteBatch.FillRectangle(new RectangleF(0, groundY, 1280, 720 - groundY), color);
         }
 
+        public static void Scene(SpriteBatch spriteBatch, Texture2D art, Color tint)
+        {
+            if (art == null) return;
+            float scale = 1280f / art.Width;
+            float top = 720f - art.Height * scale;
+            if (top > 0f) UITheme.DrawPixelArt(spriteBatch, art, new RectangleF(0, 0, 1280, top), new Rectangle(0, 0, art.Width, 1), tint);
+            UITheme.DrawPixelArt(spriteBatch, art, new RectangleF(0, top, 1280, art.Height * scale), tint: tint);
+        }
+
         public static void Sky(SpriteBatch spriteBatch, Color top, Color bottom, float height = 720f)
         {
             const float strip = 6f;

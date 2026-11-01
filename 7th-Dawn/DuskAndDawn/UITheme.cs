@@ -386,14 +386,15 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch);
         }
 
-        public static void DrawPixelArt(SpriteBatch spriteBatch, Texture2D texture, RectangleF bounds)
+        public static void DrawPixelArt(SpriteBatch spriteBatch, Texture2D texture, RectangleF bounds, Rectangle? source = null, Color? tint = null)
         {
             if (texture == null) return;
-            var scale = new Vector2(bounds.Width / texture.Width, bounds.Height / texture.Height);
+            var area = source ?? texture.Bounds;
+            var scale = new Vector2(bounds.Width / area.Width, bounds.Height / area.Height);
 
             spriteBatch.End();
             BeginCanvas(spriteBatch, SamplerState.PointClamp);
-            spriteBatch.Draw(texture, SnapToDevice(bounds.Position), null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(texture, SnapToDevice(bounds.Position), area, tint ?? Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             spriteBatch.End();
             BeginCanvas(spriteBatch);
         }

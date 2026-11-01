@@ -212,10 +212,8 @@ namespace DuskAndDawn
 
         private float _elapsed;
         private float _panelOpenedAt = -1f;
-        private readonly ParticleField _dust = new ParticleField(34, new RectangleF(150, 236, 980, 380),
+        private readonly ParticleField _dust = new ParticleField(34, new RectangleF(170, 192, 940, 364),
             new Vector2(-6, -4), new Vector2(6, 4), 0.8f, 1.8f, 6f, 12f, new Color(230, 210, 170), new Color(255, 200, 130), wobble: 4f);
-        private readonly ParticleField _smoke = new ParticleField(14, new RectangleF(330, 60, 60, 110),
-            new Vector2(-4, -22), new Vector2(8, -12), 6f, 11f, 3f, 5f, new Color(120, 110, 120), Color.Transparent, wobble: 8f, spawnAtBottom: true);
 
         private class Spark
         {
@@ -241,10 +239,19 @@ namespace DuskAndDawn
         private const float ResourcePopDuration = 0.25f;
 
         private const float RoomArtScale = 2f / Game1.RenderScale;
-        private const float RoomGap = 24f;
-        private const float UpperRowY = 246f;
-        private const float GroundRowY = 434f;
-        private float _roomHeight;
+        private static readonly Vector2 BackdropOrigin = new Vector2(-128f, 0f);
+        private static readonly Color GroundColor = new Color(14, 14, 17);
+        private static readonly Color WindowShade = new Color(9, 11, 18);
+
+        private static readonly Dictionary<BaseRoomType, Point> BackdropWindows = new Dictionary<BaseRoomType, Point>
+        {
+            [BaseRoomType.Infirmary] = new Point(224, 144),
+            [BaseRoomType.Barrack] = new Point(432, 144),
+            [BaseRoomType.Archive] = new Point(640, 144),
+            [BaseRoomType.Storage] = new Point(256, 288),
+            [BaseRoomType.Workshop] = new Point(464, 288),
+            [BaseRoomType.Kitchen] = new Point(672, 288)
+        };
 
         public BaseBuilding(Game game, PlayerState playerState) : base(game)
         {
@@ -259,8 +266,7 @@ namespace DuskAndDawn
 
             _previousMouse = InputChecker.GetMouse();
 
-            LayOutRow(UpperFloorRooms, UpperRowY);
-            LayOutRow(GroundFloorRooms, GroundRowY);
+            LayOutRooms();
 
             _endDayButton = new Button(new RectangleF(490, 655, 300, 55), "Prepare");
 
@@ -272,19 +278,14 @@ namespace DuskAndDawn
             _lastScraps = _playerState.Scraps;
         }
 
-        private void LayOutRow(BaseRoomType[] rooms, float y)
+        private void LayOutRooms()
         {
-            var sizes = rooms.Select(room =>
+            foreach (var room in AllRooms)
             {
                 var art = Game1.GetRoomSprite(room, 1);
-                return (art != null ? new Vector2(art.Width, art.Height) : new Vector2(192, 128)) * RoomArtScale;
-            }).ToArray();
-            float x = Game1.CanvasWidth / 2f - (sizes.Sum(size => size.X) + RoomGap * (rooms.Length - 1)) / 2f;
-            for (int i = 0; i < rooms.Length; i++)
-            {
-                _roomButtons[rooms[i]] = new Button(new RectangleF(x, y, sizes[i].X, sizes[i].Y), rooms[i].ToString());
-                _roomHeight = Math.Max(_roomHeight, sizes[i].Y);
-                x += sizes[i].X + RoomGap;
+                var size = (art != null ? new Vector2(art.Width, art.Height) : new Vector2(192, 128)) * RoomArtScale;
+                var window = BackdropOrigin + BackdropWindows[room].ToVector2() * RoomArtScale;
+                _roomButtons[room] = new Button(new RectangleF(window.X, window.Y, size.X, size.Y), room.ToString());
             }
         }
 
@@ -299,7 +300,6 @@ namespace DuskAndDawn
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _elapsed += dt;
             _dust.Update(dt);
-            _smoke.Update(dt);
             UpdateCraftEffects(dt);
             _foodPopTimer = MathF.Max(0f, _foodPopTimer - dt);
             _planksPopTimer = MathF.Max(0f, _planksPopTimer - dt);
@@ -701,6 +701,7 @@ namespace DuskAndDawn
 
             DrawBackground(spriteBatch);
             DrawRooms(spriteBatch, font);
+            _dust.Draw(spriteBatch, 0.6f);
             if (!_openRoom.HasValue) DrawFooter(spriteBatch, font);
             DrawEndDayButton(spriteBatch, font);
             DrawHopeBar(spriteBatch, font, gameTime);
@@ -718,61 +719,46 @@ namespace DuskAndDawn
 
         private void DrawBackground(SpriteBatch spriteBatch)
         {
-            Backdrop.Sky(spriteBatch, new Color(92, 84, 96), new Color(40, 34, 40));
-            float glare = UITheme.PulseSine(_elapsed, 0.5f);
-            UITheme.DrawGlow(spriteBatch, new Vector2(1010, -40), 420f, new Color(255, 250, 230) * (0.18f + glare * 0.05f));
-
-            Backdrop.DrawSkyline(spriteBatch, 600, 150, new Color(70, 62, 72), seed: 11, drift: MathF.Sin(_elapsed * 0.05f) * 6f);
-            Backdrop.DrawSkyline(spriteBatch, 640, 90, new Color(48, 42, 50), seed: 29, drift: MathF.Sin(_elapsed * 0.05f) * 12f);
-
-            DrawHouse(spriteBatch);
-        }
-
-        private void DrawHouse(SpriteBatch spriteBatch)
-        {
-            var wall = new RectangleF(150, 232, 980, 386);
-            Color timber = new Color(58, 42, 36);
-            Color timberDark = new Color(34, 24, 22);
-
-            spriteBatch.FillRectangle(new RectangleF(334, 140, 40, 70), timberDark);
-            spriteBatch.FillRectangle(new RectangleF(328, 134, 52, 10), new Color(46, 34, 30));
-            _smoke.Draw(spriteBatch, 0.55f);
-
-            Backdrop.FillTriangle(spriteBatch, new Vector2(640, 118), 238, 560, new Color(44, 30, 30));
-            Backdrop.FillTriangle(spriteBatch, new Vector2(640, 132), 238, 520, new Color(60, 40, 38));
-            spriteBatch.DrawLine(new Vector2(80, 238), new Vector2(640, 118), new Color(90, 62, 50), 5f);
-            spriteBatch.DrawLine(new Vector2(640, 118), new Vector2(1200, 238), new Color(90, 62, 50), 5f);
-            float attic = 0.35f + 0.1f * _playerState.Level(BaseRoomType.Archive) + UITheme.PulseSine(_elapsed, 1.3f) * 0.08f;
-            UITheme.DrawGlow(spriteBatch, new Vector2(640, 190), 60f, new Color(255, 190, 110) * (attic * 0.5f));
-            UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 18f, timberDark);
-            UITheme.FillCircle(spriteBatch, new Vector2(640, 190), 13f, new Color(255, 190, 110) * attic);
-
-            UITheme.FillGradientRect(spriteBatch, wall, new Color(52, 40, 38), new Color(34, 26, 26), 8);
-            spriteBatch.FillRectangle(new RectangleF(wall.X - 5, wall.Y, 10, wall.Height), timber);
-            spriteBatch.FillRectangle(new RectangleF(wall.Right - 5, wall.Y, 10, wall.Height), timber);
-            foreach (var row in new[] { UpperFloorRooms, GroundFloorRooms })
+            var backdrop = Game1.BaseBackdrop;
+            var bounds = new RectangleF(BackdropOrigin.X, BackdropOrigin.Y, (backdrop?.Width ?? 0) * RoomArtScale, (backdrop?.Height ?? 0) * RoomArtScale);
+            spriteBatch.FillRectangle(new RectangleF(0, bounds.Bottom - 1f, 1280, 721f - bounds.Bottom), GroundColor);
+            foreach (var room in AllRooms)
             {
-                for (int i = 1; i < row.Length; i++)
-                {
-                    float x = (_roomButtons[row[i - 1]].Bounds.Right + _roomButtons[row[i]].Bounds.X) / 2f;
-                    var rowBounds = _roomButtons[row[i]].Bounds;
-                    spriteBatch.FillRectangle(new RectangleF(x - 5, rowBounds.Y - 8, 10, rowBounds.Height + 16), timber);
-                }
+                spriteBatch.FillRectangle(_roomButtons[room].Bounds, WindowShade);
             }
-            float floorBeamY = (UpperRowY + _roomHeight + GroundRowY) / 2f;
-            spriteBatch.FillRectangle(new RectangleF(wall.X, floorBeamY - 4, wall.Width, 8), timber);
-            spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Y - 6, wall.Width + 20, 8), timber);
-            spriteBatch.FillRectangle(new RectangleF(wall.X - 10, wall.Bottom - 6, wall.Width + 20, 14), timberDark);
-
-            _dust.Draw(spriteBatch, 0.8f);
+            UITheme.DrawPixelArt(spriteBatch, backdrop, bounds);
         }
+
+        private int RoomIndex(BaseRoomType room)
+        {
+            int upper = Array.IndexOf(UpperFloorRooms, room);
+            return upper >= 0 ? upper : UpperFloorRooms.Length + Array.IndexOf(GroundFloorRooms, room);
+        }
+
+        private float RoomIntro(BaseRoomType room) =>
+            Anim.Stagger(_elapsed, RoomIndex(room), step: 0.07f, baseDelay: 0.05f, duration: 0.4f);
 
         private void DrawRooms(SpriteBatch spriteBatch, SpriteFont font)
         {
             foreach (var room in AllRooms)
             {
+                DrawRoomLight(spriteBatch, room);
+            }
+            foreach (var room in AllRooms)
+            {
                 DrawRoomPanel(spriteBatch, font, room);
             }
+        }
+
+        private void DrawRoomLight(SpriteBatch spriteBatch, BaseRoomType room)
+        {
+            var bounds = _roomButtons[room].Bounds;
+            int level = _playerState.RoomLevels[room];
+            int index = RoomIndex(room);
+            float flicker = 1f + 0.06f * MathF.Sin(_elapsed * 6.1f + index) + 0.04f * MathF.Sin(_elapsed * 11.3f + index * 2f);
+            float strength = 0.06f + level * 0.035f + _roomButtons[room].HoverAmount * 0.08f;
+            var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
+            UITheme.DrawGlow(spriteBatch, center, bounds.Width * (0.55f + level * 0.05f), new Color(255, 170, 90) * (strength * flicker * RoomIntro(room)));
         }
 
         private void DrawRoomPanel(SpriteBatch spriteBatch, SpriteFont font, BaseRoomType room)
@@ -782,49 +768,38 @@ namespace DuskAndDawn
             bool maxed = level >= MaxRoomLevel;
             float hover = button.HoverAmount;
 
-            int index = Array.IndexOf(UpperFloorRooms, room) >= 0 ? Array.IndexOf(UpperFloorRooms, room) : 3 + Array.IndexOf(GroundFloorRooms, room);
-            float intro = Anim.Stagger(_elapsed, index, step: 0.07f, baseDelay: 0.05f, duration: 0.4f);
+            float intro = RoomIntro(room);
             if (intro <= 0.001f) return;
-            float pop = MathHelper.Lerp(0.88f, 1f, UITheme.EaseOutBack(intro));
-            var bounds = Anim.Scale(button.Bounds, pop);
-            bounds = new RectangleF(bounds.X, bounds.Y - hover * 4f, bounds.Width, bounds.Height);
-
-            float flicker = 1f + 0.06f * MathF.Sin(_elapsed * 6.1f + index) + 0.04f * MathF.Sin(_elapsed * 11.3f + index * 2f);
-            var center = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y + bounds.Height / 2f);
-            UITheme.DrawGlow(spriteBatch, center, bounds.Width * (0.55f + level * 0.05f), new Color(255, 170, 90) * ((0.06f + level * 0.035f) * flicker * intro));
-
-            Color trim = maxed ? new Color(90, 170, 110) : new Color(24, 20, 22);
-            trim = Color.Lerp(trim, new Color(230, 110, 55), hover);
-            UITheme.DrawFrame(spriteBatch, new RectangleF(bounds.X - 8, bounds.Y - 8, bounds.Width + 16, bounds.Height + 16), UIFrame.Wood, trim, shadow: 0.6f);
+            var bounds = button.Bounds;
 
             var art = Game1.GetRoomSprite(room, level);
             if (art != null)
             {
-                UITheme.DrawPixelArt(spriteBatch, art, bounds);
+                UITheme.DrawPixelArt(spriteBatch, art, bounds, tint: Color.White * intro);
             }
             else
             {
-                UITheme.FillGradientRect(spriteBatch, bounds, new Color(70, 64, 68), new Color(40, 36, 40));
+                UITheme.FillGradientRect(spriteBatch, bounds, new Color(70, 64, 68) * intro, new Color(40, 36, 40) * intro);
             }
             spriteBatch.FillRectangle(bounds, new Color(255, 190, 120) * (0.07f * hover));
 
-            UITheme.FillGradientRect(spriteBatch, new RectangleF(bounds.X, bounds.Y, bounds.Width, 66f), Color.Black * 0.6f, Color.Transparent, 22);
+            UITheme.FillGradientRect(spriteBatch, new RectangleF(bounds.X, bounds.Y, bounds.Width, 66f), Color.Black * (0.6f * intro), Color.Transparent, 22);
 
-            UITheme.DrawTextWithShadow(spriteBatch, font, room.ToString(), new Vector2(bounds.X + 12, bounds.Y + 10), Color.White);
-            UITheme.DrawTextWithShadow(spriteBatch, font, TileSummary(room), new Vector2(bounds.X + 12, bounds.Y + 38), new Color(235, 200, 160), 0.8f);
+            UITheme.DrawTextWithShadow(spriteBatch, font, room.ToString(), new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * intro, shadowAlpha: 0.45f * intro);
+            UITheme.DrawTextWithShadow(spriteBatch, font, TileSummary(room), new Vector2(bounds.X + 12, bounds.Y + 38), new Color(235, 200, 160) * intro, 0.8f, shadowAlpha: 0.45f * intro);
 
             for (int pip = 0; pip < MaxRoomLevel; pip++)
             {
                 var pipCenter = new Vector2(bounds.Right - 18 - (MaxRoomLevel - 1 - pip) * 14, bounds.Y + 20);
                 if (pip < level)
                 {
-                    UITheme.DrawGlow(spriteBatch, pipCenter, 10f, new Color(255, 190, 90) * 0.6f);
-                    UITheme.FillCircle(spriteBatch, pipCenter, 4.5f, new Color(255, 205, 120));
+                    UITheme.DrawGlow(spriteBatch, pipCenter, 10f, new Color(255, 190, 90) * (0.6f * intro));
+                    UITheme.FillCircle(spriteBatch, pipCenter, 4.5f, new Color(255, 205, 120) * intro);
                 }
                 else
                 {
-                    UITheme.FillCircle(spriteBatch, pipCenter, 5.5f, Color.Black * 0.6f);
-                    UITheme.FillCircle(spriteBatch, pipCenter, 3.5f, new Color(110, 100, 96));
+                    UITheme.FillCircle(spriteBatch, pipCenter, 5.5f, Color.Black * (0.6f * intro));
+                    UITheme.FillCircle(spriteBatch, pipCenter, 3.5f, new Color(110, 100, 96) * intro);
                 }
             }
 
@@ -844,12 +819,18 @@ namespace DuskAndDawn
             const float chipScale = 0.85f, chipSpacing = 12f;
             float chipTextWidth = chipText.Sum(part => UITheme.MeasureString(font, part.text).X * chipScale) + chipSpacing * (chipText.Count - 1);
             var chip = new RectangleF(bounds.X + 8, bounds.Bottom - 36, chipTextWidth + 20, 28);
-            UITheme.FillRoundedRect(spriteBatch, chip, Color.Black * 0.62f, 8f);
+            UITheme.FillRoundedRect(spriteBatch, chip, Color.Black * (0.62f * intro), 8f);
             float textX = chip.X + 10;
             foreach (var (text, color) in chipText)
             {
-                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(textX, chip.Y + 4), color, chipScale);
+                UITheme.DrawTextWithShadow(spriteBatch, font, text, new Vector2(textX, chip.Y + 4), color * intro, chipScale, shadowAlpha: 0.45f * intro);
                 textX += UITheme.MeasureString(font, text).X * chipScale + chipSpacing;
+            }
+
+            Color outline = Color.Lerp(maxed ? new Color(90, 170, 110) : Color.Transparent, new Color(255, 150, 70), hover);
+            if (outline.A > 0)
+            {
+                UITheme.DrawFrameOutline(spriteBatch, new RectangleF(bounds.X - 5, bounds.Y - 5, bounds.Width + 10, bounds.Height + 10), UIFrame.Rect, outline * intro);
             }
         }
 
@@ -1096,7 +1077,7 @@ namespace DuskAndDawn
         {
             if (string.IsNullOrEmpty(_statusLog)) return;
 
-            var position = new Vector2(180, GroundRowY + _roomHeight + 18);
+            var position = new Vector2(180, AllRooms.Max(room => _roomButtons[room].Bounds.Bottom) + 18);
             var textSize = UITheme.MeasureString(font, _statusLog);
             var chip = new RectangleF(position.X - 14, position.Y - 8, textSize.X + 28, textSize.Y + 16);
 

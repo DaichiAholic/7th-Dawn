@@ -52,11 +52,12 @@ namespace DuskAndDawn
             {
                 bool fighting = _state == ExplorationState.Encounter;
                 DrawThroneHall(spriteBatch, totalSeconds, herald: !fighting && _collapseTimer < 0f);
-                if (fighting) spriteBatch.FillRectangle(new RectangleF(0, 0, 1280, 720), FightPalette.Black * 0.7f);
+                if (fighting) spriteBatch.FillRectangle(new RectangleF(0, 0, 1280, 720), FightPalette.Black * 0.45f);
             }
             else
             {
                 Backdrop.Sky(spriteBatch, Themed(new Color(16, 15, 28), new Color(22, 19, 18)), Themed(new Color(4, 4, 8), FightPalette.Black));
+                if (CombatDark > 0.001f) Backdrop.Scene(spriteBatch, Game1.FightBackdrop, Color.White * CombatDark);
                 DrawEmbers(spriteBatch);
                 Backdrop.Vignette(spriteBatch, FightPalette.Black, 1.5f * CombatDark);
             }

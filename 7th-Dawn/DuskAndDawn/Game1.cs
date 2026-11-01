@@ -41,6 +41,16 @@ namespace DuskAndDawn
         public Texture2D BreadTexture { get; private set; }
         public Texture2D PlanksTexture { get; private set; }
         public Texture2D ScrapsTexture { get; private set; }
+        public Texture2D BaseBackdrop { get; private set; }
+        public Texture2D MapBackdrop { get; private set; }
+        public Texture2D FightBackdrop { get; private set; }
+        public Texture2D BossFightBackdrop { get; private set; }
+
+        private const int IntroArtCount = 7;
+        private readonly List<Texture2D> _introArt = new List<Texture2D>();
+
+        public Texture2D GetIntroArt(int slide) =>
+            slide >= 0 && slide < _introArt.Count ? _introArt[slide] : null;
 
         private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance", "Dawnbreaker", "WarMaul" };
 
@@ -136,6 +146,14 @@ namespace DuskAndDawn
             BreadTexture = Content.Load<Texture2D>("Bread");
             PlanksTexture = Content.Load<Texture2D>("Planks");
             ScrapsTexture = Content.Load<Texture2D>("Scraps");
+            BaseBackdrop = Content.Load<Texture2D>("Backgrounds/Base_bg");
+            MapBackdrop = Content.Load<Texture2D>("Backgrounds/MAP_bg");
+            FightBackdrop = Content.Load<Texture2D>("Backgrounds/Fight_Screen");
+            BossFightBackdrop = Content.Load<Texture2D>("Backgrounds/Boss_Fight_Screen");
+            for (int i = 1; i <= IntroArtCount; i++)
+            {
+                _introArt.Add(Content.Load<Texture2D>($"Intro/Intro_{i}"));
+            }
 
             foreach (var iconName in WeaponIconNames)
             {

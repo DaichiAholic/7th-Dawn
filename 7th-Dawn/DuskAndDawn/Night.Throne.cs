@@ -82,58 +82,13 @@ namespace DuskAndDawn
 
         private void DrawThroneHall(SpriteBatch spriteBatch, float totalSeconds, bool herald)
         {
-            var center = new Vector2(640, 300);
+            var center = new Vector2(640, 270);
             float pulse = UITheme.PulseSine(totalSeconds, 0.7f);
             float introLight = _state == ExplorationState.Map ? Anim.Intro(_throneTime, 0f, 2.2f) : 1f;
 
-            Backdrop.Sky(spriteBatch, new Color(22, 14, 18), new Color(6, 4, 6));
-            UITheme.DrawGlow(spriteBatch, center, 520f, new Color(255, 190, 100) * ((0.28f + pulse * 0.06f) * introLight));
-            Backdrop.DrawRays(spriteBatch, center + new Vector2(0, 40), 760f, new Color(255, 214, 150) * (0.5f * introLight), totalSeconds * 0.6f, 13);
-
-            for (float y = 400; y < 720; y += 4)
-            {
-                float t = (y - 400) / 320f;
-                float half = MathHelper.Lerp(38, 190, t);
-                spriteBatch.FillRectangle(new RectangleF(640 - half, y, half * 2, 4.5f), Color.Lerp(new Color(110, 26, 30), new Color(52, 10, 14), t));
-            }
-
-            for (int step = 0; step < 3; step++)
-            {
-                float w = 240 + step * 70, y = 382 + step * 12;
-                spriteBatch.FillRectangle(new RectangleF(640 - w / 2f, y, w, 13), Color.Lerp(new Color(70, 52, 40), new Color(40, 28, 24), step / 2f));
-            }
-            var back = new RectangleF(582, 150, 116, 235);
-            UITheme.FillRoundedRectGradient(spriteBatch, back, new Color(120, 90, 50), new Color(60, 40, 26), 18f, 8);
-            UITheme.FillCircle(spriteBatch, new Vector2(640, 168), 30f, new Color(230, 190, 110));
-            UITheme.FillCircle(spriteBatch, new Vector2(640, 168), 22f, new Color(255, 230, 170));
-
-            for (int i = 3; i >= 0; i--)
-            {
-                float offset = 150 + i * 125, width = 26 + i * 16;
-                float top = 90 - i * 40, bottom = 470 + i * 70;
-                Color stone = Color.Lerp(new Color(64, 48, 44), new Color(20, 14, 16), i / 3f);
-                foreach (int side in new[] { -1, 1 })
-                {
-                    float x = 640 + side * offset - width / 2f;
-                    spriteBatch.FillRectangle(new RectangleF(x, top, width, bottom - top), stone);
-                    float litX = side < 0 ? x + width - 4 : x;
-                    spriteBatch.FillRectangle(new RectangleF(litX, top, 4, bottom - top), new Color(255, 200, 120) * ((0.35f - i * 0.07f) * introLight));
-                }
-            }
-
-            var knight = Game1.GetEnemySprite(EnemyKind.Knight);
-            var penitent = Game1.GetEnemySprite(EnemyKind.Penitent);
-            Color silhouette = new Color(70, 55, 50);
-            if (knight != null)
-            {
-                UITheme.DrawPixelIconFit(spriteBatch, knight, new Vector2(460, 330), 150f, silhouette);
-                UITheme.DrawPixelIconFit(spriteBatch, knight, new Vector2(820, 330), 150f, silhouette);
-            }
-            if (penitent != null)
-            {
-                UITheme.DrawPixelIconFit(spriteBatch, penitent, new Vector2(330, 520), 170f, silhouette * 0.9f);
-                UITheme.DrawPixelIconFit(spriteBatch, penitent, new Vector2(950, 520), 170f, silhouette * 0.9f);
-            }
+            Backdrop.Scene(spriteBatch, Game1.BossFightBackdrop, Color.White * MathHelper.Lerp(0.3f, 1f, introLight));
+            UITheme.DrawGlow(spriteBatch, center, 520f, new Color(255, 190, 100) * ((0.2f + pulse * 0.05f) * introLight));
+            Backdrop.DrawRays(spriteBatch, center + new Vector2(0, 40), 760f, new Color(255, 214, 150) * (0.35f * introLight), totalSeconds * 0.6f, 13);
 
             var sprite = Game1.GetEnemySprite(EnemyKind.Herald);
             if (herald && sprite != null)
