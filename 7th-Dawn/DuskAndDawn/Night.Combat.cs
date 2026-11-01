@@ -51,7 +51,8 @@ namespace DuskAndDawn
         private float _pendingPlayerHitDelay = -1f;
         private string _pendingEnemyReplyText = "";
         private float _pendingEnemySoundDelay = -1f;
-        private readonly List<Sfx> _pendingEnemySounds = new List<Sfx>();
+        private readonly List<(Sfx sound, float pitch)> _pendingEnemySounds = new List<(Sfx, float)>();
+        private const float BigHitPitch = -0.2f;
 
         private const int PlayerHpBarScreenScale = 4;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
@@ -361,7 +362,7 @@ namespace DuskAndDawn
         private void PlayPendingEnemySounds()
         {
             _pendingEnemySoundDelay = -1f;
-            foreach (var sound in _pendingEnemySounds) Sound.Play(sound);
+            foreach (var (sound, pitch) in _pendingEnemySounds) Sound.Play(sound, pitch);
             _pendingEnemySounds.Clear();
         }
 
@@ -378,7 +379,7 @@ namespace DuskAndDawn
 
             foreach (var (enemy, action) in _activeCombat.LastEnemyActions)
             {
-                if (EnemyActionSound(enemy, action) is Sfx sound) _pendingEnemySounds.Add(sound);
+                if (EnemyActionSound(enemy, action) is Sfx sound) _pendingEnemySounds.Add((sound, action is IntentType.Heavy or IntentType.Flare ? BigHitPitch : 0f));
             }
             if (_pendingEnemySounds.Count > 0) _pendingEnemySoundDelay = EnemyCounterDelay * AnimScale;
 

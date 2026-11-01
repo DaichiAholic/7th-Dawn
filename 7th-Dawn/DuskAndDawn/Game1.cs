@@ -344,6 +344,7 @@ namespace DuskAndDawn
 
             base.Update(gameTime);
             Sound.PlayMusic(IsCombatShowing ? Music.Combat : Music.Ambiance);
+            Sound.Update(dt);
         }
 
         protected override void Draw(GameTime gameTime)
