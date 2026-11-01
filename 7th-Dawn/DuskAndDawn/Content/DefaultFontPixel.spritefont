@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DefaultFont.ttf (Minecraft) at its native size: its outlines sit on a 1/16 em grid, and sizes
+  here are points at 96 DPI, so 12 (= 16px) puts every glyph edge on a texel edge with no
+  anti-aliasing. UITheme.DrawPixelText draws it with point sampling at a whole number of screen
+  pixels per texel, which keeps big titles sharp instead of stretching the 18pt font.
+-->
+<XnaContent xmlns:Graphics="Microsoft.Xna.Framework.Content.Pipeline.Graphics">
+  <Asset Type="Graphics:FontDescription">
+    <FontName>DefaultFont.ttf</FontName>
+    <Size>12</Size>
+    <Spacing>0</Spacing>
+    <UseKerning>false</UseKerning>
+    <Style>Regular</Style>
+    <CharacterRegions>
+      <CharacterRegion>
+        <Start>&#32;</Start>
+        <End>&#126;</End>
+      </CharacterRegion>
+    </CharacterRegions>
+  </Asset>
+</XnaContent>

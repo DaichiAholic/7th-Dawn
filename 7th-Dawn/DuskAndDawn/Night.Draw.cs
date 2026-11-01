@@ -468,48 +468,30 @@ namespace DuskAndDawn
             }
         }
 
+        private const float RoomIconScale = 2f / Game1.RenderScale;
+
         private void DrawRoomIcon(SpriteBatch spriteBatch, MapNode node, Vector2 c, float alpha, float totalSeconds)
         {
+            var icon = Game1.GetRoomIcon(node.Type);
+            if (icon != null)
+            {
+                var offset = Vector2.Zero;
+                if (node.Type == RoomType.Encounter)
+                {
+                    float menace = UITheme.PulseSine(totalSeconds + node.Phase, 2.2f);
+                    UITheme.DrawGlow(spriteBatch, c, 30f, new Color(255, 60, 40) * ((0.35f + menace * 0.25f) * alpha));
+                }
+                else if (node.Type == RoomType.Special)
+                {
+                    UITheme.DrawGlow(spriteBatch, c, 28f, new Color(170, 110, 255) * (0.8f * alpha));
+                    offset.Y = MathF.Sin((totalSeconds + node.Phase) * 3f) * 2f;
+                }
+                UITheme.DrawPixelIcon(spriteBatch, icon, c + offset - new Vector2(icon.Width, icon.Height) * (RoomIconScale / 2f), RoomIconScale, Color.White * alpha);
+                return;
+            }
+
             switch (node.Type)
             {
-                case RoomType.Supplies:
-                    {
-                        var box = new RectangleF(c.X - 15, c.Y - 12, 30, 24);
-                        UITheme.FillRoundedRect(spriteBatch, box, new Color(170, 124, 70) * alpha, 3f);
-                        spriteBatch.DrawRectangle(box, new Color(90, 60, 30) * alpha, 2f);
-                        spriteBatch.DrawLine(new Vector2(box.Left + 2, box.Top + 2), new Vector2(box.Right - 2, box.Bottom - 2), new Color(110, 76, 40) * alpha, 2f);
-                        spriteBatch.DrawLine(new Vector2(box.Right - 2, box.Top + 2), new Vector2(box.Left + 2, box.Bottom - 2), new Color(110, 76, 40) * alpha, 2f);
-                        break;
-                    }
-
-                case RoomType.Encounter:
-                    {
-                        float cycle = (totalSeconds + node.Phase * 1.7f) % 4.2f;
-                        bool blinking = cycle < 0.14f;
-                        var eyeColor = new Color(255, 80, 60) * alpha;
-                        foreach (float offset in new[] { -9f, 9f })
-                        {
-                            var eye = c + new Vector2(offset, 0f);
-                            UITheme.DrawGlow(spriteBatch, eye, 16f, new Color(255, 60, 40) * (0.9f * alpha));
-                            if (blinking)
-                                spriteBatch.FillRectangle(new RectangleF(eye.X - 5, eye.Y - 1, 10, 2), eyeColor);
-                            else
-                                UITheme.FillCircle(spriteBatch, eye, 4.5f, eyeColor);
-                        }
-                        break;
-                    }
-
-                case RoomType.Special:
-                    {
-                        float s = 12f + UITheme.PulseSine(totalSeconds + node.Phase, 2.5f) * 4f;
-                        var sparkle = new Color(230, 200, 255) * alpha;
-                        UITheme.DrawGlow(spriteBatch, c, 28f, new Color(170, 110, 255) * (0.8f * alpha));
-                        spriteBatch.DrawLine(c - new Vector2(0, s), c + new Vector2(0, s), sparkle, 2.5f);
-                        spriteBatch.DrawLine(c - new Vector2(s, 0), c + new Vector2(s, 0), sparkle, 2.5f);
-                        UITheme.FillCircle(spriteBatch, c, 4f, Color.White * alpha);
-                        break;
-                    }
-
                 case RoomType.Hoard when node.HasBoss:
                     {
                         float glow = UITheme.PulseSine(totalSeconds + node.Phase, 2f);
@@ -542,15 +524,6 @@ namespace DuskAndDawn
                         UITheme.FillCircle(spriteBatch, c + new Vector2(0, -6), 10f, new Color(12, 12, 18) * alpha);
                         spriteBatch.FillRectangle(door, new Color(12, 12, 18) * alpha);
                         spriteBatch.DrawLine(new Vector2(door.Left - 2, door.Bottom), new Vector2(door.Right + 2, door.Bottom), new Color(160, 170, 200) * alpha, 2f);
-                        break;
-                    }
-
-                default:
-                    {
-                        var stone = new Color(120, 120, 135) * alpha;
-                        UITheme.FillCircle(spriteBatch, c + new Vector2(-9, 5), 3.5f, stone);
-                        UITheme.FillCircle(spriteBatch, c + new Vector2(4, 8), 2.5f, stone);
-                        UITheme.FillCircle(spriteBatch, c + new Vector2(8, -6), 3f, stone);
                         break;
                     }
             }

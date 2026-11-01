@@ -52,6 +52,18 @@ namespace DuskAndDawn
         public Texture2D GetIntroArt(int slide) =>
             slide >= 0 && slide < _introArt.Count ? _introArt[slide] : null;
 
+        private static readonly Dictionary<RoomType, string> RoomIconNames = new Dictionary<RoomType, string>
+        {
+            [RoomType.Supplies] = "Supplies",
+            [RoomType.Encounter] = "Enemy",
+            [RoomType.Special] = "Event",
+            [RoomType.Empty] = "Quiet hallway"
+        };
+        private readonly Dictionary<RoomType, Texture2D> _roomIcons = new Dictionary<RoomType, Texture2D>();
+
+        public Texture2D GetRoomIcon(RoomType type) =>
+            _roomIcons.TryGetValue(type, out var icon) ? icon : null;
+
         private static readonly string[] WeaponIconNames = { "Axe", "Cleaver", "Club", "Dagger", "RustyKnife", "IronSword", "HolyLance", "Dawnbreaker", "WarMaul" };
 
         private readonly Dictionary<District, Texture2D> _districtIcons = new Dictionary<District, Texture2D>();
@@ -129,6 +141,10 @@ namespace DuskAndDawn
             hiResFont.Spacing = Font.Spacing * RenderScale;
             UITheme.RegisterHiResFont(Font, hiResFont);
 
+            var pixelFont = Content.Load<SpriteFont>("DefaultFontPixel");
+            pixelFont.Spacing = 2f;
+            UITheme.RegisterPixelFont(pixelFont);
+
             HpBarFrame = Content.Load<Texture2D>("UI/HpBarFrame");
             HpBarGauge = Content.Load<Texture2D>("UI/HpBarGauge");
             HopeBarFrame = Content.Load<Texture2D>("UI/HopeBarFrame");
@@ -153,6 +169,10 @@ namespace DuskAndDawn
             for (int i = 1; i <= IntroArtCount; i++)
             {
                 _introArt.Add(Content.Load<Texture2D>($"Intro/Intro_{i}"));
+            }
+            foreach (var (type, iconName) in RoomIconNames)
+            {
+                _roomIcons[type] = Content.Load<Texture2D>("Dungeon/" + iconName);
             }
 
             foreach (var iconName in WeaponIconNames)

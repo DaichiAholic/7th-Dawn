@@ -160,7 +160,10 @@ namespace DuskAndDawn
 
         public int FeastHope => Level(BaseRoomType.Kitchen) >= 5 ? 22 : 15;
 
+        public int FeastHealth => Level(BaseRoomType.Kitchen) >= 5 ? 30 : 20;
+
         public const int BaseUpkeep = 3;
+        public const int UpgradesPerUpkeep = 2;
         public const int HungerBaseHope = 10;
         public const int HungerHopePerFood = 4;
         public const int HungerStreakHope = 5;
@@ -175,7 +178,7 @@ namespace DuskAndDawn
             UpkeepFor(UpgradesBought + 1, Level(BaseRoomType.Kitchen) + (room == BaseRoomType.Kitchen ? 1 : 0));
 
         private static int UpkeepFor(int upgrades, int kitchenLevel) =>
-            Math.Max(BaseUpkeep, BaseUpkeep + upgrades - (kitchenLevel >= 4 ? 2 : 0));
+            Math.Max(BaseUpkeep, BaseUpkeep + upgrades / UpgradesPerUpkeep - (kitchenLevel >= 4 ? 2 : 0));
 
         public (int eaten, int shortfall, int hopeLost) EatUpkeep()
         {
@@ -218,7 +221,9 @@ namespace DuskAndDawn
             _ => (4, 9, 38)
         };
 
-        public int NightMaxHealth => 100 + (Level(BaseRoomType.Infirmary) >= 4 ? 20 : 0) + (Level(BaseRoomType.Infirmary) >= 5 ? 20 : 0);
+        public int NightMaxHealth => 100 + 10 * (Level(BaseRoomType.Infirmary) - 1);
+
+        public int NightHealthTonight => NightMaxHealth + (FeastUsedToday ? FeastHealth : 0);
 
         public float RemedyPotency => Level(BaseRoomType.Infirmary) >= 5 ? 1.5f : 1f;
 
@@ -231,6 +236,8 @@ namespace DuskAndDawn
         public int ArchiveRevealDepth => Math.Min(2, Level(BaseRoomType.Archive) - 1);
 
         public bool ArchiveBestiary => Level(BaseRoomType.Archive) >= 4;
+
+        public const int BestiaryHeraldBonus = 25;
 
         public int ArchiveExtraNightMinutes => Level(BaseRoomType.Archive) >= 5 ? 60 : 0;
 

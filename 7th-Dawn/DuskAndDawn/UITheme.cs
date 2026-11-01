@@ -160,6 +160,10 @@ namespace DuskAndDawn
             _hiResFont = hiResFont;
         }
 
+        private static SpriteFont _pixelFont;
+
+        public static void RegisterPixelFont(SpriteFont pixelFont) => _pixelFont = pixelFont;
+
         private static bool HasHiRes(SpriteFont font) => _hiResFont != null && font == _baseFont && RenderScale != 1f;
 
         public static Vector2 MeasureString(SpriteFont font, string text) =>
@@ -428,6 +432,23 @@ namespace DuskAndDawn
             var slot = new RectangleF(topLeft.X - 4, topLeft.Y - 4, size + 8, size + 8);
             FillRoundedRect(spriteBatch, slot, Color.Black * 0.35f, 8f);
             if (texture != null) DrawPixelIcon(spriteBatch, texture, topLeft, size / texture.Width, tint);
+        }
+
+        public static Vector2 MeasurePixelText(string text, int pixelSize) =>
+            _pixelFont == null ? Vector2.Zero : _pixelFont.MeasureString(text) * (pixelSize / RenderScale);
+
+        public static void DrawPixelText(SpriteBatch spriteBatch, string text, Vector2 position, Color color, int pixelSize, float shadowAlpha = 0.45f)
+        {
+            if (_pixelFont == null) return;
+            float scale = pixelSize / RenderScale;
+            var snapped = SnapToDevice(position);
+
+            spriteBatch.End();
+            BeginCanvas(spriteBatch, SamplerState.PointClamp);
+            spriteBatch.DrawString(_pixelFont, text, snapped + new Vector2(2f * scale), Color.Black * shadowAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_pixelFont, text, snapped, color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.End();
+            BeginCanvas(spriteBatch);
         }
 
         public static void DrawTextWithShadow(SpriteBatch spriteBatch, SpriteFont font, string text, Vector2 position, Color color, float scale = 1f, float shadowAlpha = 0.45f)

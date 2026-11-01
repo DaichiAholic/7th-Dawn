@@ -171,7 +171,7 @@ namespace DuskAndDawn
                 {
                     state.FeastUsedToday = true;
                     state.ChangeHope(state.FeastHope);
-                    return $"The house shares a feast. Hope +{state.FeastHope}.";
+                    return $"The house shares a feast. Hope +{state.FeastHope}, and you go out well fed: +{state.FeastHealth} health tonight.";
                 },
                 state =>
                 {
@@ -179,7 +179,7 @@ namespace DuskAndDawn
                     if (state.Hope >= PlayerState.MaxHope) return "Hope is already full.";
                     return null;
                 },
-                dynamicDetail: state => $"+{state.FeastHope} Hope, once per day")
+                dynamicDetail: state => $"+{state.FeastHope} Hope, +{state.FeastHealth} health tonight")
         };
 
         private readonly Dictionary<BaseRoomType, Button> _roomButtons = new Dictionary<BaseRoomType, Button>();
@@ -629,17 +629,17 @@ namespace DuskAndDawn
             (BaseRoomType.Workshop, 4) => "Whetstone - +1 damage on every hit; reinforce to +4",
             (BaseRoomType.Workshop, _) => "Dawnbreaker, the Herald-killer; reinforce to +5",
 
-            (BaseRoomType.Infirmary, 1) => "Bandages",
-            (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks",
-            (BaseRoomType.Infirmary, 3) => "Elixirs and Dawn Tinctures",
-            (BaseRoomType.Infirmary, 4) => "Holy Water; field kit - 120 health at night",
+            (BaseRoomType.Infirmary, 1) => "Bandages; 100 health at night",
+            (BaseRoomType.Infirmary, 2) => "Tonics and Smoke Flasks; 110 health at night",
+            (BaseRoomType.Infirmary, 3) => "Elixirs and Dawn Tinctures; 120 health at night",
+            (BaseRoomType.Infirmary, 4) => "Holy Water; field kit - 130 health at night",
             (BaseRoomType.Infirmary, _) => "Surgeon's hands - heals +50%; 140 health at night",
 
             (BaseRoomType.Kitchen, 1) => "+3 Food each morning",
             (BaseRoomType.Kitchen, 2) => "+6 Food each morning; Rations",
-            (BaseRoomType.Kitchen, 3) => "+9 Food each morning; Feast (+15 Hope)",
+            (BaseRoomType.Kitchen, 3) => "+9 Food each morning; Feast (+15 Hope, +20 health tonight)",
             (BaseRoomType.Kitchen, 4) => "+11 Food; smokehouse - upkeep 2 Food less",
-            (BaseRoomType.Kitchen, _) => "+13 Food; grand feast - Feast gives +22 Hope",
+            (BaseRoomType.Kitchen, _) => "+13 Food; grand feast - +22 Hope, +30 health tonight",
 
             (BaseRoomType.Barrack, 1) => "1 auto-reroll per fight",
             (BaseRoomType.Barrack, 2) => "2 rerolls per fight, dice never roll a 1",
@@ -650,7 +650,7 @@ namespace DuskAndDawn
             (BaseRoomType.Archive, 1) => "Village Outskirts",
             (BaseRoomType.Archive, 2) => "+ Church Ruins; scout 1 room ahead",
             (BaseRoomType.Archive, 3) => "+ Castle Keep; scout 2 rooms ahead",
-            (BaseRoomType.Archive, 4) => "Bestiary - see what's in scouted enemy rooms",
+            (BaseRoomType.Archive, 4) => "Bestiary - see scouted enemies; +25% damage to the Herald",
             (BaseRoomType.Archive, _) => "Old roads - an extra hour before dawn",
 
             _ => ""
@@ -661,7 +661,7 @@ namespace DuskAndDawn
             BaseRoomType.Storage => $"Holds {_playerState.StorageCap}, belt {_playerState.BeltSlots}",
             BaseRoomType.Workshop => _playerState.WorkshopEdge > 0 ? $"Reinforce to +{_playerState.MaxReinforcement}, whetstone" : $"Reinforce to +{_playerState.MaxReinforcement}",
             BaseRoomType.Infirmary => $"{_playerState.NightMaxHealth} health at night",
-            BaseRoomType.Kitchen => $"+{_playerState.KitchenDailyFood} Food per morning",
+            BaseRoomType.Kitchen => _playerState.FeastUsedToday ? $"+{_playerState.KitchenDailyFood} Food, well fed tonight" : $"+{_playerState.KitchenDailyFood} Food per morning",
             BaseRoomType.Barrack => $"{_playerState.BarracksRerolls} reroll(s) per fight",
             BaseRoomType.Archive => $"{DistrictInfo.Scavenging.Count(_playerState.ArchiveReaches)} district(s) open",
             _ => ""
@@ -671,18 +671,18 @@ namespace DuskAndDawn
         {
             BaseRoomType.Archive when newLevel == 2 => "Church Ruins is now open.",
             BaseRoomType.Archive when newLevel == 3 => "Castle Keep is now open.",
-            BaseRoomType.Archive when newLevel == 4 => "Scouted enemy rooms now show who's inside.",
+            BaseRoomType.Archive when newLevel == 4 => "Scouted enemy rooms now show who's inside, and you know where the Sun Herald is weak: +25% damage to him.",
             BaseRoomType.Archive => "Nights last an hour longer.",
             BaseRoomType.Workshop when newLevel == 4 => "Whetstone: +1 damage on every hit.",
             BaseRoomType.Workshop when newLevel == 5 => "Dawnbreaker unlocked.",
             BaseRoomType.Workshop => "New weapons, and reinforcing goes one level higher.",
-            BaseRoomType.Infirmary when newLevel == 4 => "Holy Water unlocked, and 120 health at night.",
+            BaseRoomType.Infirmary when newLevel == 4 => "Holy Water unlocked, and 130 health at night.",
             BaseRoomType.Infirmary when newLevel == 5 => "Remedies heal 50% more, and 140 health at night.",
-            BaseRoomType.Infirmary => "New recipes unlocked.",
+            BaseRoomType.Infirmary => "New recipes, and 10 more health at night.",
             BaseRoomType.Kitchen when newLevel == 2 => "Rations unlocked.",
-            BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked.",
+            BaseRoomType.Kitchen when newLevel == 3 => "Feast unlocked - it lifts Hope and sends you out well fed.",
             BaseRoomType.Kitchen when newLevel == 4 => "The smokehouse cuts upkeep by 2 Food.",
-            BaseRoomType.Kitchen when newLevel == 5 => "Feasts now give +22 Hope.",
+            BaseRoomType.Kitchen when newLevel == 5 => "Feasts now give +22 Hope and +30 health.",
             BaseRoomType.Storage when newLevel == 2 => "One more belt slot.",
             BaseRoomType.Storage when newLevel == 3 => "One more belt slot, and packframes: grabbing a cache takes it all.",
             BaseRoomType.Storage when newLevel == 4 => "One more belt slot, and a root cellar: Food never spoils.",
@@ -873,7 +873,9 @@ namespace DuskAndDawn
                 int upkeepAfter = _playerState.UpkeepIfUpgraded(room);
                 float noteX = _upgradeButton.Bounds.X + _upgradeButton.Bounds.Width + 24;
                 UITheme.DrawTextWithShadow(spriteBatch, font, $"Upkeep {upkeep} -> {upkeepAfter} Food each morning", new Vector2(noteX, _upgradeButton.Bounds.Y + 2), new Color(235, 200, 160), 0.8f);
-                string upkeepNote = upkeepAfter < upkeep ? "The smokehouse stretches every meal." : "A bigger house has more mouths to feed.";
+                string upkeepNote = upkeepAfter < upkeep ? "The smokehouse stretches every meal."
+                    : upkeepAfter == upkeep ? "Every second upgrade adds a mouth to feed - not this one."
+                    : "A bigger house has more mouths to feed.";
                 UITheme.DrawTextWithShadow(spriteBatch, font, upkeepNote, new Vector2(noteX, _upgradeButton.Bounds.Y + 28), new Color(170, 165, 160), 0.7f);
             }
 

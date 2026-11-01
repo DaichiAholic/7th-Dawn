@@ -100,7 +100,7 @@ namespace DuskAndDawn
             _previousMouse = InputChecker.GetMouse();
             _previousKeyboard = Keyboard.GetState();
 
-            _playerState.MaxHealth = _playerState.NightMaxHealth;
+            _playerState.MaxHealth = _playerState.NightHealthTonight;
             _playerState.Health = _playerState.MaxHealth;
             _playerHealthBar = new LerpBar(_playerState.Health, _playerState.MaxHealth);
 

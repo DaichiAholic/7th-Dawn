@@ -469,7 +469,7 @@ namespace DuskAndDawn
                 Wrapped("- BRAND: burns for 3 turns. Guard blocks it; a healing remedy puts it out.", new Color(235, 200, 160), 0.62f);
                 Wrapped("- Calls his choir to fight beside him.", new Color(235, 200, 160), 0.62f);
                 Wrapped("- At half health he ascends and hits harder.", new Color(235, 200, 160), 0.62f);
-                Wrapped("Holy steel gets no bonus against him. The Dawnbreaker does.", new Color(200, 190, 210), 0.62f);
+                Wrapped("Holy steel gets no bonus against him. The Dawnbreaker does, and so does an Archive bestiary (Lv 4).", new Color(200, 190, 210), 0.62f);
                 Divider();
                 Wrapped("Win, and the seventh dawn is yours. Fall, and the run ends. There is no running.", new Color(255, 170, 150), 0.66f);
                 Divider();

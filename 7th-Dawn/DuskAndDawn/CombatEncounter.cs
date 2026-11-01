@@ -76,6 +76,7 @@ namespace DuskAndDawn
             string log = $"You roll {weapon.DiceLabel} with your {weapon.DisplayName} - {damage} damage to {target.Name}.";
             if (rerolled) log += " (Barracks reroll)";
             if (_playerState.WorkshopEdge > 0) log += " (whetstone)";
+            if (target.Kind == EnemyKind.Herald && _playerState.ArchiveBestiary) log += " (bestiary)";
             log += HitTarget(target, damage);
 
             ResolveEnemyTurn();
@@ -250,6 +251,10 @@ namespace DuskAndDawn
             if (weapon.Trait == WeaponTrait.Sunbane && target.Kind == EnemyKind.Herald)
             {
                 total = (int)MathF.Round(total * (1f + weapon.TraitPower / 100f));
+            }
+            if (_playerState.ArchiveBestiary && target.Kind == EnemyKind.Herald)
+            {
+                total = (int)MathF.Round(total * (1f + PlayerState.BestiaryHeraldBonus / 100f));
             }
             return total;
         }

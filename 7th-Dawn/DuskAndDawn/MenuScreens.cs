@@ -355,9 +355,10 @@ namespace DuskAndDawn
 
             float titleIn = Anim.Intro(Elapsed, 0.1f, 0.9f);
             float titleY = 130 - (1f - titleIn) * 30f + MathF.Sin(Elapsed * 1.1f) * 3f;
-            var titleSize = UITheme.MeasureString(font, "7th Dawn") * 3f;
+            const int titlePixel = 5;
+            var titleSize = UITheme.MeasurePixelText("7th Dawn", titlePixel);
             UITheme.DrawGlow(spriteBatch, new Vector2(640, titleY + titleSize.Y / 2f), titleSize.X * 0.75f, new Color(255, 140, 70) * (0.22f * titleIn * (0.8f + glow * 0.2f)));
-            DrawCenteredText(spriteBatch, font, "7th Dawn", titleY, new Color(255, 212, 160) * titleIn, 3f);
+            UITheme.DrawPixelText(spriteBatch, "7th Dawn", new Vector2(640 - titleSize.X / 2f, titleY), new Color(255, 212, 160) * titleIn, titlePixel, shadowAlpha: 0.45f * titleIn);
             float subIn = Anim.Intro(Elapsed, 0.45f, 0.7f);
             DrawCenteredText(spriteBatch, font, "Scavenge by night. Rebuild by day. Hold on to Hope.", 250 + (1f - subIn) * 10f, new Color(215, 195, 190) * subIn, 0.9f);
 
