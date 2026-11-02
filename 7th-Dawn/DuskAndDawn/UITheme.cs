@@ -403,7 +403,7 @@ namespace DuskAndDawn
             BeginCanvas(spriteBatch);
         }
 
-        public static void DrawPixelBar(SpriteBatch spriteBatch, Texture2D frame, Texture2D gauge, Vector2 topLeft, int screenScale, float ratio, Color? gaugeTint = null)
+        public static void DrawPixelBar(SpriteBatch spriteBatch, Texture2D frame, Texture2D gauge, Vector2 topLeft, int screenScale, float ratio, Color? gaugeTint = null, float alpha = 1f)
         {
             if (frame == null || gauge == null) return;
             const int GaugeInset = 3;
@@ -415,13 +415,13 @@ namespace DuskAndDawn
 
             spriteBatch.End();
             BeginCanvas(spriteBatch, SamplerState.PointClamp);
-            spriteBatch.Draw(gauge, position, null, Color.Black * 0.6f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(gauge, position, null, Color.Black * (0.6f * alpha), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             if (filled > 0)
             {
                 var source = new Rectangle(0, 0, GaugeInset + filled, gauge.Height);
-                spriteBatch.Draw(gauge, position, source, gaugeTint ?? Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.Draw(gauge, position, source, (gaugeTint ?? Color.White) * alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
-            spriteBatch.Draw(frame, position, null, Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(frame, position, null, Color.White * alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             spriteBatch.End();
             BeginCanvas(spriteBatch);
         }

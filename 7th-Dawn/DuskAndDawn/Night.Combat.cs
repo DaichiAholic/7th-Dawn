@@ -56,6 +56,8 @@ namespace DuskAndDawn
 
         private const int PlayerHpBarScreenScale = 4;
         private static readonly Vector2 PlayerHpBarPosition = new Vector2(40, 122);
+        private const int EnemyHpBarScreenScale = 4;
+        private const float TargetIconSize = 42f;
 
         private void StartEncounter(MapNode room)
         {

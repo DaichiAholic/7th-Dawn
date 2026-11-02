@@ -31,6 +31,8 @@ namespace DuskAndDawn
 
         public Texture2D HpBarFrame { get; private set; }
         public Texture2D HpBarGauge { get; private set; }
+        public Texture2D EnemyHpBarFrame { get; private set; }
+        public Texture2D TargetIcon { get; private set; }
         public Texture2D HopeBarFrame { get; private set; }
         public Texture2D HopeBarGauge { get; private set; }
         public Texture2D HopeIcon { get; private set; }
@@ -148,6 +150,8 @@ namespace DuskAndDawn
 
             HpBarFrame = Content.Load<Texture2D>("UI/HpBarFrame");
             HpBarGauge = Content.Load<Texture2D>("UI/HpBarGauge");
+            EnemyHpBarFrame = Content.Load<Texture2D>("UI/EnemyHpBarFrame");
+            TargetIcon = Content.Load<Texture2D>("UI/TargetIcon");
             HopeBarFrame = Content.Load<Texture2D>("UI/HopeBarFrame");
             HopeBarGauge = Content.Load<Texture2D>("UI/HopeBarGauge");
             HopeIcon = Content.Load<Texture2D>("UI/HopeIcon");

@@ -7,6 +7,7 @@ namespace DuskAndDawn
     public class LerpBar
     {
         private const float CatchUpSpeed = 4f;
+        private const float SnapDistance = 0.05f;
 
         public float DisplayedValue { get; private set; }
         public float MaxValue { get; }
@@ -22,6 +23,7 @@ namespace DuskAndDawn
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             float t = Math.Min(1f, CatchUpSpeed * dt);
             DisplayedValue = MathHelper.Lerp(DisplayedValue, targetValue, t);
+            if (Math.Abs(DisplayedValue - targetValue) < SnapDistance) DisplayedValue = targetValue;
         }
 
         public float Ratio => MaxValue <= 0 ? 0f : MathHelper.Clamp(DisplayedValue / MaxValue, 0f, 1f);

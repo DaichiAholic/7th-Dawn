@@ -860,27 +860,35 @@ namespace DuskAndDawn
             }
             float alpha = (fallen ? 0.35f : 1f) * intro;
             UITheme.DrawFrame(spriteBatch, bounds, UIFrame.Rect, border * alpha, alpha, shadow: 0.6f, surface: surface);
+            if (targeted)
+            {
+                float bob = MathF.Sin(totalSeconds * 3f) * 3f;
+                var marker = new Vector2(bounds.X + bounds.Width / 2f, bounds.Y - TargetIconSize / 2f - 8f + bob);
+                UITheme.DrawGlow(spriteBatch, marker, TargetIconSize, new Color(255, 70, 50) * ((0.3f + glow * 0.15f) * intro));
+                UITheme.DrawPixelIconFit(spriteBatch, Game1.TargetIcon, marker, TargetIconSize, Color.White * intro);
+            }
 
             float scale = UITheme.MeasureString(font, enemy.Name).X * 0.85f > bounds.Width - 24 ? 0.72f : 0.85f;
             UITheme.DrawTextWithShadow(spriteBatch, font, enemy.Name, new Vector2(bounds.X + 12, bounds.Y + 10), Color.White * alpha, scale);
-            string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : enemy.IsElite ? "ELITE" : targeted ? "TARGET" : null;
+            string tag = fallen ? "FALLEN" : enemy.IsBoss ? "BOSS" : enemy.IsElite ? "ELITE" : null;
             if (tag != null)
             {
-                Color tagColor = fallen ? FightPalette.Slate : enemy.IsBoss || enemy.IsElite ? new Color(255, 215, 110) : FightPalette.Mist;
+                Color tagColor = fallen ? FightPalette.Slate : new Color(255, 215, 110);
                 var tagSize = UITheme.MeasureString(font, tag) * 0.62f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, tag, new Vector2(bounds.Right - tagSize.X - 12, bounds.Y + 36), tagColor * intro, 0.62f);
             }
 
-            var track = new RectangleF(bounds.X + 12, bounds.Y + 56, bounds.Width - 24, 16);
             float ratio = _enemyBars.TryGetValue(enemy, out var bar) ? bar.Ratio : enemy.Health / (float)enemy.MaxHealth;
-            UITheme.FillRoundedRect(spriteBatch, track, Color.Black * (0.55f * alpha), 8f);
-            if (ratio > 0.01f)
-            {
-                UITheme.FillRoundedRectGradient(spriteBatch, new RectangleF(track.X, track.Y, track.Width * ratio, track.Height), new Color(230, 80, 70) * alpha, new Color(150, 30, 30) * alpha, 8f, 4);
-            }
+            var hpFrame = Game1.EnemyHpBarFrame;
+            float art = EnemyHpBarScreenScale / UITheme.RenderScale;
+            float barWidth = hpFrame != null ? hpFrame.Width * art : 0f;
+            float barHeight = hpFrame != null ? hpFrame.Height * art : 0f;
+            float barCenterY = bounds.Y + 58;
+            var barPosition = new Vector2(bounds.X + 12, barCenterY - barHeight / 2f);
+            UITheme.DrawPixelBar(spriteBatch, hpFrame, Game1.HpBarGauge, barPosition, EnemyHpBarScreenScale, ratio, alpha: alpha);
             string hp = $"{enemy.Health}/{enemy.MaxHealth}";
-            var hpSize = UITheme.MeasureString(font, hp) * 0.62f;
-            UITheme.DrawTextWithShadow(spriteBatch, font, hp, new Vector2(track.X + (track.Width - hpSize.X) / 2f, track.Y - 1), Color.White * alpha, 0.62f);
+            var hpSize = UITheme.MeasureString(font, hp) * 0.8f;
+            UITheme.DrawTextWithShadow(spriteBatch, font, hp, new Vector2(barPosition.X + barWidth + 10, barCenterY - hpSize.Y / 2f), Color.White * alpha, 0.8f);
 
             float breathe = fallen ? 0f : MathF.Sin(totalSeconds * 1.6f + enemy.MaxHealth) * 3f;
             var sprite = Game1.GetEnemySprite(enemy.Kind);
