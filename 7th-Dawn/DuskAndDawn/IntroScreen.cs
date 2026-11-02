@@ -72,8 +72,9 @@ namespace DuskAndDawn
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _time += dt;
             var keyboard = Keyboard.GetState();
+            var previousKeyboard = _previousKeyboard;
             var mouse = InputChecker.GetMouse();
-            bool Pressed(Keys key) => keyboard.IsKeyDown(key) && !_previousKeyboard.IsKeyDown(key);
+            bool Pressed(Keys key) => keyboard.IsKeyDown(key) && !previousKeyboard.IsKeyDown(key);
             bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
             bool advance = Pressed(Keys.Space) || (Pressed(Keys.Enter) && !alt) || Pressed(Keys.Z)
                 || (mouse.LeftButton == ButtonState.Released && _previousMouse.LeftButton == ButtonState.Pressed);
