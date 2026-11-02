@@ -327,7 +327,8 @@ namespace DuskAndDawn
 
             if (gameplay)
             {
-                bool escPressed = keyboard.IsKeyDown(Keys.Escape) && !_previousKeyboard.IsKeyDown(Keys.Escape);
+                bool escSkipsIntro = _screenManager.ActiveScreen is NightScavengingScreen { InThroneIntro: true };
+                bool escPressed = !escSkipsIntro && keyboard.IsKeyDown(Keys.Escape) && !_previousKeyboard.IsKeyDown(Keys.Escape);
                 bool menuClicked = menuHovered && InputChecker.IsNewLeftClick(mouse, _previousMouse);
                 if (escPressed || menuClicked)
                 {

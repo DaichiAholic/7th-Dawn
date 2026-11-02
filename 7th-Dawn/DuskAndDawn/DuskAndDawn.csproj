@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!-- .NET 8 (LTS): builds with the .NET 8, 9 or 10 SDK, and runs on any newer runtime. -->

@@ -41,6 +41,7 @@ namespace DuskAndDawn
 
         private float ThroneIntroDone => ThroneTimeline().done;
         private bool ThroneReady => _throneRevealed || _throneTime >= ThroneIntroDone + 0.8f;
+        public bool InThroneIntro => _throneRoom && _state == ExplorationState.Map && _collapseTimer < 0f;
 
         private void InitializeThrone()
         {
@@ -56,15 +57,16 @@ namespace DuskAndDawn
 
             var keyboard = Keyboard.GetState();
             bool alt = keyboard.IsKeyDown(Keys.LeftAlt) || keyboard.IsKeyDown(Keys.RightAlt);
-            bool advance = clicked || keyPressed(Keys.Space) || (keyPressed(Keys.Enter) && !alt);
+            bool skip = keyPressed(Keys.Escape);
+            bool advance = skip || clicked || keyPressed(Keys.Space) || (keyPressed(Keys.Enter) && !alt);
             if (!advance || _leaving || ScreenTransitions.IsTransitioning) return;
 
-            if (!ready)
+            if (!ready && !skip)
             {
                 _throneRevealed = true;
                 return;
             }
-            if (clicked && !_approachButton.Contains(mouse.X, mouse.Y)) return;
+            if (clicked && !skip && !_approachButton.Contains(mouse.X, mouse.Y)) return;
 
             _approachButton.TriggerPress();
             _map.Hoard.Enemies = new List<Enemy> { EnemyRoster.SunHerald(_random) };
@@ -143,7 +145,7 @@ namespace DuskAndDawn
             }
             else
             {
-                const string skip = "Space: continue";
+                const string skip = "Space: continue    Esc: skip";
                 var size = UITheme.MeasureString(font, skip) * 0.58f;
                 UITheme.DrawTextWithShadow(spriteBatch, font, skip, new Vector2(1240 - size.X, 690), new Color(160, 150, 150) * 0.6f, 0.58f);
             }
